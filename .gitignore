@@ -235,3 +235,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+
+# Collection build output
+# ---------------------------------------------------
+build/
+
+
+# AI tools
+# ---------------------------------------------------
+openspec/

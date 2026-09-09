@@ -6,6 +6,10 @@ yaml-files:
 
 ignore:
   - node_modules
+  # collection build output: a rewritten copy of the tree, linted at its source
+  - build
+  # AI tool working directory, never committed
+  - openspec
 
 extends: default
 

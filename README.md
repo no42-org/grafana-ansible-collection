@@ -1,5 +1,11 @@
 # Ansible Collection for Grafana
 
+> **Fork notice.**
+> This is a fork of [grafana/grafana-ansible-collection](https://github.com/grafana/grafana-ansible-collection), published to Ansible Galaxy as [`indigo423.grafana`](https://galaxy.ansible.com/ui/repo/published/indigo423/grafana/).
+> Version numbers mirror upstream exactly.
+> The source tree keeps upstream's collection name and it is rewritten at build time, so merges from upstream stay conflict-free.
+> See [RELEASING.md](https://github.com/no42-org/grafana-ansible-collection/blob/main/RELEASING.md) for the release process.
+
 [![Grafana](https://img.shields.io/badge/grafana-%23F46800.svg?&logo=grafana&logoColor=white)](https://grafana.com)
 [![Ansible Collection](https://img.shields.io/badge/grafana.grafana-orange)](https://galaxy.ansible.com/ui/repo/published/grafana/grafana/)
 [![GitHub tag](https://img.shields.io/github/tag/grafana/grafana-ansible-collection.svg)](https://github.com/grafana/grafana-ansible-collection/tags)
