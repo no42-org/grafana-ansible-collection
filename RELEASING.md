@@ -99,11 +99,30 @@ done
 diff -rq -x MANIFEST.json -x FILES.json up/ ours/
 ```
 
-An empty diff proves the mirror.
 `MANIFEST.json` and `FILES.json` are per-build metadata and always differ.
 Upstream's tarball additionally ships repository scaffolding (`.github/`, `tools/`, `Makefile`, `Pipfile*`, `package.json`, `yarn.lock`, lint configs) that this fork's `build_ignore` excludes.
 
-This was run for 6.1.0 and produced zero content differences.
+Beyond those, this fork carries a known set of intentional differences.
+The rename itself contributes none: run against upstream's tree with only the rename applied, the diff is empty.
+As of 6.1.0 the deliberate divergences are:
+
+| File | Lines | Why |
+|---|---|---|
+| `README.md` | 6 | Fork notice |
+| `plugins/modules/user.py` | 28 | `ansible-test sanity` fixes |
+| `plugins/modules/cloud_stack.py` | 4 | `pep8` E501 |
+| `roles/grafana/tasks/install.yml` | 2 | `yamllint` colon spacing |
+| `roles/mimir/defaults/main.yml` | 1 | `yamllint` trailing blank line |
+
+Anything outside that table is a bug in the rename or an unintended edit, and the diff is how you find it.
+
+### Why the sanity fixes exist
+
+`ansible-test sanity` fails on upstream 6.1.0 with 3 of 34 tests red (`pep8`, `validate-modules`, `yamllint`), and those failures are inherited, not caused by the rename.
+The defects are real, not strictness artifacts: `plugins/modules/user.py` had an unterminated quote making `EXAMPLES` invalid YAML, an `orgid` parameter present in `argument_spec` but absent from the documentation, `state` choices that omitted the implemented `update_password`, and an author field that did not match the `Name (@handle)` form every other module in the collection uses.
+
+They are fixed here so `sanity` can stay a real blocking gate rather than being skipped or ignored.
+All four fixes are upstreamable and should be sent to `grafana/grafana-ansible-collection` as a pull request, after which the local divergence can be dropped on the next merge.
 
 ## Cutting a version whose upstream tag predates this pipeline
 
