@@ -190,7 +190,9 @@ def present_cloud_stack(module):
         if full_details:
             return False, True, full_details
         return False, True, stack
-    elif result.status_code in [409, 403] and result.json()['message'] in ["That URL has already been taken, please try an alternate URL", "Hosted instance limit reached"]:
+    elif result.status_code in [409, 403] and result.json()['message'] in [
+            "That URL has already been taken, please try an alternate URL",
+            "Hosted instance limit reached"]:
         stack_found = False
         if result.json()['message'] == "That URL has already been taken, please try an alternate URL":
             api_url = STACKS_API_BASE + '?org=' + module.params['org_slug']

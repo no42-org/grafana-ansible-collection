@@ -30,7 +30,7 @@
         description: grafana
         repo: "{{ grafana_yum_repo }}"
         enabled: true
-        disable_gpg_check : "{{ false if (grafana_yum_key) else omit }}"
+        disable_gpg_check: "{{ false if (grafana_yum_key) else omit }}"
         runrefresh: true
       when: "(not grafana_rhsm_repo)"
 
