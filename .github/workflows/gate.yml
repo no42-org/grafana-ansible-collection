@@ -187,8 +187,18 @@ jobs:
           - ansible: stable-2.18
             python: '3.11'
             experimental: false
+          # 3.13, because ansible-core devel declares
+          # `requires-python = ">=3.13"`. With 3.12 the leg failed at
+          # `Install ansible-core (devel)` and skipped `Run sanity tests`
+          # entirely, so it reported a failure every run without ever testing
+          # anything against devel -- an advisory job that is always red
+          # teaches people to ignore it.
+          #
+          # This pin tracks ansible-core devel's floor and will need raising
+          # again. The symptom is a "requires a different Python" error at the
+          # install step, not a sanity failure.
           - ansible: devel
-            python: '3.12'
+            python: '3.13'
             experimental: true
     steps:
       - name: Check out code
