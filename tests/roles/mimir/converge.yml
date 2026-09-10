@@ -33,8 +33,8 @@
     mimir_memberlist:
       join_members: >-
         {{ groups['all']
-           | map('extract', hostvars, 'role_test_node_name')
-           | map('regex_replace', '$', ':7946')
-           | list }}
+          | map('extract', hostvars, 'role_test_node_name')
+          | map('regex_replace', '$', ':7946')
+          | list }}
   roles:
     - mimir

@@ -1,5 +1,5 @@
 ---
-server: 
+server:
   {{ tempo_server | to_nice_yaml(indent=2, sort_keys=False) | indent(2, False) }}
 {% if tempo_distributor is defined %}
 distributor:
