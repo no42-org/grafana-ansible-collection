@@ -1,0 +1,36 @@
+---
+# Apply the opentelemetry_collector role.
+#
+# Carries one curated contribution:
+#   #475  owner and group on the unarchive step, so the extracted binary
+#         belongs to the service user rather than root
+#
+# The receiver/processor/exporter configuration mirrors the retired Molecule
+# scenario, because the role writes a config file from it and refuses to start
+# without a usable pipeline.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  vars:
+    otel_collector_receivers:
+      hostmetrics:
+        scrapers:
+          cpu:
+          memory:
+    otel_collector_processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+    otel_collector_exporters:
+      prometheus:
+        endpoint: '127.0.0.1:9999'
+    otel_collector_service:
+      pipelines:
+        metrics:
+          receivers: '{{ otel_collector_receivers.keys() }}'
+          processors: '{{ otel_collector_processors.keys() }}'
+          exporters: '{{ otel_collector_exporters.keys() }}'
+  roles:
+    - opentelemetry_collector

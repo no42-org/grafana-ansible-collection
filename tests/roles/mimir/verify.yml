@@ -1,0 +1,70 @@
+---
+# Assert the end state after the mimir role has been applied to three nodes.
+#
+# Ports the assertions from the retired testinfra suite and adds one it could
+# not make: that #461's version detection resolved a real version rather than
+# leaving the tag unparsed.
+- name: Verify
+  hosts: all
+  any_errors_fatal: true
+  become: true
+  tasks:
+    - name: "Collect service facts"
+      ansible.builtin.service_facts:
+
+    - name: "Stat the directories the role must create"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __dirs
+      loop:
+        - /etc/mimir
+        - /var/lib/mimir
+
+    - name: "Assert each is a directory"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "expected directory missing: {{ item.item }}"
+      loop: "{{ __dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Assert mimir is running on every node"
+      ansible.builtin.assert:
+        that:
+          - "'mimir.service' in ansible_facts.services"
+          - "ansible_facts.services['mimir.service'].state == 'running'"
+        fail_msg: >-
+          mimir is not running on {{ inventory_hostname }}:
+          {{ ansible_facts.services['mimir.service'].state | default('absent') }}
+
+    # The retired testinfra suite asserted no socket at all. This is an
+    # addition, using the role's own default (mimir_http_listen_port: 8080)
+    # rather than the 9009 the old Molecule scenario happened to publish.
+    - name: "Assert the HTTP port is listening"
+      ansible.builtin.wait_for:
+        port: 8080
+        host: 127.0.0.1
+        timeout: 90
+
+    # ------------------------- #461 the version regex resolved a real version
+    - name: "Read the installed mimir version"
+      ansible.builtin.command:
+        cmd: "mimir --version"
+      environment:
+        PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+      register: __version
+      changed_when: false
+      failed_when: false
+
+    - name: "Assert a numeric version was resolved, not an unparsed tag"
+      ansible.builtin.assert:
+        that:
+          - __version.rc == 0
+          - __version.stdout is search('[0-9]+\.[0-9]+\.[0-9]+')
+          - "'mimir-' not in __version.stdout"
+        fail_msg: >-
+          mimir reported '{{ __version.stdout | default('') }}{{ __version.stderr | default('') }}';
+          the version-detection regex may have left a `mimir-` prefixed tag
+          unparsed

@@ -1,0 +1,80 @@
+---
+name: Role Test
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'roles/**'
+      - 'tests/roles/**'
+      - 'tools/role-test.sh'
+      - '.github/workflows/role-test.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'roles/**'
+      - 'tests/roles/**'
+      - 'tools/role-test.sh'
+      - '.github/workflows/role-test.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: role-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  role-test:
+    name: ${{ matrix.role }} (${{ matrix.distro }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both package families for every role. The rhel entry is not symmetry:
+        # the grafana role's yum/dnf block, and the carried contributions #534
+        # and #538 inside it, are unreachable on Debian.
+        role:
+          - grafana
+          - opentelemetry_collector
+          - mimir
+        distro:
+          - debian
+          - rhel
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pinned together on purpose. A pinned ansible-core against a floating
+      # `3.x` Python is exactly what broke the Molecule workflows this harness
+      # replaces: python-version '3.x' resolved to 3.14, ansible-core was
+      # pinned to 2.16, and ansible-compat refused the pair at import.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core
+        run: pip install 'ansible-core~=2.18.0' --disable-pip-version-check
+
+      - name: Install the collections the harness and roles need
+        run: ansible-galaxy collection install -r tests/roles/requirements.yml
+
+      # CI calls the Makefile target, never the script directly, so local and
+      # CI cannot drift.
+      - name: Role test
+        run: make role-test ROLE=${{ matrix.role }} DISTRO=${{ matrix.distro }}
+
+      - name: Show the logs on failure
+        if: failure()
+        run: |
+          for log in build/role-test/*/*.log; do
+            echo "::group::${log}"
+            tail -80 "${log}"
+            echo "::endgroup::"
+          done

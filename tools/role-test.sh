@@ -102,52 +102,112 @@ fi
 
 heading "Grafana Ansible Collection" "Role test: ${role} on ${distro}"
 
-readonly container="roletest-${role}-${distro}"
+readonly stack="roletest-${role}-${distro}"
 readonly workDir="${WORK_ROOT}/${role}-${distro}"
 
-# Unconditional cleanup. A role test that leaves containers behind makes the
-# next run's result meaningless, so removal happens on every exit path.
+# Topology. A role may declare more than one node, and a private network for
+# them, by shipping tests/roles/<role>/topology:
+#
+#   NODES=3          how many role containers
+#   NETWORK=1        create a private network so nodes and sidecars resolve
+#                    each other by name
+#
+# Sidecars (an object store, a database) go in tests/roles/<role>/sidecars.sh,
+# run after the network exists with ROLE_TEST_NETWORK and ROLE_TEST_LABEL
+# exported. mimir needs three nodes plus a MinIO sidecar; grafana needs one
+# container and nothing else.
+NODES=1
+NETWORK=0
+if [[ -f "${TEST_ROOT}/${role}/topology" ]]; then
+  # shellcheck source=/dev/null
+  source "${TEST_ROOT}/${role}/topology"
+fi
+
+# Everything created for this run carries one label, so cleanup is exhaustive
+# without having to enumerate what was made.
+readonly label="roletest=${stack}"
+
 cleanup() {
-  docker rm -f "${container}" >/dev/null 2>&1 || true
+  local ids
+  ids="$(docker ps -aq --filter "label=${label}" 2>/dev/null || true)"
+  if [[ -n "${ids}" ]]; then
+    # shellcheck disable=SC2086
+    docker rm -f ${ids} >/dev/null 2>&1 || true
+  fi
+  if [[ "${NETWORK}" -eq 1 ]]; then
+    docker network rm "${stack}" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
-info "removing any container left by a previous run"
+info "removing anything left by a previous run"
 cleanup
 
 mkdir -p "${workDir}"
 
-info "starting ${image} as ${container}"
-docker run -d --name "${container}" \
-  --privileged \
-  --cgroupns=host \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-  "${image}" >/dev/null
+if [[ "${NETWORK}" -eq 1 ]]; then
+  info "creating network ${stack}"
+  docker network create "${stack}" >/dev/null
+fi
+
+if [[ -f "${TEST_ROOT}/${role}/sidecars.sh" ]]; then
+  info "starting sidecars"
+  ROLE_TEST_NETWORK="${stack}" ROLE_TEST_LABEL="${label}" \
+    bash "${TEST_ROOT}/${role}/sidecars.sh"
+fi
+
+nodeNames=()
+for n in $(seq 1 "${NODES}"); do
+  nodeNames+=("${role}$(printf '%02d' "${n}")")
+done
+
+for node in "${nodeNames[@]}"; do
+  info "starting ${image} as ${node}"
+  networkArgs=()
+  if [[ "${NETWORK}" -eq 1 ]]; then
+    networkArgs=(--network "${stack}" --network-alias "${node}")
+  fi
+  # ${arr[@]+"${arr[@]}"} rather than "${arr[@]}": under `set -u`, bash 3.2
+  # treats expanding an empty array as an unbound variable.
+  docker run -d --name "${stack}-${node}" \
+    --hostname "${node}" \
+    --label "${label}" \
+    --privileged \
+    --cgroupns=host \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+    ${networkArgs[@]+"${networkArgs[@]}"} \
+    "${image}" >/dev/null
+done
 
 # systemd needs a moment before service management works, and every role under
 # test manages services.
-info "waiting for systemd"
-systemdReady=0
-for _ in $(seq 1 30); do
-  state="$(docker exec "${container}" systemctl is-system-running 2>/dev/null || true)"
-  if [[ "${state}" == "running" ]] || [[ "${state}" == "degraded" ]]; then
-    systemdReady=1
-    break
+info "waiting for systemd on ${#nodeNames[@]} node(s)"
+for node in "${nodeNames[@]}"; do
+  ready=0
+  for _ in $(seq 1 30); do
+    state="$(docker exec "${stack}-${node}" systemctl is-system-running 2>/dev/null || true)"
+    if [[ "${state}" == "running" ]] || [[ "${state}" == "degraded" ]]; then
+      ready=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ "${ready}" -ne 1 ]]; then
+    emergency "systemd did not come up in ${stack}-${node}"
   fi
-  sleep 2
 done
-if [[ "${systemdReady}" -ne 1 ]]; then
-  emergency "systemd did not come up in ${container}"
-fi
 
-cat > "${workDir}/inventory.yml" <<INV
----
-all:
-  hosts:
-    ${container}:
-      ansible_connection: community.docker.docker
-      ansible_python_interpreter: /usr/bin/python3
-INV
+{
+  echo "---"
+  echo "all:"
+  echo "  hosts:"
+  for node in "${nodeNames[@]}"; do
+    echo "    ${stack}-${node}:"
+    echo "      ansible_connection: community.docker.docker"
+    echo "      ansible_python_interpreter: /usr/bin/python3"
+    echo "      role_test_node_name: ${node}"
+  done
+} > "${workDir}/inventory.yml"
 
 ANSIBLE_ROLES_PATH="$(pwd)/roles"
 export ANSIBLE_ROLES_PATH
