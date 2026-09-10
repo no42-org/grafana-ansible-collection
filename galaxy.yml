@@ -31,8 +31,6 @@ build_ignore:
   - .claude/*
   - .agent/*
   - Makefile
-  - Pipfile
-  - Pipfile.lock
   - pyproject.toml
   - uv.lock
   - .venv/*

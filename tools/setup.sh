@@ -31,9 +31,9 @@ else
   success "shellcheck is installed"
 fi
 
-# make sure pipenv exists
-if [[ "$(command -v pipenv)" = "" ]]; then
-  warning "pipenv command is required, see (https://pipenv.pypa.io/en/latest/) or run: brew install pipenv";
+# make sure uv exists
+if [[ "$(command -v uv)" = "" ]]; then
+  warning "uv command is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
 else
-  success "pipenv is installed"
+  success "uv is installed"
 fi

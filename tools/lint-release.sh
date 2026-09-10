@@ -36,14 +36,17 @@ if [[ "$(command -v shellcheck)" = "" ]]; then
   exit 1;
 fi
 
-# yamllint is available directly in CI and via pipenv locally
+# yamllint on PATH if the environment provides one, otherwise the pinned copy
+# in the project's uv environment. Preferring PATH keeps this script usable
+# before `make install` has run, which matters because it is the one lint gate
+# that needs no toolchain provisioning.
 yamllintCmd=()
 if [[ "$(command -v yamllint)" != "" ]]; then
   yamllintCmd=(yamllint)
-elif [[ "$(command -v pipenv)" != "" ]]; then
-  yamllintCmd=(pipenv run yamllint)
+elif uv run --frozen --group lint yamllint --version >/dev/null 2>&1; then
+  yamllintCmd=(uv run --frozen --group lint yamllint)
 else
-  echo >&2 "yamllint is required, see (https://pypi.org/project/yamllint/). Run \"make install\" to install it.";
+  echo >&2 "TOOLCHAIN NOT INSTALLED: yamllint is required, see (https://pypi.org/project/yamllint/). Run \"make install\".";
   exit 1;
 fi
 
