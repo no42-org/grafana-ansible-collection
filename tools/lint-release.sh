@@ -47,20 +47,80 @@ if ! shellcheck -x tools/*.sh; then
   statusCode=1
 fi
 
-echo "  ‣ yamllint .github/workflows/release.yml"
+# Not --strict here, unlike release.yml below. Three inherited workflows carry
+# `run:` lines over 150 characters, which .yamllint classes as a warning;
+# --strict would promote those to errors and make the gate demand that
+# inherited files be reflowed, which this fork does not do. Errors still fail.
+echo "  ‣ yamllint .github/workflows/"
+if ! "${yamllintCmd[@]}" --config-file "$(pwd)/.yamllint" .github/workflows/; then
+  lintError "yamllint reported errors in .github/workflows/"
+  statusCode=1
+fi
+
+echo "  ‣ yamllint --strict .github/workflows/release.yml"
 if ! "${yamllintCmd[@]}" --strict --config-file "$(pwd)/.yamllint" .github/workflows/release.yml; then
   lintError "yamllint reported issues in .github/workflows/release.yml"
   statusCode=1
 fi
 
 # actionlint catches what yamllint cannot: bad expressions, unknown contexts,
-# broken needs graphs. Optional, because it is not in the repo's toolchain.
-if [[ "$(command -v actionlint)" != "" ]]; then
-  echo "  ‣ actionlint .github/workflows/release.yml"
-  if ! actionlint .github/workflows/release.yml; then
-    lintError "actionlint reported issues in .github/workflows/release.yml"
-    statusCode=1
-  fi
+# broken needs graphs, and retired runner labels -- which is how the
+# `ubuntu-20.04` jobs that sat queued forever would have been caught.
+#
+# Required, not optional. It used to run only if it happened to be installed,
+# which the actions-hygiene proposal correctly called "not enforcement".
+if [[ "$(command -v actionlint)" = "" ]]; then
+  echo >&2 "actionlint command is required, see (https://github.com/rhysd/actionlint) or run: brew install actionlint";
+  exit 1;
+fi
+echo "  ‣ actionlint .github/workflows/"
+if ! actionlint; then
+  lintError "actionlint reported issues in .github/workflows/"
+  statusCode=1
+fi
+
+# The two pin checks, mechanically. Every third-party `uses:` must be a
+# 40-character commit SHA -- a tag is mutable and can be moved to point at
+# different code -- and must carry the full semantic version in a trailing
+# comment, so a reviewer can cross-reference upstream release notes and
+# Dependabot's rewrites match the format. Local reusable workflows (`./...`)
+# resolve to the current commit and are exempt.
+# zizmor checks what actionlint does not: template injection, credential
+# persistence, over-broad permissions, dangerous triggers.
+#
+# --min-severity low, deliberately. The three informational findings on a clean
+# tree are two template-injection hits on
+# `needs.verify-version.outputs.version` -- a value read from galaxy.yml and
+# already checked against the tag by the verify-version job, so it is not
+# attacker-controllable -- and a suggestion to replace the release action with
+# `gh release`. Failing the gate on those would make it noise. Anything at low
+# or above fails.
+if [[ "$(command -v zizmor)" = "" ]]; then
+  echo >&2 "zizmor command is required, see (https://docs.zizmor.sh/) or run: pip install zizmor";
+  exit 1;
+fi
+echo "  ‣ zizmor .github/workflows/"
+if ! zizmor --no-progress --min-severity low .github/workflows/; then
+  lintError "zizmor reported issues in .github/workflows/"
+  statusCode=1
+fi
+
+echo "  ‣ every action pinned to a SHA with a full-semver comment"
+unpinnedRefs="$(grep -rn 'uses:' .github/workflows/ \
+  | grep -v 'uses: \./' \
+  | grep -vE '@(sha256:)?[0-9a-f]{40}' || true)"
+if [[ -n "${unpinnedRefs}" ]]; then
+  echo "${unpinnedRefs}"
+  lintError "unpinned action reference(s): pin to a 40-character commit SHA"
+  statusCode=1
+fi
+
+missingVersionComments="$(grep -rnE '@(sha256:)?[0-9a-f]{40}' .github/workflows/ \
+  | grep -vE '#[[:space:]]*v[0-9]+\.[0-9]+\.[0-9]+' || true)"
+if [[ -n "${missingVersionComments}" ]]; then
+  echo "${missingVersionComments}"
+  lintError "pinned action(s) without a full-semver comment: use '# vX.Y.Z', not '# v4'"
+  statusCode=1
 fi
 
 echo "  ‣ yaml parse galaxy.yml .github/dependabot.yml"
