@@ -21,7 +21,8 @@ This collection (`grafana.grafana`) contains modules and roles to assist in auto
 
 ## Ansible version compatibility
 
-The collection is tested and supported with: `ansible >= 2.9`
+This fork is tested against `ansible-core` 2.17 and 2.18, and declares `requires_ansible: ">=2.17.0,<3.0.0"`.
+The upstream collection claims `ansible >= 2.9`; that claim was inherited and is not what is tested here.
 
 ## Installing the collection
 
