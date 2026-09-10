@@ -91,6 +91,7 @@
   ansible.builtin.blockinfile:
     path: /etc/systemd/system/grafana-server.service.d/overrides.conf
     create: true
+    mode: '0644'
     block: |
       [Service]
       AmbientCapabilities=CAP_NET_BIND_SERVICE
