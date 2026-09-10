@@ -161,8 +161,8 @@ git archive <upstream base commit> | tar -x -C up/
 # undo the rename, then diff
 grep -rIli indigo423 ours/ | while IFS= read -r f; do
   perl -pi -e 's/\bindigo423\.grafana\b/grafana.grafana/g;
-               s/^namespace: indigo423$/namespace: grafana/;
-               s/^title: Indigo423\.Grafana$/title: Grafana.Grafana/' "$f"
+              s/^namespace: indigo423$/namespace: grafana/;
+              s/^title: Indigo423\.Grafana$/title: Grafana.Grafana/' "$f"
 done
 
 diff -rq -x MANIFEST.json -x FILES.json -x galaxy.yml up/ ours/
@@ -323,8 +323,8 @@ In particular, watch for new `community.grafana.*` references.
 
 ```
 community.grafana.grafana_datasource
-         └──────┬──────┘
-        matches "grafana.grafana"
+          └──────┬──────┘
+          matches "grafana.grafana"
 ```
 
 A naive substitution turns that into `community.indigo423.grafana_datasource`, a collection that does not exist.
