@@ -1,0 +1,36 @@
+# Not a Python package. This file exists so `uv` can provision and lock the
+# lint toolchain, replacing pipenv.
+#
+# pipenv was pinned to `python_version = "3.10"`, which made `make install`
+# fail on any machine without that interpreter -- and a failing install looks
+# exactly like a failing lint, which caused three wrong readings before it was
+# diagnosed. uv provisions its own interpreter, so the toolchain installs
+# regardless of which Pythons a machine happens to have, and uv.lock carries
+# the reproducibility the version pin was there to provide.
+#
+# Excluded from the published collection by galaxy.yml's build_ignore: it is
+# repository scaffolding, not collection content.
+[project]
+name = "grafana-ansible-collection-toolchain"
+version = "0"
+description = "Lint toolchain for this repository. Not published, not importable."
+requires-python = ">=3.11"
+
+[dependency-groups]
+# The two linters that gate. pylint is deliberately absent: nothing in this
+# repository invoked it, and `ansible-test sanity` runs its own pylint test
+# over plugins/.
+lint = [
+    "yamllint==1.35.1",
+    "ansible-lint==25.6.1",
+    # ansible-lint runs against whatever ansible-core is installed, and its
+    # rule behaviour follows that version. Left unconstrained, uv resolved
+    # 2.21.4 -- four minors ahead of what the release gates on -- so the linter
+    # would judge the collection against an ansible it is not tested with.
+    # Pinned to the highest blocking sanity leg instead.
+    "ansible-core>=2.18,<2.19",
+]
+
+[tool.uv]
+# No build backend: nothing here is built or installed as a package.
+package = false
