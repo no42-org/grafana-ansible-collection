@@ -7,15 +7,17 @@ source "./tools/includes/logging.sh"
 # output the heading
 heading "Grafana Ansible Collection" "Performing Ansible Linting using ansible-lint"
 
-# make sure pipenv exists
-if [[ "$(command -v pipenv)" = "" ]]; then
-  echo >&2 "pipenv command is required, see (https://pipenv.pypa.io/en/latest/) or run: brew install pipenv";
+# The toolchain not being installed is a distinct failure from the linter
+# finding something, and the messages say which.
+if [[ "$(command -v uv)" = "" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
+  echo >&2 "This is not a lint failure. No file has been checked.";
   exit 1;
 fi
 
-# make sure yamllint exists
-if [[ "$(pipenv run pip freeze | grep -c "ansible-lint")" == "0" ]]; then
-  echo >&2 "ansible-lint command is required, see (https://pypi.org/project/ansible-lint/). Run \"make install\" to install it.";
+if ! uv run --frozen --group lint ansible-lint --version >/dev/null 2>&1; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-lint is not available. Run \"make install\".";
+  echo >&2 "This is not a lint failure. No file has been checked.";
   exit 1;
 fi
 
@@ -24,7 +26,7 @@ fi
 
 # run yamllint
 echo "$(pwd)/.ansible-lint"
-pipenv run ansible-lint --config-file "$(pwd)/.ansible-lint" --strict
+uv run --frozen --group lint ansible-lint --config-file "$(pwd)/.ansible-lint" --strict
 statusCode="$?"
 
 if [[ "$statusCode" == "0" ]]; then

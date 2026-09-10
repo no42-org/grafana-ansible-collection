@@ -114,16 +114,16 @@ jobs:
           node-version: 18
           cache: npm
 
-      # 3.10 because Pipfile pins python_version = "3.10". This is what makes
-      # `make install` work here and fail on a machine without that
-      # interpreter -- see the warning in RELEASING.md.
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # No setup-python step. uv provisions its own interpreter from
+      # pyproject.toml's requires-python, which is what makes `make install`
+      # behave identically here and on a maintainer's machine. The pipenv
+      # toolchain it replaces pinned python_version = "3.10" and failed
+      # outright without that exact interpreter.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          python-version: '3.10'
-
-      - name: Install pipenv
-        run: python -m pip install --upgrade pipenv wheel
+          version: '0.12.7'
+          enable-cache: true
 
       - name: Install the lint toolchain
         run: make install

@@ -21,9 +21,13 @@ all: install
 setup:
 	@./tools/setup.sh
 
+# Provisions both toolchains. `uv sync` installs the pinned Python linters into
+# .venv, provisioning an interpreter if the machine has none that fits -- which
+# is the whole reason pipenv was replaced. `yarn install` provides the Node
+# linters.
 install:
 	yarn install
-	pipenv install
+	uv sync --group lint
 
 # remove the build and log folders
 clean:
@@ -168,7 +172,7 @@ ci-lint-ansible:
 # So the full set does gate a release, via .github/workflows/gate.yml, which
 # both ci.yml and release.yml call. This target stays narrow because it is the
 # release *machinery* check -- tools/*.sh and the workflows -- and it is useful
-# precisely because it needs no pipenv and no node_modules, so it runs in
-# seconds locally.
+# precisely because it needs no provisioned toolchain, so it runs in seconds
+# locally.
 ci-lint-release:
 	@./tools/lint-release.sh

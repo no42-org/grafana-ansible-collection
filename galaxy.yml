@@ -31,8 +31,9 @@ build_ignore:
   - .claude/*
   - .agent/*
   - Makefile
-  - Pipfile
-  - Pipfile.lock
+  - pyproject.toml
+  - uv.lock
+  - .venv/*
   - package.json
   - yarn.lock
 # Fork test infrastructure. Consumers get collection content; the harness that

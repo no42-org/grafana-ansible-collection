@@ -4,6 +4,8 @@ source "$(pwd)/tools/includes/utils.sh"
 
 source "./tools/includes/logging.sh"
 
+source "./tools/includes/lint-paths.sh"
+
 # output the heading
 heading "Grafana Ansible Collection" "Performing Shell Linting using shellcheck"
 
@@ -33,7 +35,7 @@ while read -r file; do
   if [[ "$statusCode" == 0 ]]; then
     statusCode="$currentCode"
   fi
-done < <(find . -type f -name "*.sh" -not -path "./node_modules/*" -not -path "./.git/*")
+done < <(lintFind -type f -name "*.sh" -print)
 
 echo ""
 echo ""

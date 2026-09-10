@@ -8,6 +8,8 @@ exclude_paths:
   # ansible-galaxy's local install target. It holds a copy of this collection,
   # so leaving it in doubles every finding -- 29 of the 69 first observed.
   - .ansible/
+  # uv's project virtualenv
+  - .venv/
   # ansible.cfg sets `collections_paths = ./`, so ansible-lint installs the
   # dependency collections into the repository root in CI. 4851 findings, all
   # of them in ansible.posix and community.general, none here.

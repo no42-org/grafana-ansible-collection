@@ -242,6 +242,17 @@ dist
 build/
 
 
+# Toolchain install targets
+# ---------------------------------------------------
+# Every tool here installs into the working tree, and every one of them has to
+# be excluded from git, from the linters, and from the rename copy. Three
+# separate times a missed exclusion made a linter report findings in code this
+# repository does not own -- 29 from .ansible/, 4851 from ansible_collections/,
+# 250 from .venv/ -- and once it took `make dist`'s rename count from 83 to 174.
+# When a tool is added, its directory goes in all four places.
+.venv/
+
+
 # Ansible local artifacts
 # ---------------------------------------------------
 # ansible-galaxy installs the collections the role-test harness needs here.
