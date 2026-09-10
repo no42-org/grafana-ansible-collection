@@ -1,0 +1,63 @@
+---
+- name: Verify
+  hosts: all
+  any_errors_fatal: true
+  become: true
+  tasks:
+    - name: "Collect service facts"
+      ansible.builtin.service_facts:
+
+    - name: "Stat the configuration file"
+      ansible.builtin.stat:
+        path: /etc/tempo/config.yml
+      register: __config
+
+    - name: "Assert the configuration file exists"
+      ansible.builtin.assert:
+        that:
+          - __config.stat.exists
+          - __config.stat.isreg
+        fail_msg: "/etc/tempo/config.yml is missing"
+
+    # The defect this role shipped was a configuration Tempo parses and
+    # rejects, so "installed" and "configured" both passed while the service
+    # was dead. These three assertions are the ones that would have caught it.
+    - name: "Assert tempo is running"
+      ansible.builtin.assert:
+        that:
+          - "'tempo.service' in ansible_facts.services"
+          - "ansible_facts.services['tempo.service'].state == 'running'"
+        fail_msg: >-
+          tempo is not running:
+          {{ ansible_facts.services['tempo.service'].state | default('absent') }}
+
+    - name: "Assert the HTTP port is listening"
+      ansible.builtin.wait_for:
+        port: 3200
+        host: 127.0.0.1
+        timeout: 60
+
+    # A crash-looping unit can be caught mid-restart in the `running` state, so
+    # ask Tempo itself rather than systemd.
+    - name: "Query Tempo's readiness endpoint"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:3200/ready"
+        return_content: true
+        status_code: [200]
+      register: __ready
+      retries: 12
+      delay: 5
+      until: __ready.status == 200
+
+    - name: "Assert Tempo reports itself ready"
+      ansible.builtin.assert:
+        that:
+          - "'ready' in __ready.content | lower"
+        fail_msg: "Tempo's /ready did not report ready: {{ __ready.content | default('') }}"
+
+    - name: "Assert the config carries no key Tempo 3 removed"
+      ansible.builtin.command:
+        cmd: "grep -c -e traces_storage -e local-blocks /etc/tempo/config.yml"
+      register: __removed_keys
+      changed_when: false
+      failed_when: __removed_keys.rc == 0
