@@ -17,13 +17,21 @@ defaults:
   run:
     working-directory: roles/promtail
 
+# Least privilege. Nothing here writes to the repository, so read is the whole
+# requirement. A job-level block would replace this one rather than merge with
+# it, so no job declares one.
 permissions:
   contents: read
+
+concurrency:
+  group: promtail-molecule-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   molecule:
     name: Molecule
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     strategy:
       matrix:
         distro:
