@@ -148,8 +148,25 @@ ci-lint-editorconfig:
 ci-lint-ansible:
 	@./tools/lint-ansible.sh
 
-# Release machinery linting: the subset of ci-lint that gates a release.
-# ci-lint itself is red on a pristine tree from inherited upstream findings, and
-# fixing those would break the upstream-merge property this fork depends on.
+# Release machinery linting: tools/*.sh, galaxy.yml, dependabot.yml and every
+# workflow's hygiene. It is deliberately NOT the full ci-lint set, and the
+# reason changed with honest-ci-gates.
+#
+# The old reason was false: "ci-lint is red on a pristine tree from inherited
+# findings, and fixing those would break the upstream-merge property." The
+# findings were real -- 61 yamllint errors, 14 ansible-lint, 5 editorconfig --
+# but they are all fixed now, and fixing them cost four newly-diverging files
+# of whitespace, not the merge property.
+#
+# The remaining reason is the toolchain, not the findings. ci-lint-yaml,
+# ci-lint-editorconfig and ci-lint-ansible need pipenv (pinned to Python 3.10)
+# and node_modules; the release lint job installs neither, and putting that
+# fragile chain in the release path would trade an honest narrow gate for a
+# broad flaky one. See the `make install` warning in RELEASING.md.
+#
+# The full set is enforced by .github/workflows/lint.yaml, on every push and
+# pull request to main -- and as of honest-ci-gates it actually fails when a
+# linter finds something. A tag is cut from main, so main has already been
+# through it. Unifying the two is `actions-hygiene` epic 6.
 ci-lint-release:
 	@./tools/lint-release.sh

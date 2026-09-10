@@ -2,18 +2,22 @@
 #
 # Lint the release machinery.
 #
-# `make ci-lint` cannot gate a release: it is red on a pristine tree, with 62
-# error-level yamllint findings in roles/, changelogs/ and galaxy.yml, inherited
-# from upstream. Fixing those would mean editing the very files this fork keeps
-# byte-identical to upstream so that `git merge upstream/main` stays clean, so
-# the release gate is scoped to the files this repository actually owns:
+# Scope: the release machinery this repository owns.
 #
-#   - tools/*.sh                          the build and rename scripts
-#   - .github/workflows/release.yml       the release pipeline
+#   - tools/*.sh                     the build, rename and lint scripts
+#   - .github/workflows/             every workflow's hygiene
+#   - galaxy.yml, dependabot.yml     parseable, and with the fields the
+#                                    release needs
 #
-# The other workflows, galaxy.yml and .github/dependabot.yml carry upstream's
-# style debt (truthy, line-length, indentation), so they are checked for being
-# parseable YAML rather than for style.
+# It is not the full `make ci-lint` set. That used to be because ci-lint was
+# red on a pristine tree and fixing it would break the upstream-merge property.
+# Both halves of that were wrong: the findings were real but cost four
+# newly-diverging files of whitespace to fix, and they are fixed. The remaining
+# reason is that the yaml, editorconfig and ansible linters need pipenv (pinned
+# to Python 3.10) and node_modules, which the release lint job does not install
+# and should not have to. The full set gates on push and pull request via
+# .github/workflows/lint.yaml; a tag is cut from main, which has been through
+# it. See the Makefile's ci-lint-release comment.
 
 set -euo pipefail
 
@@ -51,6 +55,32 @@ fi
 # `run:` lines over 150 characters, which .yamllint classes as a warning;
 # --strict would promote those to errors and make the gate demand that
 # inherited files be reflowed, which this fork does not do. Errors still fail.
+# The regression guard for honest-ci-gates.
+#
+# tools/lint-yaml.sh and tools/lint-ansible.sh both ended on
+#
+#   if [[ "$sourced" == "1" ]]; then
+#     return "$statusCode"
+#   fi
+#
+# `make ci-lint-*` executes these scripts rather than sourcing them, so
+# sourced=0, the closing `if` evaluates false, and in bash a false `if` with no
+# `else` yields exit status 0. Both scripts reported success while their linter
+# printed errors: CI run 34446534704 showed 61 error annotations on a step
+# whose conclusion was `success`.
+#
+# Explicit rather than delegated to shellcheck, which has no check for this.
+# The pattern is valid bash that does exactly what it says; the defect is that
+# what it says is not what the caller needs. No linter can know that, so the
+# assertion has to be written down.
+echo "  ‣ every tools/lint-*.sh propagates its exit status"
+for lintScript in tools/lint-*.sh; do
+  if ! grep -qE '^[[:space:]]*exit[[:space:]]+"\$\{?statusCode\}?"' "${lintScript}"; then
+    lintError "${lintScript} captures statusCode but never exits with it: add 'else exit \"\$statusCode\"'"
+    statusCode=1
+  fi
+done
+
 echo "  ‣ yamllint .github/workflows/"
 if ! "${yamllintCmd[@]}" --config-file "$(pwd)/.yamllint" .github/workflows/; then
   lintError "yamllint reported errors in .github/workflows/"

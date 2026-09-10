@@ -36,4 +36,6 @@ echo ""
 # if the script was called by another, send a valid exit code
 if [[ "$sourced" == "1" ]]; then
   return "$statusCode"
+else
+  exit "$statusCode"
 fi
