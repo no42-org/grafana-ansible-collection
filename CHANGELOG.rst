@@ -4,6 +4,46 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v6.2.1
+======
+
+Release Summary
+---------------
+
+Patch release. The user-facing change is a set of role and module bugfixes, one of them carried from
+an upstream pull request. Everything else in this release is repository infrastructure that the
+published collection does not contain: the lint gates now actually fail when a linter finds
+something, the quality gates have a single shared definition used by both CI and the release, and
+the development toolchain installs without a specific Python interpreter. Version numbers are this
+fork's own and do not correspond to any grafana.grafana release; the upstream commit this release is
+built from is recorded in its GitHub release notes.
+
+Minor Changes
+-------------
+
+- Use fully-qualified collection names for builtin actions in the opentelemetry_collector role and the
+  integration targets, and correct task naming and Jinja spacing, so the collection satisfies
+  ansible-lint's production profile with no failures or warnings.
+- Whitespace and indentation corrections across roles/ and examples/ so the collection is clean under
+  yamllint and editorconfig-checker. No behaviour changes.
+
+Bugfixes
+--------
+
+- Skip the firewalld rule removal during alloy uninstall when firewalld is inactive, so the play no
+  longer relied on ignore_errors and now mirrors the deploy conditions by @baltvinicius in
+  https://github.com/grafana/grafana-ansible-collection/pull/539
+- Return a value from alert_contact_point when the read-back after a successful update does not list
+  the UID. The function fell through and returned None, which the module unpacks into three values,
+  so a successful update could raise a TypeError instead of reporting success.
+- Set pipefail on the grafana_agent version-detection pipelines. Without it a failing curl or a
+  missing grafana-agent binary produced an empty string and the pipeline still reported success, so
+  the role proceeded with no version at all.
+- Set an explicit mode on the systemd drop-in the grafana role creates with blockinfile, which
+  previously took whatever the umask gave it.
+- Use ansible.builtin.command instead of shell for two grafana_agent tasks that need no shell,
+  removing a layer of word-splitting and quoting from paths built by template.
+- Remove a duplicated assignment to api_url in the dashboard module.
 v6.2.0
 ======
 
