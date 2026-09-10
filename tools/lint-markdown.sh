@@ -4,6 +4,8 @@ source "$(pwd)/tools/includes/utils.sh"
 
 source "./tools/includes/logging.sh"
 
+source "./tools/includes/lint-paths.sh"
+
 # output the heading
 heading "Grafana Ansible Collection" "Performing Markdown Linting using markdownlint"
 
@@ -29,7 +31,7 @@ while read -r dir; do
     statusCode="$currentCode"
   fi
   echo ""
-done < <(find . -type f -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" -print0 | \
+done < <(lintFind -type f -name "*.md" -print0 | \
     xargs -0 dirname | \
     sort -nr | \
     uniq | \

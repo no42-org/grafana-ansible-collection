@@ -8,6 +8,8 @@ ignore:
   - node_modules
   # build output and test work directories, linted at their source
   - build
+  # uv's project virtualenv: 250 findings in ansible-core's own YAML
+  - .venv
   # ansible-galaxy's local install target, which holds a copy of this
   # collection: without this, every finding is reported twice
   - .ansible
