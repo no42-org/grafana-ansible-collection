@@ -1,6 +1,34 @@
 ---
 # tasks file for promtail deploy
 
+- name: Warn that promtail is end of life
+  ansible.builtin.debug:
+    msg: >-
+      promtail reached end of life on 2026-03-02. Grafana has ended support,
+      publishes no packages after Loki 3.6.0, and directs users to Grafana
+      Alloy; this collection ships a tested `alloy` role. This role installs
+      promtail {{ promtail_version }}, and 3.6.0 is the last version with
+      published packages -- there will be no further releases or security
+      updates.
+  run_once: true
+
+# promtail_clients is mandatory -- the role's README says so, and the default
+# is deliberately empty because there is no sensible universal answer to "where
+# do the logs go". But an empty list produced a config promtail rejects at
+# startup ("failed to create client manager: at least one client config must be
+# provided"), and the role still reported "Ensure that Promtail is started: ok",
+# leaving a unit that crash-loops on a five-second timer. Say it instead.
+- name: Assert that promtail_clients is set
+  ansible.builtin.assert:
+    that:
+      - promtail_clients | length > 0
+    fail_msg: >-
+      promtail_clients is mandatory and is empty. promtail refuses to start
+      without at least one client, for example:
+      promtail_clients: [{ url: "http://localhost:3100/loki/api/v1/push" }]
+    success_msg: "promtail_clients has {{ promtail_clients | length }} client(s)"
+  run_once: true
+
 - name: Obtain the latest version from the GitHub repo
   when: promtail_version == "latest"
   block:
@@ -18,6 +46,21 @@
     - name: Latest available Promtail version
       ansible.builtin.set_fact:
         promtail_version: "{{ __github_latest_version.json.tag_name | regex_replace('^v?(\\d+\\.\\d+\\.\\d+)$', '\\1') }}"
+
+# Outside the resolution block on purpose. A block's `when` is re-evaluated for
+# every task inside it, so a guard placed in there would test
+# `promtail_version == "latest"` again -- after the set_fact above changed it --
+# and skip itself. Out here it also catches someone pinning 3.7.0 directly,
+# which the download would otherwise answer with a bare 404.
+- name: Fail if the version has no promtail packages
+  ansible.builtin.fail:
+    msg: >-
+      promtail_version is {{ promtail_version }}, and Grafana published no
+      promtail packages after Loki 3.6.0 -- v3.6.0 has 14 promtail assets,
+      v3.7.0 has none. Set promtail_version to 3.6.0 or older, or migrate to
+      the `alloy` role in this collection.
+  when: promtail_version is version('3.6.0', '>')
+  run_once: true
 
 - name: Verify current deployed version
   block:

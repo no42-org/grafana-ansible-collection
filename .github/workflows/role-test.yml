@@ -52,6 +52,7 @@ jobs:
           - mimir
           - loki
           - alloy
+          - promtail
         distro:
           - debian
           - rhel
