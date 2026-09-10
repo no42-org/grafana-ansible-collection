@@ -74,6 +74,45 @@ Before it existed, `lint.yaml` gated pull requests while `release.yml` defined i
 A reusable workflow does not inherit its caller's `env:`, so the source namespace and collection name arrive as inputs.
 `ansible-test` needs the collection at `ansible_collections/<namespace>/<name>`, and the tree is unrenamed at that point, so those are the source names rather than the Galaxy ones.
 
+## Rehearsing the pipeline
+
+The pipeline can be exercised end to end on a **pre-release** tag, which costs nothing a user can trip over.
+
+```bash
+# on a branch, because main is protected
+git switch -c release/6.3.0-rc1
+# galaxy.yml: version: 6.3.0-rc1
+git commit -s -m "chore(release): v6.3.0-rc1"
+gh pr create --fill        # merge once the gate is green
+git switch main && git pull
+git tag -s v6.3.0-rc1 -m "release 6.3.0-rc1 (pipeline rehearsal)"
+git push origin v6.3.0-rc1
+```
+
+A semver pre-release carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
+
+`ansible-galaxy` excludes pre-releases from resolution unless `--pre` is passed. Do not trust Galaxy's `highest_version` field for this — it reports the RC. Check the client instead:
+
+```bash
+ansible-galaxy collection install indigo423.grafana -p /tmp/x   # -> 6.2.0
+ansible-galaxy collection install indigo423.grafana:6.2.1-rc1 -p /tmp/y
+```
+
+The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v6.3.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
+
+What it confirmed, in order:
+
+```
+  verify-version   tag == galaxy.yml, prerelease=true
+  gate             lint-release, lint, sanity (devel advisory and red)
+  build            indigo423-grafana-6.2.1-rc1.tar.gz
+  smoke            installed, indigo423.grafana.* resolved
+  publish          accepted by Galaxy
+  release          GitHub release, marked Pre-release, 6.2.0 still Latest
+```
+
+**`galaxy.yml` keeps the last released version between releases**, so it reads `6.2.1-rc1` after a rehearsal. The next real release bumps it to a plain version.
+
 ## Version policy
 
 **Version numbers are this fork's own. They do not correspond to any `grafana.grafana` release.**
