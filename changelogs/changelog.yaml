@@ -466,3 +466,12 @@ releases:
         - Use fully-qualified collection names for builtin actions in the opentelemetry_collector role and the integration targets, and correct task naming and Jinja spacing, so the collection satisfies ansible-lint's production profile with no failures or warnings.
         - Whitespace and indentation corrections across roles/ and examples/ so the collection is clean under yamllint and editorconfig-checker. No behaviour changes.
     release_date: '2026-09-10'
+  6.2.2:
+    changes:
+      release_summary: 'Corrects what the published collection says about its own dependencies. requirements.txt declared this repository''s linters -- yamllint, ansible-lint and pylint -- and now declares requests, the library every module actually imports and which was declared nowhere. Two further manifests stop shipping: requirements.yml, which duplicated galaxy.yml''s own dependencies as unconstrained git URLs, and roles/grafana/test-requirements.txt, which listed Molecule''s dependencies for scenarios this fork never invokes. Version numbers are this fork''s own and do not correspond to any grafana.grafana release; the upstream commit this release is built from is recorded in its GitHub release notes.'
+      bugfixes:
+        - requirements.txt now declares requests, the collection's actual Python runtime dependency. It previously declared yamllint, ansible-lint and pylint, none of which a consumer needs, while the library all 18 modules import behind a HAS_REQUESTS guard was declared nowhere -- so a module reporting missing_required_lib('requests') pointed at documentation that did not exist.
+      minor_changes:
+        - requirements.yml is no longer published. It duplicated galaxy.yml's own dependencies as git URLs pointing at main, so a consumer following it would have installed three collections unconstrained. ansible-galaxy resolves the constrained versions from the collection's MANIFEST.json instead, and continues to do so.
+        - roles/grafana/test-requirements.txt is no longer published. It declared molecule, docker, pytest-testinfra, jmespath, selinux and passlib for Molecule scenarios this fork never invokes.
+    release_date: '2026-09-10'
