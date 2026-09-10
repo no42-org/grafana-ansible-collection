@@ -41,7 +41,10 @@
   when: grafana_agent_provisioned_config_file | length == 0
 
 - name: Create Grafana Agent River Config if flow mode for Grafana Agent
-  ansible.builtin.shell: "AGENT_MODE=flow {{ grafana_agent_install_dir }}/grafana-agent convert -f static {{ grafana_agent_config_dir }}/{{ grafana_agent_config_filename }} -o {{ grafana_agent_config_dir }}/{{ grafana_agent_config_filename }}"
+  ansible.builtin.command:
+    cmd: "{{ grafana_agent_install_dir }}/grafana-agent convert -f static {{ grafana_agent_config_dir }}/{{ grafana_agent_config_filename }} -o {{ grafana_agent_config_dir }}/{{ grafana_agent_config_filename }}"
+  environment:
+    AGENT_MODE: flow
   notify: "restart grafana-agent"
   when: grafana_agent_provisioned_config_file | length == 0
 
