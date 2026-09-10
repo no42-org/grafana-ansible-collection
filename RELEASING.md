@@ -196,6 +196,73 @@ This was not always true. 6.1.0 mirrored upstream's 6.1.0 and therefore had to b
 
 That constraint disappeared with the mirror policy. It is recorded because the underlying trap has not: **a tag pushed at a commit without a tag-triggered `release.yml` does nothing at all, silently.** If you ever tag an older commit, check that `release.yml` exists there first.
 
+## Role tests
+
+Roles are tested against containers by a harness that depends only on
+`ansible-core` and `docker`. Three phases, in order:
+
+```bash
+make role-test ROLE=grafana DISTRO=rhel
+make role-test-list            # roles and distro families
+```
+
+| Phase | What it proves |
+|---|---|
+| converge | the role applies to a fresh container |
+| idempotence | applying it again changes nothing |
+| verify | the expected end state, asserted in Ansible |
+
+Idempotence is the phase that earns its keep. Converge proves a role runs; idempotence proves it is a correct Ansible role, and it is the one thing converge cannot see. It found a real defect on the first role it ran: `Copy dashboard files` declared `owner: root` while its own handler set `owner: grafana`, so every run reported changes forever.
+
+`DISTRO` is a **family**, not a distribution:
+
+```
+  debian  ->  dokken/ubuntu-22.04
+  rhel    ->  dokken/almalinux-9
+```
+
+The `rhel` entry is not symmetry. The grafana role's `yum`/`dnf` block, and the carried contributions inside it (`#534`, `#538`), sit behind `ansible_facts['pkg_mgr'] in ['yum','dnf']` and are unreachable on Debian. Without it, two of the carried fixes ship unexecuted.
+
+A role may declare a topology in `tests/roles/<role>/topology`:
+
+```
+NODES=3         # how many role containers
+NETWORK=1       # a private network so nodes and sidecars resolve by name
+```
+
+and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: three nodes with memberlist gossip plus a MinIO object store. Everything a run creates carries one Docker label, so cleanup is exhaustive without enumerating it.
+
+`grafana_dashboards_dir` is a **control-node** path, because the role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved: `#448` strips it as a literal regex prefix, so a `..` segment produces folder names like `Users/…/team-a`.
+
+### What is covered
+
+| Role | debian | rhel | Note |
+|---|---|---|---|
+| `grafana` | ✅ | ✅ | carries `#510`, `#448`, `#534`, `#538` |
+| `opentelemetry_collector` | ✅ | ✅ | carries `#475` |
+| `mimir` | ✅ | ✅ | carries `#461`; three nodes plus MinIO |
+| `alloy` | ✅ | ✅ | |
+| `loki` | ✅ | — | see below |
+| `promtail` | — | — | see below |
+| `tempo` | — | — | see below |
+| `grafana_agent` | — | — | superseded upstream by `alloy`; never had a scenario |
+
+Three roles cannot install their software with default settings. All three are inherited, all three are the same shape — a role building URLs or config from templates that upstream has since outgrown — and none was ever executed, which is why none was noticed:
+
+- **`loki` on RHEL.** The role builds `loki-<version>.<arch>.rpm`, but Grafana renamed the asset to `loki-<version>-1.<arch>.rpm` after v3.6.0, so the default `latest` 404s. Excluded from the RHEL matrix. A fix has to be version-aware, since pinning an older `loki_version` still needs the old name.
+- **`promtail`.** Grafana stopped shipping promtail packages after loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
+- **`tempo`.** The role's own default `tempo_metrics_generator` emits a `traces_storage` field that tempo 3.0.3 rejects (`field traces_storage not found in type generator.Config`), so tempo crash-loops and the role's own readiness check fails.
+
+None ships a test. A test that cannot pass is worse than no test, and overriding the defaults in a test would hide that the defaults are what is broken.
+
+### The dormant Molecule scenarios
+
+`roles/*/molecule/` is **inherited, shipped, and never invoked.** Those scenarios are byte-identical to upstream and deliberately so: editing them would cost merge surface on every upstream merge, and leaving them untouched means Molecule can be re-adopted without anything having been destroyed.
+
+They are not what runs. `make role-test` is.
+
+Molecule was replaced rather than pinned because pinning would have cost four scenario-file edits — `network` and `network_mode` in mimir, `cgroup_parent` in four OTel scenarios, and content for two grafana scenario files that are empty documents — in exactly the files this fork keeps identical to upstream. The two failures that prompted it were unrelated to each other: mimir pinned `ansible-core==2.16` against `python-version: '3.x'`, which resolved to Python 3.14 and died at import before reading any config, and the scenario files use platform keys current Molecule rejects.
+
 ## When the rewrite count changes
 
 The rename asserts an exact count, so an upstream change to the FQCN references fails the build rather than silently half-renaming.

@@ -1,17 +1,23 @@
 ---
 name: Promtail Molecule
 
+# Manual trigger only, and currently unable to pass.
+#
+# The promtail role cannot install its software: Grafana stopped shipping
+# promtail packages after loki v3.6.0, and promtail_version defaults to
+# `latest`, which resolves to a release with zero promtail assets. Every
+# architecture 404s.
+#
+# So this is not replaced by tests/roles/promtail — there is nothing to
+# replace it with until the role is fixed or retired. Left here, manual-only,
+# so the scenario survives for whoever takes that decision.
+#
+# Off push and pull_request because a check that can never go green teaches
+# people to ignore checks.
+
+# yamllint disable-line rule:truthy
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'roles/promtail/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'roles/promtail/**'
+  workflow_dispatch:
 
 defaults:
   run:
