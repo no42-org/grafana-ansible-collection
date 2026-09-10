@@ -1,3 +1,18 @@
-yamllint==1.35.1
-ansible-lint>=6.13.1, <25.0.0
-pylint>=2.16.2,<4.0.0
+# Python dependencies of the collection's modules.
+#
+# This file is published inside the collection, so it is addressed to a
+# consumer, not to this repository. Every module under plugins/modules/ imports
+# requests behind a HAS_REQUESTS guard and reports its absence with
+# missing_required_lib('requests') -- an idiom whose whole purpose is to point
+# a user at a documented dependency. This is that documentation.
+#
+# No version constraint: the modules use plain HTTP verbs against Grafana's
+# API, with no version-sensitive surface, and inventing a floor this fork has
+# not tested would replace one false claim with another.
+#
+# It previously declared yamllint, ansible-lint and pylint -- this
+# repository's linters, which no consumer needs and which nothing here read.
+# Those live in pyproject.toml now. Kept in sync with the code by
+# tools/lint-release.sh, which derives the set from plugins/ rather than
+# trusting this comment.
+requests
