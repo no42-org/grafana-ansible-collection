@@ -12,6 +12,20 @@ on:
 # `git fetch upstream --tags`. A pattern like '*' or '[0-9]*' would let an
 # upstream tag fetch fire a release.
 
+# Least privilege. Only the `release` job elevates, to create the GitHub
+# release; every other job needs no more than read. A job-level block replaces
+# this one rather than merging with it, so an elevated job must list every
+# scope it needs, `contents` included.
+permissions:
+  contents: read
+
+# cancel-in-progress is deliberately false. A cancelled release publishes half
+# of itself: Galaxy versions are immutable, so an upload that lands without the
+# GitHub release and its notes cannot be redone under the same version.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   # The namespace in the working tree. The rename to indigo423 happens inside
   # `make dist`; ansible-test still needs the tree at its source path.
@@ -23,12 +37,15 @@ env:
 jobs:
   verify-version:
     name: Verify tag matches galaxy.yml
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
@@ -55,11 +72,14 @@ jobs:
 
   lint:
     name: Lint release machinery
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [verify-version]
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install shellcheck
         run: |
@@ -89,7 +109,8 @@ jobs:
 
   sanity:
     name: Sanity (Ⓐ${{ matrix.ansible }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs: [verify-version]
     # devel is advisory. It tracks unreleased ansible-core and breaks for
     # reasons unrelated to this collection; a release must not stop for that.
@@ -114,6 +135,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           path: ansible_collections/${{ env.SOURCE_NAMESPACE }}/${{ env.COLLECTION_NAME }}
 
       - name: Set up Python
@@ -130,11 +152,14 @@ jobs:
 
   build:
     name: Build collection
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [lint, sanity]
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
@@ -159,7 +184,8 @@ jobs:
 
   smoke:
     name: Smoke test the built artifact
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     needs: [verify-version, build]
     steps:
       - name: Set up Python
@@ -248,7 +274,7 @@ jobs:
 
   publish:
     name: Publish to Galaxy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [verify-version, smoke]
     timeout-minutes: 30
     steps:
@@ -286,7 +312,8 @@ jobs:
 
   release:
     name: Create GitHub release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [verify-version, publish]
     permissions:
       contents: write
@@ -294,6 +321,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Download collection artifact

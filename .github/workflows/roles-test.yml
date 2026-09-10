@@ -18,6 +18,17 @@ name: Roles Test
 # yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
+
+# Least privilege. Nothing here writes to the repository, so read is the whole
+# requirement. A job-level block would replace this one rather than merge with
+# it, so no job declares one.
+permissions:
+  contents: read
+
+concurrency:
+  group: roles-test-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NAMESPACE: grafana
   COLLECTION_NAME: grafana
@@ -34,11 +45,13 @@ jobs:
           - stable-2.14
           - devel
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
 
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           path: ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
 
       - name: Set up Python
@@ -55,6 +68,7 @@ jobs:
 
   integration:
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     name: Integration (Ⓐ${{ matrix.ansible }}-py${{ matrix.python }})
     strategy:
       fail-fast: true
@@ -69,6 +83,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           path: ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
 
       - name: create integration_config
