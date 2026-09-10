@@ -30,7 +30,7 @@ The upstream collection claims `ansible >= 2.9`; that claim was inherited and is
 Before using the Grafana collection, you need to install it using the below command:
 
 ```shell
-ansible-galaxy collection install grafana.grafana
+ansible-galaxy collection install indigo423.grafana
 ```
 
 You can also include it in a `requirements.yml` file and install it via `ansible-galaxy collection install -r requirements.yml`, using the format:
@@ -38,16 +38,16 @@ You can also include it in a `requirements.yml` file and install it via `ansible
 ```yaml
 ---
 collections:
-  - name: grafana.grafana
+  - name: indigo423.grafana
 ```
 
-A specific version of the collection can be installed by using the version keyword in the `requirements.yml` file:
+A specific version of the collection can be installed by using the version keyword in the `requirements.yml` file — substitute the version you want, which need not be the one shown:
 
 ```yaml
 ---
 collections:
-  - name: grafana.grafana
-    version: 1.0.0
+  - name: indigo423.grafana
+    version: 6.2.2
 ```
 
 ## Roles included in the collection

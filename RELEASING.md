@@ -410,14 +410,31 @@ Re-derive the number:
 ```
 
 ```text
-total occurrences      : 91
+total occurrences      : 94
 community.grafana.*    : 2  (must remain untouched)
-in excluded changelogs : 6  (not rewritten)
-expected rewrites      : 83
+in excluded changelogs : 12  (not rewritten)
+expected rewrites      : 80
 ```
 
 Read the diff before updating `EXPECTED_REWRITES` in `tools/rename-namespace.sh`.
 The count moving is the symptom; the cause may need the rewrite rule changed rather than the number bumped.
+
+### It has moved deliberately once, and the reasoning is the template
+
+83 → 80, when the README's three install commands were hardcoded to `indigo423.grafana`.
+
+They had to be. A reader on GitHub sees the tree, not the rewritten artifact, so `ansible-galaxy collection install grafana.grafana` installed **upstream's** collection — a copy-pasteable command pointing at someone else's package. Those three occurrences left the rename's scope, so the count dropped rather than the rewrite breaking.
+
+The arithmetic reconciled before the number was touched, which is the part worth copying:
+
+```text
+95  occurrences before
+-3  the README install commands, now hardcoded
++2  new changelog entries mentioning grafana.grafana (excluded from the rename)
+94  total, minus 2 community.* and 12 in changelogs = 80
+```
+
+Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
 
 In particular, watch for new `community.grafana.*` references.
 `community.grafana.grafana_datasource` contains `grafana.grafana` as a substring:
@@ -486,7 +503,7 @@ Two rules are turned off, both on the rule's merits rather than its count:
 
 **`editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one.** `tools/lint-editorconfig.sh` therefore propagated a zero meaning "the tool did not run". Use the standalone Go binary to measure locally.
 
-**`ansible-lint` installs the dependency collections itself, into the tree.** Locally that is `.ansible/collections/`; in CI, because `ansible.cfg` sets `collections_paths = ./`, it is `ansible_collections/` in the repository root. Both are now ignored. Before that, the first honest CI run failed on **4851 findings, every one of them in `ansible.posix` or `community.general`** and none in this repository. `.ansible/` also took `make dist`'s rename count from 83 to 174.
+**`ansible-lint` installs the dependency collections itself, into the tree.** Locally that is `.ansible/collections/`; in CI, because `ansible.cfg` sets `collections_paths = ./`, it is `ansible_collections/` in the repository root. Both are now ignored. Before that, the first honest CI run failed on **4851 findings, every one of them in `ansible.posix` or `community.general`** and none in this repository. `.ansible/` also took `make dist`'s rename count from 83 to 174, before the count was deliberately lowered to 80.
 
 ### Two rules are skipped, with reasons
 
