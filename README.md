@@ -25,6 +25,33 @@ This collection (`grafana.grafana`) contains modules and roles to assist in auto
 This fork is tested against `ansible-core` 2.17 and 2.18, and declares `requires_ansible: ">=2.17.0,<3.0.0"`.
 The upstream collection claims `ansible >= 2.9`; that claim was inherited and is not what is tested here.
 
+## Versions the roles install
+
+Most roles install whatever the upstream project has released most recently. These badges show what that is **today** — they are the upstream projects' own latest releases, which is exactly what `<role>_version: latest` resolves to at run time:
+
+[![grafana](https://img.shields.io/github/v/release/grafana/grafana?label=grafana&color=informational)](https://github.com/grafana/grafana/releases)
+[![loki](https://img.shields.io/github/v/release/grafana/loki?label=loki&color=informational)](https://github.com/grafana/loki/releases)
+[![mimir](https://img.shields.io/github/v/release/grafana/mimir?label=mimir&color=informational)](https://github.com/grafana/mimir/releases)
+[![tempo](https://img.shields.io/github/v/release/grafana/tempo?label=tempo&color=informational)](https://github.com/grafana/tempo/releases)
+[![alloy](https://img.shields.io/github/v/release/grafana/alloy?label=alloy&color=informational)](https://github.com/grafana/alloy/releases)
+
+Two roles are pinned instead, and the pin is the interesting part:
+
+[![promtail](https://img.shields.io/badge/promtail-3.6.0%20%C2%B7%20end%20of%20life-critical)](https://github.com/no42-org/grafana-ansible-collection/issues/4)
+[![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.90.1%20%C2%B7%20pinned-yellow)](https://github.com/no42-org/grafana-ansible-collection/issues/26)
+
+- **`promtail` installs 3.6.0 and will not move.** Grafana declared Promtail end of life on 2026-03-02 and published no packages after Loki 3.6.0, so this is the last version that exists. Use the `alloy` role instead; that is where Grafana directs users.
+- **`opentelemetry_collector` installs 0.90.1**, which upstream released in December 2023. That pin is inherited and has no stated reason — tracked in [#26](https://github.com/no42-org/grafana-ansible-collection/issues/26).
+- **`grafana_agent` tracks latest**, but upstream superseded it with Alloy and it ships no test here. Prefer `alloy`.
+
+### What these badges do and do not say
+
+They say **what a role installs**. They do not say what has been verified.
+
+Role tests run when `roles/` or the test harness changes, not when an upstream project cuts a release — so a badge reading `loki v3.7.7` means the role would fetch 3.7.7 today, not that 3.7.7 has been exercised here. What *has* been exercised, on both Debian and RHEL package families, is the coverage table in [RELEASING.md](https://github.com/no42-org/grafana-ansible-collection/blob/main/RELEASING.md).
+
+Any of these can be overridden. Set `<role>_version` to pin a version the role will install instead.
+
 ## Installing the collection
 
 Before using the Grafana collection, you need to install it using the below command:
