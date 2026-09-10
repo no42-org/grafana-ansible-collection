@@ -102,8 +102,16 @@ make carried-prs
 The carried set is derived from git history, not maintained as prose, because prose that must be updated by hand is prose that will be wrong.
 Every carried commit records its origin through `git cherry-pick -x`, so the set is discoverable and each pull request's current state is checkable.
 
-`make carried-prs` reports the size of the divergence and flags anything upstream has merged as droppable.
-If that number never falls, upstream is dead and this fork should be renamed and take its own direction, which is a decision to make explicitly rather than to drift into.
+`make carried-prs` flags anything upstream has merged as droppable.
+
+**It is not the whole inventory.** It enumerates commits carrying a `cherry picked from` line, so it sees upstream-origin work only. Three other kinds of divergence are invisible to it: maintainer fixes to inherited files, fork infrastructure, and contributions that land here with no upstream pull request behind them — which is where contributions now go, since upstream's maintainership is dormant. The total accounting is the file-level diff under **Verifying the divergence** below, where every differing file must map to a carried contribution, a maintainer change, or an accepted fork-origin contribution.
+
+Two signals worth watching, both of which point at the same decision:
+
+- the carried count never falling, because nothing this fork carries is ever merged upstream;
+- fork-origin changes coming to outnumber carried ones.
+
+Either means the fork has stopped being a curated view of upstream's queue and become its own project. That is a decision to take explicitly, including renaming it, rather than to drift into.
 
 ### Carrying an upstream contribution
 
@@ -173,7 +181,11 @@ Anything else is a bug in the rename or an unintended edit, and this diff is how
 The defects are real, not strictness artifacts: `plugins/modules/user.py` had an unterminated quote making `EXAMPLES` invalid YAML, an `orgid` parameter present in `argument_spec` but absent from the documentation, `state` choices that omitted the implemented `update_password`, and an author field that did not match the `Name (@handle)` form every other module uses.
 
 They are fixed here so `sanity` can stay a real blocking gate rather than being skipped or suppressed with `tests/sanity/ignore-*.txt`.
-All of it is upstreamable and should be sent to `grafana/grafana-ansible-collection`, after which the local divergence can be dropped.
+All of it is written to stay **applicable** upstream, but it is deliberately not submitted.
+
+Upstream's maintainership is dormant: the last merge to `main` was 2026-05-22, the last release 2026-04-27, and 32 pull requests sit open, several for over a year. The community is alive — issues and comments continue — but nobody is draining the queue, so adding to it costs effort and buys nothing.
+
+The posture is therefore *keep it adoptable, do not push it*. Every change stays small, single-purpose and separable; carried commits keep their original authors and a `cherry picked from` line; upstream files are not reformatted; and nothing under `roles/*/molecule/` is touched. If upstream revives, `make carried-prs` reports what they have merged and the fork drops it.
 
 ### Candidates that were rejected
 
