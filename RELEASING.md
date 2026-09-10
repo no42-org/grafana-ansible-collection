@@ -130,6 +130,7 @@ Rules, in order of importance:
 5. **Skip merge commits.** Contributors often sync their branch into the pull request. Use `--no-merges`.
 6. **For your own commits that already carry a sign-off, use `-x` alone.** `-s` would duplicate the trailer.
 7. **Read the contribution.** Applying cleanly is not evidence of correctness. See the rejected candidates below.
+8. **Keep it adoptable.** Nothing here is submitted upstream, so adoptability has to survive by construction: one purpose per commit so each can be taken independently, no reformatting or opportunistic tidying of inherited files, and `roles/*/molecule/` left byte-identical. A change upstream could apply unchanged is the goal; a change bundled with three unrelated edits is not.
 
 ### Ordering that is not obvious
 
@@ -185,7 +186,9 @@ All of it is written to stay **applicable** upstream, but it is deliberately not
 
 Upstream's maintainership is dormant: the last merge to `main` was 2026-05-22, the last release 2026-04-27, and 32 pull requests sit open, several for over a year. The community is alive — issues and comments continue — but nobody is draining the queue, so adding to it costs effort and buys nothing.
 
-The posture is therefore *keep it adoptable, do not push it*. Every change stays small, single-purpose and separable; carried commits keep their original authors and a `cherry picked from` line; upstream files are not reformatted; and nothing under `roles/*/molecule/` is touched. If upstream revives, `make carried-prs` reports what they have merged and the fork drops it.
+The posture is therefore *keep it adoptable, do not push it*. Every change stays small, single-purpose and separable; carried commits keep their original authors and a `cherry picked from` line; upstream files are not reformatted; and nothing under `roles/*/molecule/` is touched.
+
+**This policy has a premise, and the premise is checkable.** If `make carried-prs` ever reports something as merged upstream, maintainership has resumed and the decision not to submit should be re-examined rather than inherited. That is the one event that would change the answer.
 
 ### Candidates that were rejected
 
@@ -198,7 +201,7 @@ Recorded so the reasoning is not repeated:
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
 | `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
-| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. Candidates for a later release. |
+| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **6.3.0 candidates** — see Deferred. |
 
 ## Releases are cut from `main`
 
@@ -340,6 +343,6 @@ The release gate is `make ci-lint-release`, scoped to what this repository owns:
 
 ## Deferred
 
-- The three feature pull requests deferred from 6.2.0 (`#529`, `#462`, `#463`), untested for clean application.
+- **6.3.0 candidates:** the three feature pull requests deferred from 6.2.0 — `#529` (OpenTelemetry Collector extra args), `#462` (Mimir target), `#463` (Mimir multitenancy). None was test-applied, and `#462`/`#463` touch the same Mimir files, so they need sequencing like `#534`/`#538` did.
 - Cosign signatures on the GitHub release tarball.
   Galaxy does not consume them, so they would cover the GitHub artifact only.
