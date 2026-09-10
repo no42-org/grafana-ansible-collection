@@ -5,8 +5,15 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # uv, not pip. `pip` pointed at the Pipfile that modernize-lint-toolchain
+  # deleted when it replaced pipenv, so there was no version-updates entry for
+  # the ecosystem Dependabot actually finds -- and every security-update run
+  # failed as a result, with `uv in /.` in its own title.
+  #
+  # Covers pyproject.toml's `lint` dependency group and uv.lock. None of it
+  # ships: build_ignore keeps both out of the published collection.
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"
 
