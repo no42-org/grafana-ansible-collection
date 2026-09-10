@@ -184,6 +184,11 @@ def present_alert_contact_point(module):
                 for contact_points in result.json():
                     if contact_points['uid'] == module.params['uid']:
                         return False, True, contact_points
+                # The update returned 202, so the change happened. If the
+                # read-back does not list the UID, report the body that was
+                # accepted rather than falling out of the function and
+                # returning None, which the caller unpacks into three values.
+                return False, True, body
             else:
                 return True, False, {"status": result.status_code, 'response': result.json()['message']}
     else:
