@@ -1,14 +1,23 @@
 ---
 name: Roles Test
 
+# Manual trigger only.
+#
+# Two reasons, both inherited:
+#   - every job here targets `ubuntu-20.04`, a runner label GitHub has retired,
+#     so on push these jobs sat `queued` forever and appeared as checks that
+#     could never resolve;
+#   - the integration jobs need Grafana Cloud secrets this fork does not hold,
+#     which is the same reason `integration` was removed from the release
+#     pipeline.
+#
+# Kept rather than deleted: this is the only module-level integration suite in
+# the repository, and it becomes useful again if those credentials ever exist.
+# Following the precedent already set by full-integration-test.yml.
+
 # yamllint disable-line rule:truthy
 on:
-  push:
-    branches:
-      - "main"
-  pull_request:
-  schedule:
-    - cron: '0 6 * * *'
+  workflow_dispatch:
 env:
   NAMESPACE: grafana
   COLLECTION_NAME: grafana
@@ -24,7 +33,7 @@ jobs:
           - stable-2.13
           - stable-2.14
           - devel
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
 
       - name: Check out code
@@ -45,7 +54,7 @@ jobs:
         working-directory: ./ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
 
   integration:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Integration (Ⓐ${{ matrix.ansible }}-py${{ matrix.python }})
     strategy:
       fail-fast: true
