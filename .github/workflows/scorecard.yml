@@ -1,0 +1,57 @@
+---
+name: OpenSSF Scorecard
+
+# yamllint disable-line rule:truthy
+on:
+  branch_protection_rule:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: '41 5 * * 2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Uploading the SARIF result is what puts findings in the security tab.
+      security-events: write
+      # Scorecard reads branch protection and similar settings through OIDC
+      # rather than a token with broad scope.
+      id-token: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Treated as an external auditor of much of this repository's own
+      # checklist, not as a badge. Its findings are input to the next audit.
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc  # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: false
+
+      - name: Upload the result as an artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 7
+
+      - name: Upload to the security tab
+        uses: github/codeql-action/upload-sarif@4bd7200e1f146b1c937cae12d258b50f41a53cf8  # v4.38.0
+        with:
+          sarif_file: results.sarif
