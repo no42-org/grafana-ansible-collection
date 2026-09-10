@@ -1,0 +1,13 @@
+---
+# Apply the tempo role with its shipped defaults, unmodified.
+#
+# Unmodified is the whole point. The role converged happily for a long time
+# while leaving a Tempo that crash-looped, because its own default
+# `tempo_metrics_generator` set `traces_storage` and its overrides listed the
+# `local-blocks` processor -- both removed in Tempo 3.0. A test that overrode
+# either would have hidden exactly the defect, so this one overrides nothing.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  roles:
+    - tempo

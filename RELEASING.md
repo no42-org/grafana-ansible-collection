@@ -369,14 +369,14 @@ and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: thr
 | `alloy` | ✅ | ✅ | |
 | `loki` | ✅ | ✅ | |
 | `promtail` | — | — | see below |
-| `tempo` | — | — | see below |
+| `tempo` | ✅ | ✅ | |
 | `grafana_agent` | — | — | superseded upstream by `alloy`; never had a scenario |
 
-Two roles still cannot install their software with default settings. Both are inherited, both are the same shape — a role building URLs or config from templates that upstream has since outgrown — and neither was ever executed, which is why neither was noticed. `loki` on RHEL was the third and is now fixed:
+One role still cannot install its software with default settings. All three of these were inherited, all three were the same shape — a role building URLs or config from templates that upstream has since outgrown — and none was ever executed, which is why none was noticed. `loki` on RHEL and `tempo` are now fixed; `promtail` needs a decision rather than a fix:
 
 - **`loki` on RHEL — fixed.** The role built `loki-<version>.<arch>.rpm`, but Grafana added an RPM release number from **3.7.5** on, so the default `latest` 404s against any current release. `loki_download_url_rpm` now applies the `-1` suffix by version, because pinning an older `loki_version` still needs the old name. The `.deb` assets never changed, which is why only RHEL broke. `loki`/`rhel` is back in the role-test matrix and passes.
 - **`promtail`.** Grafana stopped shipping promtail packages after Loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
-- **`tempo`.** The role's own default `tempo_metrics_generator` emits a `traces_storage` field that Tempo 3.0.3 rejects (`field traces_storage not found in type generator.Config`), so Tempo crash-loops and the role's own readiness check fails.
+- **`tempo` — fixed.** Two of the role's defaults referred to things Tempo 3.0 removed. `tempo_metrics_generator` set `traces_storage`, and `tempo_overrides` listed `local-blocks` among the generator's processors; Tempo 3.0 deleted that processor and all its local block plumbing (grafana/tempo#6555), and `traces_storage` was its storage config. Tempo rejected the key outright and refused to start. Both are gone, `tempo` is in the role-test matrix on both families, and the verify step asks Tempo's own `/ready` endpoint rather than trusting systemd — a crash-looping unit can be caught mid-restart in the `running` state.
 
 None ships a test. A test that cannot pass is worse than no test, and overriding the defaults in a test would hide that the defaults are what is broken.
 
