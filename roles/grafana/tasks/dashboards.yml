@@ -198,7 +198,7 @@
           ansible.builtin.copy:
             src: "{{ item.path }}"
             dest: '{{ grafana_ini.paths.data }}/dashboards/{{ item.path | regex_replace(grafana_dashboards_dir + "/*", "") }}'
-            owner: root
+            owner: grafana
             group: grafana
             mode: "0644"
           loop: "{{ __found_dashboards.files | default([]) }}"
