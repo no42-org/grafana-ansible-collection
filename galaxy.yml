@@ -23,38 +23,38 @@ documentation: https://docs.ansible.com/ansible/latest/collections/grafana/grafa
 # tarball contains only collection content, so it can be diffed against
 # upstream's tarball after applying the inverse namespace rename.
 build_ignore:
-- node_modules/*
-- .github/*
-- tools/*
-- build/*
-- openspec/*
-- .claude/*
-- .agent/*
-- Makefile
-- Pipfile
-- Pipfile.lock
-- package.json
-- yarn.lock
+  - node_modules/*
+  - .github/*
+  - tools/*
+  - build/*
+  - openspec/*
+  - .claude/*
+  - .agent/*
+  - Makefile
+  - Pipfile
+  - Pipfile.lock
+  - package.json
+  - yarn.lock
 # Fork test infrastructure. Consumers get collection content; the harness that
 # tests it is this repository's business, like tools/.
-- tests/roles
+  - tests/roles
 # Lint and editor configuration: repository scaffolding, never read by a
 # consumer of the collection. Excluding it keeps the pipeline commit from
 # altering shipped content, so "our X.Y.Z is upstream's X.Y.Z" stays true.
-- .yamllint
-- .ansible-lint
-- .editorconfig
-- .markdownlint.yaml
-- .textlintrc
-- .shellcheckrc
-- .gitignore
+  - .yamllint
+  - .ansible-lint
+  - .editorconfig
+  - .markdownlint.yaml
+  - .textlintrc
+  - .shellcheckrc
+  - .gitignore
 # Documentation for maintainers and contributors of this fork, not for
 # consumers of the collection. A consumer receives collection content; they do
 # not receive this project's code of conduct.
-- RELEASING.md
-- CONTRIBUTING.md
-- SECURITY.md
-- CODE_OF_CONDUCT.md
-- SUPPORT.md
-- AGENTS.md
-- CLAUDE.md
+  - RELEASING.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+  - CODE_OF_CONDUCT.md
+  - SUPPORT.md
+  - AGENTS.md
+  - CLAUDE.md

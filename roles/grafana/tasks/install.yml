@@ -10,8 +10,8 @@
     state: present
     update_cache: true
   when:
-   - _grafana_dependencies is defined
-   - _grafana_dependencies | length > 0
+    - _grafana_dependencies is defined
+    - _grafana_dependencies | length > 0
 
 - name: "Prepare zypper"
   when:
@@ -19,7 +19,7 @@
     - "(grafana_manage_repo)"
   environment: "{{ grafana_environment }}"
   block:
-    - name: import Grafana RPM Key
+    - name: Import Grafana RPM Key
       ansible.builtin.rpm_key:
         state: present
         key: "{{ grafana_yum_key }}"
