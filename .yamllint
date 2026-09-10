@@ -8,8 +8,13 @@ ignore:
   - node_modules
   # collection build output: a rewritten copy of the tree, linted at its source
   - build
-  # AI tool working directory, never committed
+  # AI tool working directories, never committed
   - openspec
+  - .claude
+  - .agent
+  # ansible-galaxy's local install target, which holds a copy of this
+  # collection: without this, every finding is reported twice
+  - .ansible
 
 extends: default
 
