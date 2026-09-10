@@ -1,8 +1,34 @@
-=============================
-Grafana.Grafana Release Notes
-=============================
+================================
+Indigo423.Grafana Release Notes
+================================
 
 .. contents:: Topics
+
+v6.2.0
+======
+
+Release Summary
+---------------
+
+First curated release of this fork. Version numbers are this fork's own and do not correspond to any grafana.grafana release; the upstream commit each release is built from is recorded in its GitHub release notes. This release carries seven upstream pull requests that are open and unmerged, with their authors preserved. Each is dropped once upstream merges it.
+
+Bugfixes
+--------
+
+- Set chdir to the Grafana homepath so grafana-cli can install plugins on Grafana 13 by @indigo423 in https://github.com/grafana/grafana-ansible-collection/pull/510
+- Guard the grafana_rhsm_* conditions against undefined variables by @uLcL in https://github.com/grafana/grafana-ansible-collection/pull/534
+- Add module_hotfixes to the yum/dnf repository so Grafana packages win over system ones by @WistfulAdris in https://github.com/grafana/grafana-ansible-collection/pull/538
+- Create dashboard folders from a list instead of a stringified list by @cmehat in https://github.com/grafana/grafana-ansible-collection/pull/448
+- Set owner and group when extracting the OpenTelemetry Collector by @mhumeSF in https://github.com/grafana/grafana-ansible-collection/pull/475
+- Treat HTTP 409 as an existing alert contact point, restoring idempotency on current Grafana by @argpna in https://github.com/grafana/grafana-ansible-collection/pull/536
+- Accept the mimir- prefix when determining the latest Mimir version by @Spirit-act in https://github.com/grafana/grafana-ansible-collection/pull/461
+
+Minor Changes
+-------------
+
+- Fix colon spacing in roles/grafana/tasks/dashboards.yml, introduced by the carried contribution from https://github.com/grafana/grafana-ansible-collection/pull/448
+- Raise the requires_ansible floor to >=2.17.0 to match the versions actually tested
+- Correct the release notes title, which the build-time namespace rewrite cannot reach
 
 v6.1.0
 ======
