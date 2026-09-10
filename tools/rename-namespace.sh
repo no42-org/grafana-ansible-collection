@@ -70,6 +70,8 @@ readonly EXCLUDE_DIRS=(
   # The same thing one level up: ansible.cfg sets `collections_paths = ./`, so
   # in CI the dependency collections land here instead.
   "ansible_collections"
+  # uv's project virtualenv.
+  ".venv"
 )
 
 readonly EXCLUDE_FILES=(

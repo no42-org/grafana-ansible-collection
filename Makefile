@@ -21,9 +21,13 @@ all: install
 setup:
 	@./tools/setup.sh
 
+# Provisions both toolchains. `uv sync` installs the pinned Python linters into
+# .venv, provisioning an interpreter if the machine has none that fits -- which
+# is the whole reason pipenv was replaced. `yarn install` provides the Node
+# linters.
 install:
 	yarn install
-	pipenv install
+	uv sync --group lint
 
 # remove the build and log folders
 clean:

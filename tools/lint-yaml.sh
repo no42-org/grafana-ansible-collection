@@ -7,15 +7,18 @@ source "./tools/includes/logging.sh"
 # output the heading
 heading "Grafana Ansible Collection" "Performing YAML Linting using yamllint"
 
-# make sure pipenv exists
-if [[ "$(command -v pipenv)" = "" ]]; then
-  echo >&2 "pipenv command is required, see (https://pipenv.pypa.io/en/latest/) or run: brew install pipenv";
+# The toolchain not being installed is a distinct failure from the linter
+# finding something, and the messages say which. Reading one as the other is
+# what caused three wrong conclusions about this repository's lint state.
+if [[ "$(command -v uv)" = "" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
+  echo >&2 "This is not a lint failure. No file has been checked.";
   exit 1;
 fi
 
-# make sure yamllint exists
-if [[ "$(pipenv run pip freeze | grep -c "yamllint")" == "0" ]]; then
-  echo >&2 "yamllint command is required, see (https://pypi.org/project/yamllint/). Run \"make install\" to install it.";
+if ! uv run --frozen --group lint yamllint --version >/dev/null 2>&1; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: yamllint is not available. Run \"make install\".";
+  echo >&2 "This is not a lint failure. No file has been checked.";
   exit 1;
 fi
 
@@ -34,7 +37,7 @@ fi
 # This is not a rule demoted to reduce a count. No rule's level was changed;
 # the flag that overrode every declared level was removed, so the gate now
 # enforces what .yamllint actually says. Warnings still print.
-pipenv run yamllint --config-file "$(pwd)/.yamllint" .
+uv run --frozen --group lint yamllint --config-file "$(pwd)/.yamllint" .
 statusCode="$?"
 
 if [[ "$statusCode" == "0" ]]; then
