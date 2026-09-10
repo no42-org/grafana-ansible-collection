@@ -38,7 +38,7 @@
       ansible.builtin.get_url:
         url: "{{ item.dashboard_url if item.dashboard_url is defined else
           ('https://grafana.com/api/dashboards/' ~ item.dashboard_id ~
-           '/revisions/' ~ item.revision_id | default(1) ~ '/download') }}"
+          '/revisions/' ~ item.revision_id | default(1) ~ '/download') }}"
         dest: "{{ __tmp_dashboards.path }}/{{ item.dashboard_id ~ '.json'
           if item.dashboard_id is defined else item.dashboard_url | basename}}"
         mode: "0644"
@@ -193,7 +193,7 @@
           become: true
           register: __dashboards_dir_created
           when: not ansible_check_mode
-          
+
         - name: "Copy dashboard files"
           ansible.builtin.copy:
             src: "{{ item.path }}"
@@ -217,10 +217,8 @@
       ansible.builtin.set_fact:
         __dashboards_present_list: "{{ __dashboards_present.files | default([]) | map(attribute='path') | list }}"
         __dashboards_copied_list: "{{
-          (
-            (__dashboards_copied.results | default([]) | map(attribute='dest') | list) +
-            (__dashboards_copied_custom.results | default([]) | map(attribute='dest') | list)
-          ) | list
+          ((__dashboards_copied.results | default([]) | map(attribute='dest') | list) +
+          (__dashboards_copied_custom.results | default([]) | map(attribute='dest') | list)) | list
         }}"
       when: not ansible_check_mode
 
@@ -230,7 +228,7 @@
         state: absent
       loop: "{{ __dashboards_present_list | difference(__dashboards_copied_list) }}"
       become: true
-      when: 
+      when:
         - __dashboards_present_list is defined and __dashboards_present_list
         - __dashboards_copied_list is defined and __dashboards_copied_list
         - grafana_provisioning_synced | bool
