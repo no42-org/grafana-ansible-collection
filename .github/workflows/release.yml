@@ -302,15 +302,17 @@ jobs:
           name: collection
           path: dist
 
-      # Version numbers mirror upstream, so the notes must say which upstream
-      # commit the release was actually cut from. Without it, "6.1.0" is
-      # ambiguous between upstream's tag and whatever this fork built.
+      # This fork's version numbers are its own, so the notes have to say so and
+      # name the upstream commit the release was built from. Without both, the
+      # number is ambiguous against an upstream release of the same name.
       - name: Compose release notes
         id: notes
         env:
           VERSION: ${{ needs.verify-version.outputs.version }}
         run: |
-          UPSTREAM_BASE="$(git rev-parse HEAD)"
+          git remote add upstream https://github.com/grafana/grafana-ansible-collection.git 2>/dev/null || true
+          git fetch -q --no-tags upstream main
+          UPSTREAM_BASE="$(git merge-base HEAD upstream/main)"
           {
             echo "Release of \`${GALAXY_NAMESPACE}.${COLLECTION_NAME}\` version \`${VERSION}\`."
             echo ""
@@ -320,8 +322,19 @@ jobs:
             echo "ansible-galaxy collection install ${GALAXY_NAMESPACE}.${COLLECTION_NAME}:${VERSION}"
             echo '```'
             echo ""
-            echo "This fork mirrors upstream version numbers."
-            echo "Built from commit \`${UPSTREAM_BASE}\`."
+            echo "## Provenance"
+            echo ""
+            echo "This version number is this fork's own."
+            echo "It does **not** correspond to a \`grafana.grafana\` release of the same number."
+            echo ""
+            echo "Built from upstream commit \`${UPSTREAM_BASE}\`."
+            echo ""
+            echo "## Upstream contributions carried in this release"
+            echo ""
+            echo "Cherry-picked from open, unmerged upstream pull requests, with their authors preserved."
+            echo "Each is dropped once upstream merges it."
+            echo ""
+            ./tools/carried-prs.sh --release-notes "${UPSTREAM_BASE}"
             echo ""
             echo "Published to https://galaxy.ansible.com/ui/repo/published/${GALAXY_NAMESPACE}/${COLLECTION_NAME}/"
           } > release-notes.md
