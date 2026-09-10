@@ -241,6 +241,10 @@ dist
 # ---------------------------------------------------
 .venv/
 
+# Pinned linter binaries, downloaded on first use by
+# tools/includes/editorconfig-checker.sh.
+tools/bin/
+
 
 # Ansible local artifacts
 # ---------------------------------------------------

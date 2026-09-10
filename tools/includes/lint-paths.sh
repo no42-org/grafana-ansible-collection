@@ -30,6 +30,8 @@ readonly LINT_EXCLUDED_DIRS=(
   "ansible_collections"
   # Build output: a rewritten copy of the tree, already linted at its source.
   "build"
+  # Downloaded linter binaries.
+  "bin"
   # AI tool working directories, never committed.
   "openspec"
   ".claude"
