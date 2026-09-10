@@ -1,11 +1,11 @@
 - name: Install OpenTelemetry Collector
-  include_tasks: install.yml
+  ansible.builtin.include_tasks: install.yml
   tags: [install]
 
 - name: Configure OpenTelemetry Collector
-  include_tasks: configure.yml
+  ansible.builtin.include_tasks: configure.yml
   tags: [configure]
 
 - name: Manage OpenTelemetry Collector service
-  include_tasks: service.yml
+  ansible.builtin.include_tasks: service.yml
   tags: [service]

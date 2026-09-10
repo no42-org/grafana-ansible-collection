@@ -12,6 +12,7 @@
     ]
   register: result
 
-- assert:
+- name: Assert the alert notification policy was created
+  ansible.builtin.assert:
     that:
       - result.failed == false
