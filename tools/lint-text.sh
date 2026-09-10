@@ -4,6 +4,8 @@ source "$(pwd)/tools/includes/utils.sh"
 
 source "./tools/includes/logging.sh"
 
+source "./tools/includes/lint-paths.sh"
+
 # output the heading
 heading "Grafana Ansible Collections" "Performing Text Linting using textlint"
 
@@ -27,7 +29,7 @@ while read -r file; do
   if [[ "$statusCode" == 0 ]]; then
     statusCode="$currentCode"
   fi
-done < <(find . -type f -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*")
+done < <(lintFind -type f -name "*.md" -print)
 
 echo ""
 echo ""
