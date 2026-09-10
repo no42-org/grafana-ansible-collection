@@ -16,11 +16,13 @@
   },
   "homepage": "https://github.com/grafana/grafana-ansible-collection#readme",
   "dependencies": {
-    "editorconfig-checker": "^5.0.1",
-    "markdownlint-cli2": "^0.6.0",
-    "textlint": "^12.5.1",
-    "textlint-rule-common-misspellings": "^1.0.1",
-    "textlint-rule-no-todo": "^2.0.1",
-    "textlint-rule-terminology": "^3.0.4"
+    "markdownlint-cli2": "0.23.2",
+    "textlint": "15.8.0",
+    "textlint-rule-common-misspellings": "1.0.1",
+    "textlint-rule-terminology": "5.2.16"
+  },
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "smol-toml": "^1.8.0"
   }
 }

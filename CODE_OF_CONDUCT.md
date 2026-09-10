@@ -18,7 +18,7 @@ This applies to issues, pull requests, commit messages and any other interaction
 
 ## Enforcement
 
-Report a problem to **ronny@no42.org**, or privately via GitHub if you would rather not use email.
+Report a problem to **<ronny@no42.org>**, or privately via GitHub if you would rather not use email.
 
 Reports go to the maintainer, who is one person. Expect a human response rather than a process. Depending on severity the response may be a request to change behaviour, deletion of a comment, or a block — and the maintainer may act without a report if something is obviously out of bounds.
 

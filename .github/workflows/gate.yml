@@ -131,10 +131,6 @@ jobs:
       # `if: success() || failure()` on each, so one failing linter does not
       # hide the others' findings. As of honest-ci-gates every one of these
       # actually fails when its linter reports an error.
-      #
-      # Markdown and text linting stay commented out, matching what lint.yaml
-      # had. Their toolchain is `modernize-lint-toolchain`'s subject, and it
-      # carries 29 of this repository's open Dependabot alerts.
       - name: Shell Linting
         run: make ci-lint-shell
         if: success() || failure()
@@ -149,6 +145,23 @@ jobs:
 
       - name: Ansible Linting
         run: make ci-lint-ansible
+        if: success() || failure()
+
+      # Enabled for the first time. Both were commented out in the workflow
+      # this one replaced, so the prose this fork authors has never been
+      # linted -- which is most of what it now owns: RELEASING.md,
+      # CONTRIBUTING.md, SECURITY.md, SUPPORT.md, AGENTS.md.
+      #
+      # Scoped to fork-authored documents. The inherited README, role READMEs
+      # and examples/ are excluded, because bringing them to this
+      # configuration is a whitespace sweep of upstream's prose. See the
+      # comments in tools/lint-markdown.sh.
+      - name: Markdown Linting
+        run: make ci-lint-markdown
+        if: success() || failure()
+
+      - name: Text Linting
+        run: make ci-lint-text
         if: success() || failure()
 
   sanity:

@@ -46,8 +46,9 @@ make role-test-list
 ## Commands
 
 ```bash
-make ci-lint-release   # tools/*.sh + every workflow's hygiene; needs no pipenv
-make ci-lint-yaml      # the collection; needs `make install`, which is fragile locally
+make ci-lint-release   # tools/*.sh + every workflow's hygiene; needs no provisioning
+make ci-lint           # the collection: shell, yaml, editorconfig, ansible, markdown, text
+make install           # uv + corepack yarn; works without a system Python
 make dist              # rename + build the collection tarball
 make role-test ROLE=<role> DISTRO=debian|rhel
 ansible-test sanity --docker
@@ -57,10 +58,10 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 
 ## Traps worth knowing
 
-- **`make install` is fragile locally, and never in CI.** `Pipfile` pins `python_version = "3.10"`; without that interpreter pipenv fails and every Python linter bails at its guard, which *looks* like failing lint. This caused three wrong conclusions before it was pinned down — twice reading a guard bail as a red gate, once inferring that the pipenv chain was too fragile for the release path. CI's `setup-python` supplies 3.10 and `make install` has succeeded on every run.
-- **A linter that cannot run may still exit 0.** `editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one. Measure with the standalone Go binary locally.
-- **`ansible-lint` installs the dependency collections into the tree.** `.ansible/collections/` locally, `ansible_collections/` in CI (`ansible.cfg` sets `collections_paths = ./`). Both are gitignored and excluded now. Un-ignored, they produce 4851 findings in other people's code and take `make dist`'s rename count from 83 to 174.
-- **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regex prefix.
+- **A linter that cannot run is not a linter that found nothing.** `make install` used to need Python 3.10 exactly, and without it every Python linter bailed at its guard and *looked* like failing lint — three wrong conclusions before it was pinned down. `uv` provisions its own interpreter now, and the guards print `TOOLCHAIN NOT INSTALLED`. Keep that distinction when adding a gate.
+- **A tool that cannot run may still exit 0.** `editorconfig-checker@5.0.1` shipped no `darwin-arm64` binary and exited 0 when it could not find one, so that gate passed without reading a file. It is a pinned standalone binary now, provisioned by `tools/includes/editorconfig-checker.sh`.
+- **Tools install into the working tree, and every one needs excluding four times.** `.ansible/`, `ansible_collections/`, `.venv/`, `tools/bin/`. The same defect was fixed four times before the list moved to `tools/includes/lint-paths.sh`; `.yamllint`, `.ansible-lint` and `tools/rename-namespace.sh` keep their own copies and all four must agree. Un-ignored, they produce findings in other people's code — 4851 once — and take `make dist`'s rename count from 83 to 174.
+- **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
 - **Three roles are broken with default settings**, all inherited: `promtail` (upstream deleted its packages), `tempo` (default config invalid for the version it installs), `loki` on RHEL (upstream renamed the RPMs). They deliberately ship no role test. See `RELEASING.md`.
 
 ## Conventions

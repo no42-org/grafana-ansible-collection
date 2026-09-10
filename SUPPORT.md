@@ -3,7 +3,7 @@
 ## Where to go
 
 | What you have | Where it goes |
-|---|---|
+| --- | --- |
 | A bug in a role, module or the collection | [Open an issue](https://github.com/no42-org/grafana-ansible-collection/issues) |
 | A change you would like to make | [Open an issue or pull request](https://github.com/no42-org/grafana-ansible-collection/issues) — see [CONTRIBUTING.md](CONTRIBUTING.md) |
 | A security vulnerability | [Report it privately](https://github.com/no42-org/grafana-ansible-collection/security/advisories/new), never as an issue — see [SECURITY.md](SECURITY.md) |

@@ -252,6 +252,10 @@ build/
 # When a tool is added, its directory goes in all four places.
 .venv/
 
+# Pinned linter binaries, downloaded on first use by
+# tools/includes/editorconfig-checker.sh.
+tools/bin/
+
 
 # Ansible local artifacts
 # ---------------------------------------------------
