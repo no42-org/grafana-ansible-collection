@@ -156,8 +156,11 @@ grep -rIli indigo423 ours/ | while IFS= read -r f; do
                s/^title: Indigo423\.Grafana$/title: Grafana.Grafana/' "$f"
 done
 
-diff -rq -x MANIFEST.json -x FILES.json up/ ours/
+diff -rq -x MANIFEST.json -x FILES.json -x galaxy.yml up/ ours/
 ```
+
+`MANIFEST.json` and `FILES.json` are per-build metadata and always differ.
+`galaxy.yml` is excluded because the build consumes it: the tarball carries `MANIFEST.json` instead, so it always shows as present only upstream.
 
 Every differing file must be attributable to a carried contribution or to a documented maintainer change.
 Anything else is a bug in the rename or an unintended edit, and this diff is how you find it.
