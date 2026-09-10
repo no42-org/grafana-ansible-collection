@@ -204,6 +204,16 @@ done
   for node in "${nodeNames[@]}"; do
     echo "    ${stack}-${node}:"
     echo "      ansible_connection: community.docker.docker"
+    # The container runs as root. Declaring it matters: without ansible_user,
+    # Ansible takes the remote user to be the *local* user, so become_user
+    # (root) differs from it and privilege escalation runs sudo inside the
+    # container. With ansible_user: root, become_allow_same_user defaults to
+    # skipping escalation entirely, so no sudo is involved.
+    #
+    # That difference was invisible locally, where the arm64 image happens to
+    # have a working sudo, and failed every RHEL job in CI on amd64 with
+    # "sudo: PAM account management error".
+    echo "      ansible_user: root"
     echo "      ansible_python_interpreter: /usr/bin/python3"
     echo "      role_test_node_name: ${node}"
   done
