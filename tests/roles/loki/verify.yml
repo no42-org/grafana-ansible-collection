@@ -1,0 +1,35 @@
+---
+- name: Verify
+  hosts: all
+  any_errors_fatal: true
+  become: true
+  tasks:
+    - name: "Collect service facts"
+      ansible.builtin.service_facts:
+
+    - name: "Stat the configuration file"
+      ansible.builtin.stat:
+        path: /etc/loki/config.yml
+      register: __config
+
+    - name: "Assert the configuration file exists"
+      ansible.builtin.assert:
+        that:
+          - __config.stat.exists
+          - __config.stat.isreg
+        fail_msg: "/etc/loki/config.yml is missing"
+
+    - name: "Assert loki is running"
+      ansible.builtin.assert:
+        that:
+          - "'loki.service' in ansible_facts.services"
+          - "ansible_facts.services['loki.service'].state == 'running'"
+        fail_msg: >-
+          loki is not running:
+          {{ ansible_facts.services['loki.service'].state | default('absent') }}
+
+    - name: "Assert the HTTP port is listening"
+      ansible.builtin.wait_for:
+        port: 3100
+        host: 127.0.0.1
+        timeout: 60

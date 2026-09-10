@@ -1,0 +1,8 @@
+---
+# Apply the loki role. Carries no curated contribution; covered so a future
+# upstream merge cannot break it unnoticed.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  roles:
+    - loki

@@ -1,0 +1,22 @@
+---
+# Apply the alloy role. Carries no curated contribution; covered so a future
+# upstream merge cannot break it unnoticed.
+#
+# A river configuration is required: the role writes it out and alloy refuses
+# to start without a valid one.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  vars:
+    alloy_config: |
+      prometheus.scrape "default" {
+          targets = [{"__address__" = "127.0.0.1:12345"}]
+          forward_to = [prometheus.remote_write.prom.receiver]
+      }
+      prometheus.remote_write "prom" {
+          endpoint {
+              url = "http://127.0.0.1:9090/api/v1/write"
+          }
+      }
+  roles:
+    - alloy
