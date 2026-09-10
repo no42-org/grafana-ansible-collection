@@ -50,10 +50,13 @@ push tag v<version>
   │
   ├─ verify-version   tag minus "v" == galaxy.yml version
   │
-  ├─ lint             make ci-lint-release          ┐ parallel
-  ├─ sanity           ansible-test sanity           ┘
-  │                     stable-2.17, stable-2.18    blocking
-  │                     devel                       advisory
+  ├─ gate             .github/workflows/gate.yml    ┐
+  │    ├─ lint-release   make ci-lint-release       │ parallel
+  │    ├─ lint           make ci-lint-{shell,yaml,  │
+  │    │                   editorconfig,ansible}    │
+  │    └─ sanity         ansible-test sanity        ┘
+  │                        stable-2.17, stable-2.18   blocking
+  │                        devel                       advisory
   │
   ├─ build            make dist → artifact
   │
@@ -63,6 +66,13 @@ push tag v<version>
   │
   └─ release          GitHub release, tarball attached
 ```
+
+The gate is a `workflow_call` workflow, and `ci.yml` calls the same file on every push and pull request to `main`.
+That is deliberate: **"what must pass" has one definition.**
+Before it existed, `lint.yaml` gated pull requests while `release.yml` defined its own lint and sanity, and nothing kept them in agreement — the drift that matters being a release publishing through a weaker gate than pull requests enforce.
+
+A reusable workflow does not inherit its caller's `env:`, so the source namespace and collection name arrive as inputs.
+`ansible-test` needs the collection at `ansible_collections/<namespace>/<name>`, and the tree is unrenamed at that point, so those are the source names rather than the Galaxy ones.
 
 ## Version policy
 
@@ -219,10 +229,58 @@ Recorded so the reasoning is not repeated:
 ## Releases are cut from `main`
 
 Since 6.2.0 releases are cut from `main`, which carries both the pipeline and the curated contributions.
+`main` is protected — see [Branch protection on `main`](#branch-protection-on-main) below for what that means for the version-bump commit.
 
 This was not always true. 6.1.0 mirrored upstream's 6.1.0 and therefore had to be cut from a `release/6.1.0` branch based on tag `6.1.0` (`39f1373`), because a tag-triggered workflow runs the workflow file **as it exists at the tagged commit**, and that commit predated the pipeline entirely: pushing `v6.1.0` there produced no run, no error and no notification.
 
 That constraint disappeared with the mirror policy. It is recorded because the underlying trap has not: **a tag pushed at a commit without a tag-triggered `release.yml` does nothing at all, silently.** If you ever tag an older commit, check that `release.yml` exists there first.
+
+## Branch protection on `main`
+
+`main` is protected, with **administrator bypass permitted**.
+
+```
+  required checks     Gate / Lint release machinery
+                      Gate / Lint the collection
+                      Gate / Sanity (Ⓐstable-2.17)
+                      Gate / Sanity (Ⓐstable-2.18)
+  enforce_admins      false      ← the bypass
+  strict              false      ← branches need not be rebased onto main first
+  force pushes        blocked
+  deletions           blocked
+  conversation resolution  required
+```
+
+`Gate / Sanity (Ⓐdevel)` is deliberately **not** required. It is advisory — `continue-on-error: true`, because it tracks unreleased `ansible-core` and breaks for reasons unrelated to this collection — so it reports as a failed check while the workflow succeeds. Requiring it would block every merge on an advisory job.
+
+`strict: false` for the same kind of reason: on a single-maintainer repository, requiring every branch to be rebased onto `main` before merging buys little and costs a rebase for every unrelated push.
+
+### The bypass is a trade, stated
+
+What it buys is that a solo project is never blocked by its own gate being wrong, mis-configured, or slow at an inconvenient moment.
+What it gives up is the guarantee: the person most likely to push a broken release is also the person holding the bypass, so protection is a strong default rather than an enforced invariant.
+
+That is acceptable here for two reasons. The gate's value in a solo project is catching mistakes, not preventing deliberate action, and a bypass does not weaken that. And the irreversible step is publishing to Galaxy, which is gated **inside** `release.yml` — `verify-version`, the whole gate, and the smoke test all run before `publish`, and no bypass of branch protection skips any of them.
+
+**Use the bypass visibly, not habitually.** If it becomes the normal path, the protection is decoration and should either be removed or made strict (`enforce_admins: true`).
+
+### The version bump normally lands by pull request
+
+The release procedure's `chore(release): vX.Y.Z` commit is a change to `galaxy.yml` and the changelog, so it goes through a pull request like anything else, and the tag is pushed at the merged commit.
+
+```bash
+git switch -c release/6.3.0
+# bump galaxy.yml, changelogs/
+git commit -s -m "chore(release): v6.3.0"
+git push -u origin release/6.3.0
+gh pr create --fill
+# merge once the gate is green, then
+git switch main && git pull
+git tag -s v6.3.0 -m "release 6.3.0"
+git push origin v6.3.0
+```
+
+Direct pushes to `main` still work, because of the bypass. That is the case the bypass exists for — a version bump where a pull request would be pure ceremony — but it should be a decision each time, not the default.
 
 ## Role tests
 
@@ -333,19 +391,55 @@ The rewrite guards against it with a negative lookbehind, and both the script an
 
 ## Linting
 
-`make ci-lint` is **not** a release gate.
-It is red on a pristine tree: 62 error-level `yamllint` findings in `roles/`, `changelogs/`, and `galaxy.yml`, plus `ci-lint-editorconfig`, all inherited from upstream, where the Lint workflow has been failing for months.
+**The lint gates gate.** That sentence was false until `honest-ci-gates`, and the correction is worth knowing because two wrong conclusions were drawn from it before it was diagnosed.
 
-Bringing it green would mean editing `roles/`, `changelogs/`, and `examples/` — exactly the files this fork keeps identical to upstream so merges stay clean.
-That would manufacture the conflicts the build-time rename exists to avoid.
+`tools/lint-yaml.sh` and `tools/lint-ansible.sh` both ended on
 
-The release gate is `make ci-lint-release`, scoped to what this repository owns:
+```bash
+if [[ "$sourced" == "1" ]]; then
+  return "$statusCode"
+fi
+```
 
-- `tools/*.sh` under `shellcheck`
-- `.github/workflows/release.yml` under `yamllint`, and `actionlint` when installed
-- `galaxy.yml` and `.github/dependabot.yml` checked for valid YAML and required fields, not style
+`make ci-lint-*` executes these scripts rather than sourcing them, so `sourced=0`, the closing `if` evaluates false, and in bash a false `if` with no `else` yields exit status **0**.
+Both reported success while their linter printed errors.
+CI run `34446534704` showed **61 error annotations on a step whose conclusion was `success`**.
 
-`make ci-lint` is unchanged and still runs on pull requests.
+Two claims previously recorded here were also wrong, and are corrected rather than deleted so they are not reinstated:
+
+| Claim | Why it was wrong |
+|---|---|
+| "62 error-level findings, and the Lint workflow has been failing for months" | The workflow was *passing*, over the findings. The local run that looked red had bailed at the pipenv guard, because `Pipfile` pins `python_version = "3.10"` and that interpreter was absent. |
+| "Bringing it green would mean editing the files this fork keeps identical to upstream, manufacturing conflicts" | It cost **four newly-diverging files of whitespace.** 56 of the 61 errors were in files already diverged, 52 of those in `changelogs/changelog.yaml` alone. |
+
+The findings are fixed. On a clean checkout the enabled linters report zero errors: `yamllint` 0, `ansible-lint` 0 failures and 0 warnings on 212 files against the `production` profile, `editorconfig-checker` 0, `shellcheck` clean.
+
+### What each target is for
+
+| Target | Covers | Needs |
+|---|---|---|
+| `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `shellcheck`, `yamllint`, `actionlint`, `zizmor` |
+| `make ci-lint-{shell,yaml,editorconfig,ansible}` | the collection itself | `make install` — pipenv **and** `node_modules` |
+| `make ci-lint` | the above plus the disabled `markdown` and `text` steps | as above |
+
+Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no pipenv and no `node_modules`, so it runs in seconds locally and catches the release machinery, while the collection lint set needs the full toolchain.
+
+`ci-lint`'s `markdown` and `text` steps stay commented out. Their toolchain carries 29 of this repository's open Dependabot alerts and cannot be fixed from below; that is `modernize-lint-toolchain`'s subject.
+
+### Two linter traps
+
+**`editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one.** `tools/lint-editorconfig.sh` therefore propagated a zero meaning "the tool did not run". Use the standalone Go binary to measure locally.
+
+**`ansible-lint` installs the dependency collections itself, into the tree.** Locally that is `.ansible/collections/`; in CI, because `ansible.cfg` sets `collections_paths = ./`, it is `ansible_collections/` in the repository root. Both are now ignored. Before that, the first honest CI run failed on **4851 findings, every one of them in `ansible.posix` or `community.general`** and none in this repository. `.ansible/` also took `make dist`'s rename count from 83 to 174.
+
+### Two rules are skipped, with reasons
+
+Neither is skipped for producing too many findings, which is not an acceptable reason.
+
+- **`var-naming[no-role-prefix]`**, 22 findings, 20 in `roles/opentelemetry_collector/defaults/main.yml`. The rule wants `otel_collector_receivers` renamed to `opentelemetry_collector_receivers`. Those are the role's **public interface**: renaming breaks every playbook that sets them. That is a major version bump with a deprecation path, not a lint fix.
+- **`roles/*/molecule/`**, 2 findings. Byte-identical to upstream by rule — see [The dormant Molecule scenarios](#the-dormant-molecule-scenarios). Editing it to satisfy a linter would break a stated invariant for two cosmetic findings.
+
+`tools/lint-release.sh` also asserts that every `tools/lint-*.sh` exits with its captured status, and names the offender if not. Explicit rather than delegated to `shellcheck`, which has no check for this: the pattern is valid bash doing exactly what it says, and the defect is that what it says is not what the caller needs.
 
 ## Prerequisites
 
