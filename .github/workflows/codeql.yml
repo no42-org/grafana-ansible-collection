@@ -1,0 +1,55 @@
+---
+name: CodeQL
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'plugins/**'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'plugins/**'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    # Weekly, so a newly published query catches something without waiting for
+    # the next change to plugins/.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Scoped to plugins/, which is the only compiled-or-analysable code the
+      # collection ships: nine Python modules. The roles are YAML and are
+      # covered by ansible-test sanity and the role test harness instead.
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@4bd7200e1f146b1c937cae12d258b50f41a53cf8  # v4.38.0
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@4bd7200e1f146b1c937cae12d258b50f41a53cf8  # v4.38.0
+        with:
+          category: "/language:python"
