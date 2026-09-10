@@ -62,7 +62,7 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 - **A tool that cannot run may still exit 0.** `editorconfig-checker@5.0.1` shipped no `darwin-arm64` binary and exited 0 when it could not find one, so that gate passed without reading a file. It is a pinned standalone binary now, provisioned by `tools/includes/editorconfig-checker.sh`.
 - **Tools install into the working tree, and every one needs excluding four times.** `.ansible/`, `ansible_collections/`, `.venv/`, `tools/bin/`. The same defect was fixed four times before the list moved to `tools/includes/lint-paths.sh`; `.yamllint`, `.ansible-lint` and `tools/rename-namespace.sh` keep their own copies and all four must agree. Un-ignored, they produce findings in other people's code — 4851 once — and take `make dist`'s rename count from 83 to 174.
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
-- **Two roles are broken with default settings**, both inherited: `promtail` (upstream deleted its packages) and `tempo` (default config invalid for the version it installs). They deliberately ship no role test. See `RELEASING.md`.
+- **One role is broken with default settings**, inherited: `promtail`, because upstream deleted its packages. It ships no role test, deliberately — a test that cannot pass is worse than no test. See `RELEASING.md`.
 
 ## Conventions
 

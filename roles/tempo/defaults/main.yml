@@ -35,6 +35,16 @@ tempo_distributor:
         grpc:
           endpoint: "{{ tempo_http_listen_address }}:4317"
 
+# `traces_storage` is gone. It configured the local-blocks processor's trace
+# storage, and Tempo 3.0 removed that processor and all of its local block
+# plumbing (grafana/tempo#6555); the live-store fills the role now. Tempo
+# rejects the key outright -- `field traces_storage not found in type
+# generator.Config` -- so it refused to start on the defaults this role
+# shipped.
+#
+# `cluster: docker-compose` is upstream's label from the Tempo docker-compose
+# example. It is wrong for a host install but harmless, and changing a label
+# users may already be scraping on is not this fix's business.
 tempo_metrics_generator:
   registry:
     external_labels:
@@ -45,8 +55,6 @@ tempo_metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  traces_storage:
-    path: "{{ tempo_working_path }}/generator/traces"
 
 tempo_storage:
   trace:
@@ -56,10 +64,14 @@ tempo_storage:
     local:
       path: "{{ tempo_working_path }}/blocks"
 
+# `local-blocks` is removed from this list for the same reason: Tempo 3.0
+# deleted the processor, and its own upgrade notes call referencing it a
+# breaking change. The valid processors are service-graphs, span-metrics and
+# host-info.
 tempo_overrides:
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
+      processors: [service-graphs, span-metrics] # enables metrics generator
       generate_native_histograms: both
 
 # Additional Config Variables for /etc/tempo/config.yml

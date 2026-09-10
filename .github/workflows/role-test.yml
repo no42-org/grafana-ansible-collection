@@ -42,6 +42,7 @@ jobs:
           - mimir
           - loki
           - alloy
+          - tempo
         distro:
           - debian
           - rhel
