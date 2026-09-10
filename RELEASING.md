@@ -66,28 +66,88 @@ push tag v<version>
 
 ## Version policy
 
-Version numbers mirror upstream exactly.
-`indigo423.grafana 6.1.0` contains what `grafana.grafana 6.1.0` contains.
+**Version numbers are this fork's own. They do not correspond to any `grafana.grafana` release.**
+
+`indigo423.grafana 6.2.0` is not upstream's 6.2.0 and is not built from it.
+Provenance is carried by the upstream commit each release is built from, which the pipeline records in every GitHub release, not by the version number.
+
+Until 6.1.0 this fork mirrored upstream version numbers exactly.
+That policy assumed upstream would merge and the fork would follow.
+Upstream merged twice in 2026, the last time on 2026-05-22, while 32 pull requests sat open, so from 6.2.0 the fork carries selected contributions ahead of upstream on its own version line.
+
+There is no technical collision if upstream later publishes the same number.
+The namespaces differ, so the two artifacts are unrelated on Galaxy.
+The hazard is a reader assuming equivalence, which is what this section and the release notes exist to prevent.
 
 Galaxy versions are immutable.
 A bad upload cannot be replaced, only superseded, and the bad artifact stays installable.
 Everything expensive to get wrong is therefore checked before the publish step.
 
-Mirroring leaves no version number free for a fork-only change between two upstream releases.
-The first time that is needed, the policy has to change; it is deliberately not decided in advance.
+### What this fork carries
 
-### Verifying the mirror
-
-Because the tarball contains only collection content, the claim is checkable:
+Run it, do not read it:
 
 ```bash
-# our build
-make dist
-tar -xzf build/dist/indigo423-grafana-6.1.0.tar.gz -C ours/
+make carried-prs
+```
 
-# upstream's published artifact
-curl -sfLO https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/grafana-grafana-6.1.0.tar.gz
-tar -xzf grafana-grafana-6.1.0.tar.gz -C up/
+```
+  LOCAL     UPSTREAM  PR       AUTHOR                 STATE
+  ------------------------------------------------------------------------
+  3ca217c8  0be20b4f  #510     Ronny Trommer          open, still carried
+  97df8649  5b0a2483  #534     Luc                    open, still carried
+  ...
+```
+
+The carried set is derived from git history, not maintained as prose, because prose that must be updated by hand is prose that will be wrong.
+Every carried commit records its origin through `git cherry-pick -x`, so the set is discoverable and each pull request's current state is checkable.
+
+`make carried-prs` reports the size of the divergence and flags anything upstream has merged as droppable.
+If that number never falls, upstream is dead and this fork should be renamed and take its own direction, which is a decision to make explicitly rather than to drift into.
+
+### Carrying an upstream contribution
+
+```bash
+git fetch upstream "refs/pull/<N>/head:refs/remotes/upstream/pr/<N>"
+git log --no-merges --reverse upstream/main..upstream/pr/<N>   # find the substantive commits
+git cherry-pick -x -s <sha>
+```
+
+Rules, in order of importance:
+
+1. **Preserve authorship.** `cherry-pick` keeps the contributor as author and makes you the committer. That split is correct: they wrote it, you vouch for it. GitHub attributes by author, so contributors keep visible credit.
+2. **Never amend a contributor's commit.** If a contribution fails a gate, fix it in a separate commit of your own. Amending someone's commit while leaving their name on it attributes a change they did not make.
+3. **`-x` is required.** The recorded upstream SHA is what makes `make carried-prs` and the drop-on-merge lifecycle work at all.
+4. **Sign off only on your own behalf.** `-s` adds *your* `Signed-off-by`, certifying under the DCO that you received the work under a compatible licence and are passing it on with its origin recorded. Never add a `Signed-off-by` for a contributor who did not give one; that trailer is a certification by a named person. Preserve theirs where it exists.
+5. **Skip merge commits.** Contributors often sync their branch into the pull request. Use `--no-merges`.
+6. **For your own commits that already carry a sign-off, use `-x` alone.** `-s` would duplicate the trailer.
+7. **Read the contribution.** Applying cleanly is not evidence of correctness. See the rejected candidates below.
+
+### Ordering that is not obvious
+
+- **`#461`** has two substantive commits that must be applied chronologically (`2f08825`, then `e6cecc1`). Reversed, the second conflicts.
+- **`#534` and `#538` conflict in either order.** Both touch the same region of `roles/grafana/tasks/install.yml`: `#538` adds a `module_hotfixes: true` parameter whose diff context includes the `when:` line that `#534` rewrites. Resolve by hand, keeping both changes, and record the resolution in a committer's note on the carried commit.
+
+### After an upstream merge, drop what was absorbed
+
+```bash
+git fetch upstream
+git merge upstream/main
+make carried-prs          # anything reported MERGED upstream is now redundant
+git revert <local sha>    # or drop the commit while rebasing
+```
+
+This is the loop that keeps the divergence bounded. Skipping it is how a curated downstream becomes an accidental hard fork.
+
+### Verifying the divergence
+
+The tarball contains only collection content, so the divergence is checkable against the upstream commit the release was built from:
+
+```bash
+make dist
+tar -xzf build/dist/indigo423-grafana-6.2.0.tar.gz -C ours/
+
+git archive <upstream base commit> | tar -x -C up/
 
 # undo the rename, then diff
 grep -rIli indigo423 ours/ | while IFS= read -r f; do
@@ -99,55 +159,41 @@ done
 diff -rq -x MANIFEST.json -x FILES.json up/ ours/
 ```
 
-`MANIFEST.json` and `FILES.json` are per-build metadata and always differ.
-Upstream's tarball additionally ships repository scaffolding (`.github/`, `tools/`, `Makefile`, `Pipfile*`, `package.json`, `yarn.lock`, lint configs) that this fork's `build_ignore` excludes.
+Every differing file must be attributable to a carried contribution or to a documented maintainer change.
+Anything else is a bug in the rename or an unintended edit, and this diff is how you find it.
 
-Beyond those, this fork carries a known set of intentional differences.
-The rename itself contributes none: run against upstream's tree with only the rename applied, the diff is empty.
-As of 6.1.0 the deliberate divergences are:
+**The rename itself contributes nothing.** Applied to an unmodified upstream tree and then inverted, it produces no difference. That property held through 6.1.0, where the diff against upstream's published artifact was empty, and it is worth re-checking whenever the rewrite rule changes.
 
-| File | Lines | Why |
-|---|---|---|
-| `README.md` | 6 | Fork notice |
-| `plugins/modules/user.py` | 28 | `ansible-test sanity` fixes |
-| `plugins/modules/cloud_stack.py` | 4 | `pep8` E501 |
-| `roles/grafana/tasks/install.yml` | 2 | `yamllint` colon spacing |
-| `roles/mimir/defaults/main.yml` | 1 | `yamllint` trailing blank line |
+### Why the maintainer's own fixes exist
 
-Anything outside that table is a bug in the rename or an unintended edit, and the diff is how you find it.
+`ansible-test sanity` fails on upstream 6.1.0 with 3 of 34 tests red (`pep8`, `validate-modules`, `yamllint`), inherited rather than caused by the rename.
+The defects are real, not strictness artifacts: `plugins/modules/user.py` had an unterminated quote making `EXAMPLES` invalid YAML, an `orgid` parameter present in `argument_spec` but absent from the documentation, `state` choices that omitted the implemented `update_password`, and an author field that did not match the `Name (@handle)` form every other module uses.
 
-### Why the sanity fixes exist
+They are fixed here so `sanity` can stay a real blocking gate rather than being skipped or suppressed with `tests/sanity/ignore-*.txt`.
+All of it is upstreamable and should be sent to `grafana/grafana-ansible-collection`, after which the local divergence can be dropped.
 
-`ansible-test sanity` fails on upstream 6.1.0 with 3 of 34 tests red (`pep8`, `validate-modules`, `yamllint`), and those failures are inherited, not caused by the rename.
-The defects are real, not strictness artifacts: `plugins/modules/user.py` had an unterminated quote making `EXAMPLES` invalid YAML, an `orgid` parameter present in `argument_spec` but absent from the documentation, `state` choices that omitted the implemented `update_password`, and an author field that did not match the `Name (@handle)` form every other module in the collection uses.
+### Candidates that were rejected
 
-They are fixed here so `sanity` can stay a real blocking gate rather than being skipped or ignored.
-All four fixes are upstreamable and should be sent to `grafana/grafana-ansible-collection` as a pull request, after which the local divergence can be dropped on the next merge.
+Recorded so the reasoning is not repeated:
 
-## Cutting a version whose upstream tag predates this pipeline
+| PR | Why not |
+|---|---|
+| `#525` | "Fixes" the dashboards loop by listing a string into its characters. Newest of four competing fixes and the worst. |
+| `#504`, `#439` | Correct enough but superseded by `#448`, which fixes the regex explicitly. |
+| `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
+| `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
+| `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
+| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. Candidates for a later release. |
 
-A tag-triggered workflow runs the workflow file **as it exists at the tagged commit**.
+## Releases are cut from `main`
 
-Tag `6.1.0` points at `39f1373`, which has no tag-triggered `release.yml`.
-Pushing `v6.1.0` at that commit does nothing at all: no run, no error, no notification.
+Since 6.2.0 releases are cut from `main`, which carries both the pipeline and the curated contributions.
 
-Use a release branch:
+This was not always true. 6.1.0 mirrored upstream's 6.1.0 and therefore had to be cut from a `release/6.1.0` branch based on tag `6.1.0` (`39f1373`), because a tag-triggered workflow runs the workflow file **as it exists at the tagged commit**, and that commit predated the pipeline entirely: pushing `v6.1.0` there produced no run, no error and no notification.
 
-```bash
-git checkout -b release/6.1.0 39f1373        # the commit tag 6.1.0 points at
-git cherry-pick <pipeline commit>            # .github/, tools/, Makefile, galaxy.yml, .gitignore, .yamllint
-make dist                                    # verify the mirror as above
-git tag -s v6.1.0 -m "release 6.1.0"
-git push origin v6.1.0
-```
+That constraint disappeared with the mirror policy. It is recorded because the underlying trap has not: **a tag pushed at a commit without a tag-triggered `release.yml` does nothing at all, silently.** If you ever tag an older commit, check that `release.yml` exists there first.
 
-The pipeline commit only touches paths that `build_ignore` excludes, so the shipped content stays identical to upstream's.
-
-Do not cut from `main` when mirroring a version.
-At the time of writing, `main` carries `521b006` ("Add more configuration options"), which upstream's `6.1.0` tag does not, and it changes three `roles/loki` files.
-Building `6.1.0` from `main` would publish that content under a number that does not contain it.
-
-## After an upstream merge
+## When the rewrite count changes
 
 The rename asserts an exact count, so an upstream change to the FQCN references fails the build rather than silently half-renaming.
 
@@ -206,12 +252,12 @@ The release gate is `make ci-lint-release`, scoped to what this repository owns:
 ## Prerequisites
 
 - The `indigo423` namespace on Galaxy, owned by the publishing account.
-- A `GALAXY_API_KEY` repository secret holding a Galaxy API token for that namespace.
+- A `GALAXY_API_KEY` secret holding a Galaxy API token for that namespace.
+  An organisation secret with `visibility: all` works and is what this repository uses; a repository secret works too.
   The publish job fails with a clear message if it is missing.
 
 ## Deferred
 
-- `meta/runtime.yml` declares `requires_ansible: ">=2.12.0,<3.0.0"` while sanity covers only currently supported branches.
-  The claim is inherited from upstream and overstates what is tested.
+- The three feature pull requests deferred from 6.2.0 (`#529`, `#462`, `#463`), untested for clean application.
 - Cosign signatures on the GitHub release tarball.
   Galaxy does not consume them, so they would cover the GitHub artifact only.
