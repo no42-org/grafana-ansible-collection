@@ -462,10 +462,10 @@ The findings are fixed. On a clean checkout the enabled linters report zero erro
 | Target | Covers | Needs |
 | --- | --- | --- |
 | `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `shellcheck`, `yamllint`, `actionlint`, `zizmor` |
-| `make ci-lint-{shell,yaml,editorconfig,ansible}` | the collection itself | `make install` — pipenv **and** `node_modules` |
-| `make ci-lint` | the above plus the disabled `markdown` and `text` steps | as above |
+| `make ci-lint-{shell,yaml,editorconfig,ansible,markdown,text}` | the collection itself | `make install` — `uv` **and** `node_modules` |
+| `make ci-lint` | all six of the above | as above |
 
-Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no pipenv and no `node_modules`, so it runs in seconds locally and catches the release machinery, while the collection lint set needs the full toolchain.
+Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no provisioned toolchain, so it runs in seconds locally and catches the release machinery, while the collection lint set needs `uv` and `node_modules`.
 
 **Markdown and text linting are enabled**, for the first time. Both were commented out in the workflow `gate.yml` replaced, so until now the prose this fork authors had never been linted — which is most of what it owns.
 
@@ -496,6 +496,37 @@ Neither is skipped for producing too many findings, which is not an acceptable r
 - **`roles/*/molecule/`**, 2 findings. Byte-identical to upstream by rule — see [The dormant Molecule scenarios](#the-dormant-molecule-scenarios). Editing it to satisfy a linter would break a stated invariant for two cosmetic findings.
 
 `tools/lint-release.sh` also asserts that every `tools/lint-*.sh` exits with its captured status, and names the offender if not. Explicit rather than delegated to `shellcheck`, which has no check for this: the pattern is valid bash doing exactly what it says, and the defect is that what it says is not what the caller needs.
+
+## What the published collection claims about itself
+
+Four requirements files existed in the tree and all four shipped. Three were addressed to the wrong audience, and the worst of them was the one a consumer is most likely to read.
+
+| File | Ships | Why |
+| --- | --- | --- |
+| `requirements.txt` | ✅ | `requests` — the collection's actual Python dependency |
+| `tests/integration/requirements.txt` | ✅ | `requests`; `ansible-test integration` can run from an installed collection |
+| `requirements.yml` | ❌ | duplicates `galaxy.yml`'s `dependencies` as unconstrained git URLs |
+| `roles/grafana/test-requirements.txt` | ❌ | Molecule's dependencies, for scenarios this fork never invokes |
+
+**`requirements.txt` used to declare `yamllint`, `ansible-lint` and `pylint`.** Nothing in this repository read it — not the `Makefile`, not `tools/`, not any workflow. It existed only to be published, telling consumers they needed this fork's linters, while the one library every module actually imports was declared nowhere. All 18 modules call `missing_required_lib('requests')`, an idiom whose whole purpose is to point a user at documentation that did not exist.
+
+### Exclusion is by `build_ignore`, never by deleting or editing
+
+Both excluded files are inherited and stay **byte-identical to upstream**, so an upstream merge is unaffected and the divergence does not grow. That is not only tidiness: **`ansible-lint` provisions its dependency collections from the root `requirements.yml`**, so deleting that file would break a lint gate in order to fix a packaging problem.
+
+It is the same distinction the repository already draws for `tools/`, `.github/` and the maintainer documents — repository-facing files are excluded at packaging time, not removed from the tree.
+
+### Two checks keep it true
+
+Both live in `tools/check-shipped-manifests.py` and run inside `make ci-lint-release`, so they gate every pull request and every release.
+
+**The declared set is derived from the code**, by parsing top-level imports under `plugins/` and comparing against `requirements.txt`. It fails in **both** directions, and the second one is the point: an undeclared import is the obvious defect, but a *declaration with no import* is what shipped here for years, and a check that only asked "is every import declared?" would have passed it. A file that cannot be parsed also fails, rather than being skipped with a printed warning — reporting an error while exiting 0 is the defect these gates exist to prevent.
+
+**No shipped manifest may name a development-only tool.** This one reads the **built tarball** rather than the tree, because the question is never whether a string exists in the repository but whether the artifact claims it. Reading the artifact validates `build_ignore` at the same time: remove an exclusion and this check fails on the reappearing file. With no tarball present it falls back to evaluating the tree against `build_ignore` and says which surface it used, rather than passing silently on one it did not inspect. It is a denylist, so it is a second line of defence behind the derivation, not the primary control.
+
+### Upstream has the same defect
+
+`git show <upstream base>:requirements.txt` is byte-identical, so this is not something the fork introduced. Consistent with the recorded policy, the fix is written to be adoptable — one file, one purpose — and is not submitted.
 
 ## Prerequisites
 
