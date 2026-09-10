@@ -14,7 +14,7 @@ A change that lands only here is accepted and expected. It is not provisional, n
 
 But it is your call, not a prerequisite, and here is the situation as of September 2026:
 
-```
+```text
   last merge to upstream main     2026-05-22   (~4 months)
   last upstream release           2026-04-27   6.1.0
   open upstream pull requests      32          several over a year old
@@ -36,7 +36,7 @@ git commit -s -m "fix(grafana): …"
 
 That produces:
 
-```
+```text
 Signed-off-by: Your Name <you@example.com>
 ```
 
@@ -48,7 +48,7 @@ Sign off **only on your own behalf.** Never add a `Signed-off-by` for someone el
 
 If a commit was written with AI assistance, say so:
 
-```
+```text
 Assisted-by: ClaudeCode:claude-opus-5
 ```
 
@@ -58,13 +58,13 @@ This is disclosure, not a warning label — AI-assisted contributions are welcom
 
 ## Conventional commits
 
-```
+```text
 <type>[optional scope]: <description>
 ```
 
 `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, `revert`. Breaking changes append `!` or add a `BREAKING CHANGE:` footer.
 
-```
+```text
 fix(grafana): set chdir so grafana-cli finds its homepath
 test: cover the mimir role on both package families
 ```

@@ -13,7 +13,7 @@ That is deliberate.
 Every one of those lines is a line upstream also touches, so rewriting them in the tree would make `git merge upstream/main` conflict on roughly 40 files, permanently.
 Renaming in a copy pays the cost once.
 
-```
+```text
 main (grafana.grafana, == upstream)
   │
   ├── git merge upstream/main         clean, nothing to resolve
@@ -45,7 +45,7 @@ The first job checks this and fails in seconds if it does not, before anything i
 
 ### Pipeline
 
-```
+```text
 push tag v<version>
   │
   ├─ verify-version   tag minus "v" == galaxy.yml version
@@ -76,7 +76,7 @@ A reusable workflow does not inherit its caller's `env:`, so the source namespac
 
 ## Rehearsing the pipeline
 
-The pipeline can be exercised end to end on a **pre-release** tag, which costs nothing a user can trip over.
+The pipeline can be exercised end-to-end on a **prerelease** tag, which costs nothing a user can trip over.
 
 ```bash
 # on a branch, because main is protected
@@ -89,9 +89,9 @@ git tag -s v6.3.0-rc1 -m "release 6.3.0-rc1 (pipeline rehearsal)"
 git push origin v6.3.0-rc1
 ```
 
-A semver pre-release carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
+A SemVer prerelease carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
 
-`ansible-galaxy` excludes pre-releases from resolution unless `--pre` is passed. Do not trust Galaxy's `highest_version` field for this — it reports the RC. Check the client instead:
+`ansible-galaxy` excludes prereleases from resolution unless `--pre` is passed. Do not trust Galaxy's `highest_version` field for this — it reports the RC. Check the client instead:
 
 ```bash
 ansible-galaxy collection install indigo423.grafana -p /tmp/x   # -> 6.2.0
@@ -102,7 +102,7 @@ The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: with
 
 What it confirmed, in order:
 
-```
+```text
   verify-version   tag == galaxy.yml, prerelease=true
   gate             lint-release, lint, sanity (devel advisory and red)
   build            indigo423-grafana-6.2.1-rc1.tar.gz
@@ -140,7 +140,7 @@ Run it, do not read it:
 make carried-prs
 ```
 
-```
+```text
   LOCAL     UPSTREAM  PR       AUTHOR                 STATE
   ------------------------------------------------------------------------
   3ca217c8  0be20b4f  #510     Ronny Trommer          open, still carried
@@ -257,9 +257,9 @@ The posture is therefore *keep it adoptable, do not push it*. Every change stays
 Recorded so the reasoning is not repeated:
 
 | PR | Why not |
-|---|---|
+| --- | --- |
 | `#525` | "Fixes" the dashboards loop by listing a string into its characters. Newest of four competing fixes and the worst. |
-| `#504`, `#439` | Correct enough but superseded by `#448`, which fixes the regex explicitly. |
+| `#504`, `#439` | Correct enough but superseded by `#448`, which fixes the regular expression explicitly. |
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
 | `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
@@ -278,7 +278,7 @@ That constraint disappeared with the mirror policy. It is recorded because the u
 
 `main` is protected, with **administrator bypass permitted**.
 
-```
+```text
   required checks     Gate / Lint release machinery
                       Gate / Lint the collection
                       Gate / Sanity (Ⓐstable-2.17)
@@ -332,7 +332,7 @@ make role-test-list            # roles and distro families
 ```
 
 | Phase | What it proves |
-|---|---|
+| --- | --- |
 | converge | the role applies to a fresh container |
 | idempotence | applying it again changes nothing |
 | verify | the expected end state, asserted in Ansible |
@@ -341,28 +341,28 @@ Idempotence is the phase that earns its keep. Converge proves a role runs; idemp
 
 `DISTRO` is a **family**, not a distribution:
 
-```
+```text
   debian  ->  dokken/ubuntu-22.04
   rhel    ->  dokken/almalinux-9
 ```
 
-The `rhel` entry is not symmetry. The grafana role's `yum`/`dnf` block, and the carried contributions inside it (`#534`, `#538`), sit behind `ansible_facts['pkg_mgr'] in ['yum','dnf']` and are unreachable on Debian. Without it, two of the carried fixes ship unexecuted.
+The `rhel` entry is not symmetry. The `grafana` role's `yum`/`dnf` block, and the carried contributions inside it (`#534`, `#538`), sit behind `ansible_facts['pkg_mgr'] in ['yum','dnf']` and are unreachable on Debian. Without it, two of the carried fixes ship unexecuted.
 
 A role may declare a topology in `tests/roles/<role>/topology`:
 
-```
+```text
 NODES=3         # how many role containers
 NETWORK=1       # a private network so nodes and sidecars resolve by name
 ```
 
 and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: three nodes with memberlist gossip plus a MinIO object store. Everything a run creates carries one Docker label, so cleanup is exhaustive without enumerating it.
 
-`grafana_dashboards_dir` is a **control-node** path, because the role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved: `#448` strips it as a literal regex prefix, so a `..` segment produces folder names like `Users/…/team-a`.
+`grafana_dashboards_dir` is a **control-node** path, because the role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved: `#448` strips it as a literal regular expression prefix, so a `..` segment produces folder names like `Users/…/team-a`.
 
 ### What is covered
 
 | Role | debian | rhel | Note |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `grafana` | ✅ | ✅ | carries `#510`, `#448`, `#534`, `#538` |
 | `opentelemetry_collector` | ✅ | ✅ | carries `#475` |
 | `mimir` | ✅ | ✅ | carries `#461`; three nodes plus MinIO |
@@ -375,8 +375,8 @@ and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: thr
 Three roles cannot install their software with default settings. All three are inherited, all three are the same shape — a role building URLs or config from templates that upstream has since outgrown — and none was ever executed, which is why none was noticed:
 
 - **`loki` on RHEL.** The role builds `loki-<version>.<arch>.rpm`, but Grafana renamed the asset to `loki-<version>-1.<arch>.rpm` after v3.6.0, so the default `latest` 404s. Excluded from the RHEL matrix. A fix has to be version-aware, since pinning an older `loki_version` still needs the old name.
-- **`promtail`.** Grafana stopped shipping promtail packages after loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
-- **`tempo`.** The role's own default `tempo_metrics_generator` emits a `traces_storage` field that tempo 3.0.3 rejects (`field traces_storage not found in type generator.Config`), so tempo crash-loops and the role's own readiness check fails.
+- **`promtail`.** Grafana stopped shipping promtail packages after Loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
+- **`tempo`.** The role's own default `tempo_metrics_generator` emits a `traces_storage` field that Tempo 3.0.3 rejects (`field traces_storage not found in type generator.Config`), so Tempo crash-loops and the role's own readiness check fails.
 
 None ships a test. A test that cannot pass is worse than no test, and overriding the defaults in a test would hide that the defaults are what is broken.
 
@@ -386,13 +386,13 @@ None ships a test. A test that cannot pass is worse than no test, and overriding
 
 They are not what runs. `make role-test` is.
 
-Molecule was replaced rather than pinned because pinning would have cost four scenario-file edits — `network` and `network_mode` in mimir, `cgroup_parent` in four OTel scenarios, and content for two grafana scenario files that are empty documents — in exactly the files this fork keeps identical to upstream. The two failures that prompted it were unrelated to each other: mimir pinned `ansible-core==2.16` against `python-version: '3.x'`, which resolved to Python 3.14 and died at import before reading any config, and the scenario files use platform keys current Molecule rejects.
+Molecule was replaced rather than pinned because pinning would have cost four scenario-file edits — `network` and `network_mode` in `mimir`, `cgroup_parent` in four `opentelemetry_collector` scenarios, and content for two `grafana` scenario files that are empty documents — in exactly the files this fork keeps identical to upstream. The two failures that prompted it were unrelated to each other: Mimir pinned `ansible-core==2.16` against `python-version: '3.x'`, which resolved to Python 3.14 and died at import before reading any config, and the scenario files use platform keys current Molecule rejects.
 
 ## When the rewrite count changes
 
 The rename asserts an exact count, so an upstream change to the FQCN references fails the build rather than silently half-renaming.
 
-```
+```text
 $ make dist
 [error] expected 83 rewrites, performed 85
 [error] upstream likely changed the FQCN references; run:
@@ -405,7 +405,7 @@ Re-derive the number:
 ./tools/rename-namespace.sh --expected-count
 ```
 
-```
+```text
 total occurrences      : 91
 community.grafana.*    : 2  (must remain untouched)
 in excluded changelogs : 6  (not rewritten)
@@ -418,7 +418,7 @@ The count moving is the symptom; the cause may need the rewrite rule changed rat
 In particular, watch for new `community.grafana.*` references.
 `community.grafana.grafana_datasource` contains `grafana.grafana` as a substring:
 
-```
+```text
 community.grafana.grafana_datasource
           └──────┬──────┘
           matches "grafana.grafana"
@@ -447,7 +447,7 @@ CI run `34446534704` showed **61 error annotations on a step whose conclusion wa
 Two claims previously recorded here were also wrong, and are corrected rather than deleted so they are not reinstated:
 
 | Claim | Why it was wrong |
-|---|---|
+| --- | --- |
 | "62 error-level findings, and the Lint workflow has been failing for months" | The workflow was *passing*, over the findings. The local run that looked red had bailed at the pipenv guard, because `Pipfile` pins `python_version = "3.10"` and that interpreter was absent. |
 | "Bringing it green would mean editing the files this fork keeps identical to upstream, manufacturing conflicts" | It cost **four newly-diverging files of whitespace.** 56 of the 61 errors were in files already diverged, 52 of those in `changelogs/changelog.yaml` alone. |
 
@@ -456,14 +456,27 @@ The findings are fixed. On a clean checkout the enabled linters report zero erro
 ### What each target is for
 
 | Target | Covers | Needs |
-|---|---|---|
+| --- | --- | --- |
 | `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `shellcheck`, `yamllint`, `actionlint`, `zizmor` |
 | `make ci-lint-{shell,yaml,editorconfig,ansible}` | the collection itself | `make install` — pipenv **and** `node_modules` |
 | `make ci-lint` | the above plus the disabled `markdown` and `text` steps | as above |
 
 Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no pipenv and no `node_modules`, so it runs in seconds locally and catches the release machinery, while the collection lint set needs the full toolchain.
 
-`ci-lint`'s `markdown` and `text` steps stay commented out. Their toolchain carries 29 of this repository's open Dependabot alerts and cannot be fixed from below; that is `modernize-lint-toolchain`'s subject.
+**Markdown and text linting are enabled**, for the first time. Both were commented out in the workflow `gate.yml` replaced, so until now the prose this fork authors had never been linted — which is most of what it owns.
+
+They are scoped to fork-authored documents. The top-level `README.md` that Galaxy renders, the role READMEs and `examples/` are excluded, and it is the same reasoning that keeps `roles/*/molecule/` untouched: they are upstream's documents, and bringing them to this configuration means 172 findings of table style, fence languages and list spacing across files upstream still edits. That is a whitespace sweep of someone else's prose. The trade is real — those documents ship in the collection and go unlinted — and if upstream maintainership resumes the right move is to offer the fixes there.
+
+Two rules are turned off, both on the rule's merits rather than its count:
+
+| Rule | Why |
+| --- | --- |
+| `MD013` line-length | This project's Markdown style is one sentence per line, never hard-wrapped at a column. A 150-column limit enforces the opposite, so keeping both would have the gate demand every document be rewritten against its own stated style. 139 findings. |
+| `MD041` first-line-h1 | `CLAUDE.md` is one line, `@AGENTS.md`, a tool import directive rather than a document; `.github/pull_request_template.md` renders inside GitHub's own form and starts at h2 by convention. A rule both have to be exempted from is not enforcing anything. |
+
+`MD030` was changed from the inherited `3/2/3/2` to `1/1/1/1`. The file described those values as the defaults and they are not — markdownlint's default is 1 — and the inherited READMEs are themselves mixed, with `README.md` carrying 13 three-space list items and 9 one-space.
+
+`textlint`'s `no-todo` rule and its package are removed: it fired on eight `- [ ]` checkboxes in the pull request template, where an unchecked box is the template working.
 
 ### Two linter traps
 
@@ -481,6 +494,28 @@ Neither is skipped for producing too many findings, which is not an acceptable r
 `tools/lint-release.sh` also asserts that every `tools/lint-*.sh` exits with its captured status, and names the offender if not. Explicit rather than delegated to `shellcheck`, which has no check for this: the pattern is valid bash doing exactly what it says, and the defect is that what it says is not what the caller needs.
 
 ## Prerequisites
+
+### Toolchain
+
+```bash
+brew install uv node shellcheck docker
+corepack enable          # yarn, at the version package.json pins
+make install             # provisions both toolchains
+```
+
+| Tool | Provides | Pinned by |
+| --- | --- | --- |
+| `uv` | `yamllint`, `ansible-lint` | `pyproject.toml` + `uv.lock` |
+| `corepack` + `yarn` | `markdownlint-cli2`, `textlint` | `package.json` `packageManager` + `yarn.lock` |
+| `shellcheck` | shell linting | version-pinned download in CI; whatever is installed locally |
+| `docker` | role tests, `ansible-test sanity --docker` | — |
+| downloaded on first use | `editorconfig-checker` | `tools/includes/editorconfig-checker.sh` |
+
+**`make install` no longer depends on a specific Python.** It used to: `Pipfile` pinned `python_version = "3.10"`, and without that exact interpreter pipenv failed, every Python linter bailed at its guard, and the output looked like failing lint. `uv` provisions its own interpreter from `pyproject.toml`'s `requires-python`.
+
+`ansible-core` is pinned to `>=2.18,<2.19` in the lint group on purpose: `ansible-lint` judges a collection against whatever `ansible-core` is installed, and unconstrained `uv` resolved 2.21.4 — four minors past what the release gates on.
+
+### Release
 
 - The `indigo423` namespace on Galaxy, owned by the publishing account.
 - A `GALAXY_API_KEY` secret holding a Galaxy API token for that namespace.

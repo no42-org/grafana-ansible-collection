@@ -15,7 +15,7 @@ For anything that is a bug rather than a vulnerability, a normal [issue](https:/
 ## Supported versions
 
 | Version | Supported |
-|---|---|
+| --- | --- |
 | latest release | ✅ |
 | anything older | ❌ |
 
@@ -41,7 +41,7 @@ Report it here too, by all means — this fork releases more often at present �
 Honest inventory, so you can judge the risk yourself rather than infer it:
 
 | | Status |
-|---|---|
+| --- | --- |
 | Secret scanning + push protection | enabled |
 | Dependabot security updates | enabled |
 | Private vulnerability reporting | enabled |

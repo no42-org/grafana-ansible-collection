@@ -17,19 +17,20 @@ fi
 # determine whether or not the script is called directly or sourced
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 
+# One invocation over the prose this fork authors, scoped exactly as
+# tools/lint-markdown.sh is and for the same reason: the top-level README, the
+# role READMEs and examples/ are upstream's documents, and this fork does not
+# reformat inherited files. See the comment there.
+#
+# Also one invocation rather than one per file: the per-file loop kept only the
+# first non-zero status, which is the same hidden-total defect lint-markdown.sh
+# had.
 statusCode=0
-while read -r file; do
-  "$(pwd)"/node_modules/.bin/textlint --config "$(pwd)/.textlintrc" "$file"
-  currentCode="$?"
-  # if the current code is 0, output the file name for logging purposes
-  if [[ "$currentCode" == 0 ]]; then
-    echo -e "\\x1b[32m$file\\x1b[0m: no issues found"
-  fi
-  # only override the statusCode if it is 0
-  if [[ "$statusCode" == 0 ]]; then
-    statusCode="$currentCode"
-  fi
-done < <(lintFind -type f -name "*.md" -print)
+if ! git ls-files -z -- '*.md' \
+        ':!:README.md' ':!:roles/*/README.md' ':!:examples/*.md' ':!:CLAUDE.md' \
+      | xargs -0 "$(pwd)"/node_modules/.bin/textlint --config "$(pwd)/.textlintrc"; then
+  statusCode=1
+fi
 
 echo ""
 echo ""
