@@ -11,3 +11,12 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+
+  # package.json carries the markdown and prose linters. It has no lockfile,
+  # so Dependabot updates the ranges in the manifest. If
+  # modernize-lint-toolchain retires the Node toolchain, this block goes with
+  # it.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
