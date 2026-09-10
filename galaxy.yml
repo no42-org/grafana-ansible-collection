@@ -35,6 +35,9 @@ build_ignore:
 - Pipfile.lock
 - package.json
 - yarn.lock
+# Fork test infrastructure. Consumers get collection content; the harness that
+# tests it is this repository's business, like tools/.
+- tests/roles
 # Lint and editor configuration: repository scaffolding, never read by a
 # consumer of the collection. Excluding it keeps the pipeline commit from
 # altering shipped content, so "our X.Y.Z is upstream's X.Y.Z" stays true.
