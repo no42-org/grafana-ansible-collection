@@ -10,7 +10,7 @@
     "url": "git+https://github.com/grafana/grafana-ansible-collection.git"
   },
   "author": "",
-  "license": "ISC",
+  "license": "GPL-3.0-or-later",
   "bugs": {
     "url": "https://github.com/grafana/grafana-ansible-collection/issues"
   },

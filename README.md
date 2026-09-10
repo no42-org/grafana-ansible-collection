@@ -8,10 +8,11 @@
 > See [RELEASING.md](https://github.com/no42-org/grafana-ansible-collection/blob/main/RELEASING.md) for the release process.
 
 [![Grafana](https://img.shields.io/badge/grafana-%23F46800.svg?&logo=grafana&logoColor=white)](https://grafana.com)
-[![Ansible Collection](https://img.shields.io/badge/grafana.grafana-orange)](https://galaxy.ansible.com/ui/repo/published/grafana/grafana/)
-[![GitHub tag](https://img.shields.io/github/tag/grafana/grafana-ansible-collection.svg)](https://github.com/grafana/grafana-ansible-collection/tags)
-[![GitHub Last Commit](https://img.shields.io/github/last-commit/grafana/grafana-ansible-collection)](https://github.com/grafana/grafana-ansible-collection/tags)
-[![GitHub Contributors](https://img.shields.io/github/contributors/grafana/grafana-ansible-collection)](https://github.com/grafana/grafana-ansible-collection/tags)
+[![CI](https://github.com/no42-org/grafana-ansible-collection/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/no42-org/grafana-ansible-collection/actions/workflows/ci.yml)
+[![Ansible Collection](https://img.shields.io/badge/grafana.grafana-orange)](https://galaxy.ansible.com/ui/repo/published/indigo423/grafana/)
+[![GitHub release](https://img.shields.io/github/v/release/no42-org/grafana-ansible-collection.svg)](https://github.com/no42-org/grafana-ansible-collection/releases)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/no42-org/grafana-ansible-collection)](https://github.com/no42-org/grafana-ansible-collection/commits/main)
+[![License](https://img.shields.io/github/license/no42-org/grafana-ansible-collection)](LICENSE)
 
 This collection (`grafana.grafana`) contains modules and roles to assist in automating the management of resources in **Grafana**, **Grafana Agent**, **OpenTelemetry Collector**, **Loki**, **Mimir**, **Alloy**, and **Promtail** with Ansible.
 
