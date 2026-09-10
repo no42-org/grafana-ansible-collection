@@ -1,0 +1,17 @@
+---
+# Apply the promtail role.
+#
+# `promtail_clients` is set here, and that is not the same as overriding a
+# broken default. The role's README calls it mandatory and the default is
+# deliberately empty: there is no universal answer to "where do the logs go".
+# Supplying it is what any real user must do, so the test does what a user
+# does. Everything the role decides for itself is left alone -- in particular
+# promtail_version, whose old default of `latest` is the bug this fixes.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  vars:
+    promtail_clients:
+      - url: "http://localhost:3100/loki/api/v1/push"
+  roles:
+    - promtail

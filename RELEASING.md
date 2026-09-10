@@ -368,17 +368,21 @@ and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: thr
 | `mimir` | ✅ | ✅ | carries `#461`; three nodes plus MinIO |
 | `alloy` | ✅ | ✅ | |
 | `loki` | ✅ | ✅ | |
-| `promtail` | — | — | see below |
+| `promtail` | ✅ | ✅ | EOL upstream; pinned to 3.6.0 |
 | `tempo` | ✅ | ✅ | |
 | `grafana_agent` | — | — | superseded upstream by `alloy`; never had a scenario |
 
-One role still cannot install its software with default settings. All three of these were inherited, all three were the same shape — a role building URLs or config from templates that upstream has since outgrown — and none was ever executed, which is why none was noticed. `loki` on RHEL and `tempo` are now fixed; `promtail` needs a decision rather than a fix:
+All three of the roles that could not install their software with default settings are now fixed. All three were inherited, all three were the same shape — a role building URLs or config from templates that upstream has since outgrown — and none had ever been executed, which is why none was noticed:
 
 - **`loki` on RHEL — fixed.** The role built `loki-<version>.<arch>.rpm`, but Grafana added an RPM release number from **3.7.5** on, so the default `latest` 404s against any current release. `loki_download_url_rpm` now applies the `-1` suffix by version, because pinning an older `loki_version` still needs the old name. The `.deb` assets never changed, which is why only RHEL broke. `loki`/`rhel` is back in the role-test matrix and passes.
-- **`promtail`.** Grafana stopped shipping promtail packages after Loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
+- **`promtail` — fixed, and end of life upstream.** Grafana declared promtail EOL on 2026-03-02 and stopped publishing packages after Loki 3.6.0: v3.6.0 carries 14 promtail assets, v3.7.0 carries none, so the old default of `latest` 404d everywhere. `promtail_version` is pinned to **3.6.0** — the last release with packages, and the last there will ever be — and the role warns at runtime that promtail is EOL and points at the `alloy` role.
+
+  Two guards were added because the role previously failed unhelpfully. It now fails with an explanation if `promtail_version` is 3.7.0 or newer, rather than with a bare 404; and it asserts `promtail_clients` is set, which its own README calls mandatory. An empty list produced a config promtail rejects at startup (`at least one client config must be provided`) while the role still reported `Ensure that Promtail is started: ok`, leaving a unit crash-looping on a five-second timer.
+
+  `promtail` is in the role-test matrix on both families. Its test sets `promtail_clients`, and that is not the same as overriding a broken default: it is a mandatory user input with no sensible universal value, so the test does what any user must do.
 - **`tempo` — fixed.** Two of the role's defaults referred to things Tempo 3.0 removed. `tempo_metrics_generator` set `traces_storage`, and `tempo_overrides` listed `local-blocks` among the generator's processors; Tempo 3.0 deleted that processor and all its local block plumbing (grafana/tempo#6555), and `traces_storage` was its storage config. Tempo rejected the key outright and refused to start. Both are gone, `tempo` is in the role-test matrix on both families, and the verify step asks Tempo's own `/ready` endpoint rather than trusting systemd — a crash-looping unit can be caught mid-restart in the `running` state.
 
-None ships a test. A test that cannot pass is worse than no test, and overriding the defaults in a test would hide that the defaults are what is broken.
+All three now ship a test, and none of those tests overrides a default that was broken. That distinction is the whole point: a test that passes only by overriding the broken default would have hidden the defect rather than caught it.
 
 ### The dormant Molecule scenarios
 

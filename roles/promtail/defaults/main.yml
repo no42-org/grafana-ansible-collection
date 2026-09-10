@@ -1,6 +1,20 @@
 ---
 # defaults file for promtail
-promtail_version: "latest"
+# Pinned, not "latest".
+#
+# Grafana declared promtail end of life on 2026-03-02 and stopped publishing
+# packages after Loki 3.6.0: v3.6.0 carries 14 promtail assets, v3.7.0 carries
+# none. So `latest` resolves to a release with nothing to download and every
+# install 404s, on both package families.
+#
+# 3.6.0 is the last release that has them, and it is not going to move -- there
+# will be no promtail 3.7. Pinning is therefore not a temporary workaround; it
+# is the final version. All further development is in Grafana Alloy, and this
+# collection ships a tested `alloy` role.
+#
+# Overriding this with an older version still works. Overriding it with
+# anything from 3.7.0 on cannot.
+promtail_version: "3.6.0"
 promtail_uninstall: false
 promtail_http_listen_port: 9080
 promtail_http_listen_address: "0.0.0.0"
