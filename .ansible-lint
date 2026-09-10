@@ -5,6 +5,15 @@ exclude_paths:
   - .cache/
   - .github/
   - examples/
+  # ansible-galaxy's local install target. It holds a copy of this collection,
+  # so leaving it in doubles every finding -- 29 of the 69 first observed.
+  - .ansible/
+  # roles/*/molecule/ is byte-identical to upstream by rule: the scenarios ship
+  # in the collection and are never invoked, and keeping them unmodified is
+  # what makes an upstream merge conflict-free. See RELEASING.md and
+  # CONTRIBUTING.md. Two findings live in roles/mimir/molecule/default/ and
+  # cannot be fixed without breaking that invariant.
+  - roles/*/molecule/
 
 parseable: true
 verbosity: 1
@@ -16,3 +25,12 @@ skip_list:
   - 'no-changed-when'  # False positives for running command shells
   - 'yaml' # Disable YAML linting since it's done by yamllint
   - 'empty-string-compare'  # Allow compare to empty string
+  # 22 findings, 20 of them in roles/opentelemetry_collector/defaults/main.yml.
+  # The rule wants role variables prefixed with the role name, so
+  # otel_collector_receivers would become opentelemetry_collector_receivers.
+  #
+  # Those are the role's PUBLIC interface. Renaming them breaks every playbook
+  # that sets them, which is a major version bump with a deprecation path, not
+  # a lint fix. Skipped because the fix is a breaking API change, not because
+  # there are 22 of them.
+  - 'var-naming[no-role-prefix]'
