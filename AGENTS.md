@@ -46,23 +46,28 @@ make role-test-list
 ## Commands
 
 ```bash
-make ci-lint-release   # the release gate: tools/*.sh + release.yml
-make ci-lint           # the full inherited lint set — currently NOT trustworthy, see below
+make ci-lint-release   # tools/*.sh + every workflow's hygiene; needs no pipenv
+make ci-lint-yaml      # the collection; needs `make install`, which is fragile locally
 make dist              # rename + build the collection tarball
 make role-test ROLE=<role> DISTRO=debian|rhel
-ansible-test sanity --docker   # what the release actually gates on
+ansible-test sanity --docker
 ```
+
+All of the above gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `release.yml` both call. One definition of what must pass.
 
 ## Traps worth knowing
 
-- **The inherited `tools/lint-*.sh` scripts swallow their exit status.** They end on a false `if` with no `exit`, so `make ci-lint-*` returns 0 while the linter reports errors. CI has shown 61 error annotations on a green step. Only `tools/lint-release.sh` gates. Fixing this is the `honest-ci-gates` change.
-- **`make install` is fragile.** `Pipfile` pins `python_version = "3.10"`; without that interpreter pipenv fails and every Python linter bails at its guard, which *looks* like failing lint. This caused two wrong conclusions before it was diagnosed.
+- **`make install` is fragile locally, and never in CI.** `Pipfile` pins `python_version = "3.10"`; without that interpreter pipenv fails and every Python linter bails at its guard, which *looks* like failing lint. This caused three wrong conclusions before it was pinned down — twice reading a guard bail as a red gate, once inferring that the pipenv chain was too fragile for the release path. CI's `setup-python` supplies 3.10 and `make install` has succeeded on every run.
+- **A linter that cannot run may still exit 0.** `editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one. Measure with the standalone Go binary locally.
+- **`ansible-lint` installs the dependency collections into the tree.** `.ansible/collections/` locally, `ansible_collections/` in CI (`ansible.cfg` sets `collections_paths = ./`). Both are gitignored and excluded now. Un-ignored, they produce 4851 findings in other people's code and take `make dist`'s rename count from 83 to 174.
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regex prefix.
 - **Three roles are broken with default settings**, all inherited: `promtail` (upstream deleted its packages), `tempo` (default config invalid for the version it installs), `loki` on RHEL (upstream renamed the RPMs). They deliberately ship no role test. See `RELEASING.md`.
 
 ## Conventions
 
 Conventional commits. `git commit -s` always. AI-assisted commits carry `Assisted-by: <Agent>:<model>`.
+
+`main` is protected with **administrator bypass**. Direct pushes work; a pull request is the normal path. See `RELEASING.md`.
 
 Never commit `openspec/`, `.claude/` or `.agent/`.
 
