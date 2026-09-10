@@ -8,6 +8,10 @@ exclude_paths:
   # ansible-galaxy's local install target. It holds a copy of this collection,
   # so leaving it in doubles every finding -- 29 of the 69 first observed.
   - .ansible/
+  # ansible.cfg sets `collections_paths = ./`, so ansible-lint installs the
+  # dependency collections into the repository root in CI. 4851 findings, all
+  # of them in ansible.posix and community.general, none here.
+  - ansible_collections/
   # roles/*/molecule/ is byte-identical to upstream by rule: the scenarios ship
   # in the collection and are never invoked, and keeping them unmodified is
   # what makes an upstream merge conflict-free. See RELEASING.md and

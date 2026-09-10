@@ -15,6 +15,9 @@ ignore:
   # ansible-galaxy's local install target, which holds a copy of this
   # collection: without this, every finding is reported twice
   - .ansible
+  # dependency collections, installed into the repository root in CI because
+  # ansible.cfg sets `collections_paths = ./`
+  - ansible_collections
 
 extends: default
 

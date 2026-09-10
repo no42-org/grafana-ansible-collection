@@ -249,6 +249,13 @@ build/
 # linter report every finding twice -- once for the source, once for the copy.
 .ansible/
 
+# ansible.cfg sets `collections_paths = ./`, so in CI ansible-lint installs the
+# dependency collections straight into the repository root as
+# ansible_collections/. Linting other projects' vendored code is meaningless:
+# it produced 4851 findings, every one of them in ansible.posix or
+# community.general and none in this repository.
+ansible_collections/
+
 
 # AI tools
 # ---------------------------------------------------
