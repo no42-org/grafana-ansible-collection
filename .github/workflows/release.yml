@@ -70,109 +70,32 @@ jobs:
           fi
           echo "version=${GALAXY_VERSION}" >> "$GITHUB_OUTPUT"
 
-  lint:
-    name: Lint release machinery
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  # The shared gate, the same jobs ci.yml runs on every pull request. Before
+  # this, release.yml defined its own lint and sanity and nothing kept the two
+  # definitions in agreement -- so a release could publish through a weaker
+  # gate than pull requests enforce.
+  #
+  # It also widens what the release checks: the gate runs the full collection
+  # lint set, not just the release machinery. `honest-ci-gates` recorded that
+  # as blocked on the pipenv toolchain, which was wrong -- `make install` has
+  # succeeded on every CI run, because setup-python supplies the Python 3.10
+  # that Pipfile pins and a maintainer's machine may lack. The fragility is
+  # local, not in CI.
+  gate:
+    name: Gate
     needs: [verify-version]
-    steps:
-      - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install shellcheck
-        run: |
-          wget -c https://github.com/koalaman/shellcheck/releases/download/v0.9.0/shellcheck-v0.9.0.linux.x86_64.tar.xz -O shellcheck.tar.xz && \
-            tar -xvf shellcheck.tar.xz && \
-            sudo mv ./shellcheck-v0.9.0/shellcheck /usr/bin/shellcheck && \
-            rm -rf shellcheck-v0.9.0
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: '3.12'
-
-      # Pinned, both of them. An unpinned linter is a gate that can change
-      # what it demands without anyone changing the repository.
-      - name: Install yamllint and zizmor
-        run: pip install 'yamllint==1.38.0' 'zizmor==1.30.1'
-
-      # Version-pinned, like shellcheck above. actionlint is what catches the
-      # things yamllint cannot: bad expressions, unknown contexts, broken
-      # `needs:` graphs, and retired runner labels. tools/lint-release.sh now
-      # requires it rather than skipping when it is absent, so this step is
-      # load-bearing.
-      - name: Install actionlint
-        env:
-          ACTIONLINT_VERSION: 1.7.12
-        run: |
-          wget -q "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            -O actionlint.tar.gz
-          tar -xzf actionlint.tar.gz actionlint
-          sudo mv actionlint /usr/bin/actionlint
-          rm -f actionlint.tar.gz
-          actionlint --version
-
-      # Scoped to the release machinery on purpose: tools/*.sh, galaxy.yml,
-      # dependabot.yml, and every workflow's hygiene (pinning, expressions,
-      # runner labels). It is not the full `make ci-lint` set, which is red on a
-      # pristine tree from findings inherited from upstream -- fixing those is
-      # the `honest-ci-gates` change. See tools/lint-release.sh.
-      #
-      # CI calls a Makefile target, never the tooling directly, so local and CI
-      # linting cannot drift.
-      - name: Lint
-        run: make ci-lint-release
-
-  sanity:
-    name: Sanity (Ⓐ${{ matrix.ansible }})
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    needs: [verify-version]
-    # devel is advisory. It tracks unreleased ansible-core and breaks for
-    # reasons unrelated to this collection; a release must not stop for that.
-    continue-on-error: ${{ matrix.experimental }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ansible: stable-2.17
-            python: '3.11'
-            experimental: false
-          - ansible: stable-2.18
-            python: '3.11'
-            experimental: false
-          - ansible: devel
-            python: '3.12'
-            experimental: true
-    steps:
-      # ansible-test requires the collection to live at
-      # ansible_collections/<namespace>/<name>. The tree is unrenamed here, so
-      # that is the source namespace, not the Galaxy one.
-      - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-          path: ansible_collections/${{ env.SOURCE_NAMESPACE }}/${{ env.COLLECTION_NAME }}
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: ${{ matrix.python }}
-
-      - name: Install ansible-core (${{ matrix.ansible }})
-        run: pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible }}.tar.gz --disable-pip-version-check
-
-      - name: Run sanity tests
-        run: ansible-test sanity -v --docker --color
-        working-directory: ./ansible_collections/${{ env.SOURCE_NAMESPACE }}/${{ env.COLLECTION_NAME }}
+    uses: ./.github/workflows/gate.yml
+    permissions:
+      contents: read
+    with:
+      source-namespace: grafana
+      collection-name: grafana
 
   build:
     name: Build collection
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [lint, sanity]
+    needs: [gate]
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

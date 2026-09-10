@@ -1,0 +1,22 @@
+---
+# zizmor configuration.
+#
+# One rule is disabled, and only because two linters that both gate disagree
+# about it.
+rules:
+  self-repository:
+    # zizmor wants `uses: $/.github/workflows/gate.yml` for a workflow in this
+    # same repository. actionlint 1.7.12 -- which also gates, in the same
+    # tools/lint-release.sh run -- rejects that outright:
+    #
+    #   reusable workflow call "$/.github/workflows/gate.yml" at "uses" is not
+    #   following the format "owner/repo/path/to/workflow.yml@ref" nor
+    #   "./path/to/workflow.yml"
+    #
+    # So complying with one linter breaks the other. `./path/to/workflow.yml`
+    # is the form GitHub's own documentation prescribes and every example uses,
+    # and for a same-repository call it resolves to the current ref exactly as
+    # `$/` does. Revisit when actionlint learns the newer syntax.
+    ignore:
+      - ci.yml
+      - release.yml

@@ -1,0 +1,31 @@
+---
+name: CI
+
+# The pull-request and push gate. Everything it enforces lives in gate.yml,
+# which release.yml calls too, so "what must pass" has one definition.
+#
+# Replaces lint.yaml, which defined its own copy. The check names change with
+# it -- `CI / Lint the collection` rather than `Lint / Perform Linting` --
+# which is why this lands before branch protection is enabled rather than
+# after.
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Gate
+    uses: ./.github/workflows/gate.yml
+    permissions:
+      contents: read

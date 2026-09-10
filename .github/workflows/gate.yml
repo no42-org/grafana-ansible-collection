@@ -1,0 +1,191 @@
+---
+name: Gate
+
+# The single definition of "what must pass".
+#
+# Called by ci.yml on every push and pull request to main, and by release.yml
+# before it builds. Both get the same jobs, so a gate added here appears in
+# both without further edits -- which is the point. Before this existed,
+# lint.yaml gated pull requests and release.yml defined its own lint and
+# sanity, and nothing kept the two in agreement. The drift direction that
+# matters is a release publishing through a gate that pull requests enforce
+# more strictly.
+#
+# workflow_call rather than a composite action, deliberately: a reusable
+# workflow can define jobs, so lint and sanity stay separate, run in parallel,
+# and report as separate checks that branch protection can require
+# individually. A composite action would collapse them into steps of one job
+# and lose that.
+
+# yamllint disable-line rule:truthy
+on:
+  workflow_call:
+    inputs:
+      source-namespace:
+        description: >-
+          The namespace in the working tree. ansible-test requires the
+          collection at ansible_collections/<namespace>/<name>, and the tree is
+          unrenamed, so this is the source namespace and not the Galaxy one.
+          A reusable workflow does not inherit the caller's `env:`, which is
+          why this arrives as an input.
+        type: string
+        default: grafana
+      collection-name:
+        description: The collection name in the working tree.
+        type: string
+        default: grafana
+
+permissions:
+  contents: read
+
+jobs:
+  lint-release:
+    name: Lint release machinery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: 0.9.0
+        run: |
+          base=https://github.com/koalaman/shellcheck/releases/download
+          wget -q "${base}/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            -O shellcheck.tar.xz
+          tar -xf shellcheck.tar.xz
+          sudo mv "./shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/bin/shellcheck
+          rm -rf "shellcheck-v${SHELLCHECK_VERSION}" shellcheck.tar.xz
+          shellcheck --version | head -2
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      # Pinned, all three. An unpinned linter is a gate that can change what it
+      # demands without anyone changing the repository.
+      - name: Install yamllint and zizmor
+        run: pip install 'yamllint==1.38.0' 'zizmor==1.30.1'
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          wget -q "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -O actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          sudo mv actionlint /usr/bin/actionlint
+          rm -f actionlint.tar.gz
+          actionlint --version
+
+      # CI calls a Makefile target, never the tooling directly, so local and CI
+      # linting cannot drift.
+      - name: Lint the release machinery
+        run: make ci-lint-release
+
+  lint:
+    name: Lint the collection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: 0.9.0
+        run: |
+          base=https://github.com/koalaman/shellcheck/releases/download
+          wget -q "${base}/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            -O shellcheck.tar.xz
+          tar -xf shellcheck.tar.xz
+          sudo mv "./shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/bin/shellcheck
+          rm -rf "shellcheck-v${SHELLCHECK_VERSION}" shellcheck.tar.xz
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 18
+          cache: npm
+
+      # 3.10 because Pipfile pins python_version = "3.10". This is what makes
+      # `make install` work here and fail on a machine without that
+      # interpreter -- see the warning in RELEASING.md.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.10'
+
+      - name: Install pipenv
+        run: python -m pip install --upgrade pipenv wheel
+
+      - name: Install the lint toolchain
+        run: make install
+
+      # `if: success() || failure()` on each, so one failing linter does not
+      # hide the others' findings. As of honest-ci-gates every one of these
+      # actually fails when its linter reports an error.
+      #
+      # Markdown and text linting stay commented out, matching what lint.yaml
+      # had. Their toolchain is `modernize-lint-toolchain`'s subject, and it
+      # carries 29 of this repository's open Dependabot alerts.
+      - name: Shell Linting
+        run: make ci-lint-shell
+        if: success() || failure()
+
+      - name: Yaml Linting
+        run: make ci-lint-yaml
+        if: success() || failure()
+
+      - name: Editorconfig Linting
+        run: make ci-lint-editorconfig
+        if: success() || failure()
+
+      - name: Ansible Linting
+        run: make ci-lint-ansible
+        if: success() || failure()
+
+  sanity:
+    name: Sanity (Ⓐ${{ matrix.ansible }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # devel is advisory. It tracks unreleased ansible-core and breaks for
+    # reasons unrelated to this collection; a release must not stop for that.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible: stable-2.17
+            python: '3.11'
+            experimental: false
+          - ansible: stable-2.18
+            python: '3.11'
+            experimental: false
+          - ansible: devel
+            python: '3.12'
+            experimental: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          path: ansible_collections/${{ inputs.source-namespace }}/${{ inputs.collection-name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install ansible-core (${{ matrix.ansible }})
+        run: pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible }}.tar.gz --disable-pip-version-check
+
+      - name: Run sanity tests
+        run: ansible-test sanity -v --docker --color
+        working-directory: ./ansible_collections/${{ inputs.source-namespace }}/${{ inputs.collection-name }}

@@ -158,15 +158,17 @@ ci-lint-ansible:
 # but they are all fixed now, and fixing them cost four newly-diverging files
 # of whitespace, not the merge property.
 #
-# The remaining reason is the toolchain, not the findings. ci-lint-yaml,
-# ci-lint-editorconfig and ci-lint-ansible need pipenv (pinned to Python 3.10)
-# and node_modules; the release lint job installs neither, and putting that
-# fragile chain in the release path would trade an honest narrow gate for a
-# broad flaky one. See the `make install` warning in RELEASING.md.
+# The remaining reason is only about what this one target covers, not about
+# what a release checks. `honest-ci-gates` claimed the pipenv toolchain made
+# the full set too fragile for the release path; that was wrong. `make install`
+# has succeeded on every CI run, because setup-python supplies the Python 3.10
+# that Pipfile pins. The fragility is local, on a machine without that
+# interpreter, and CI never had it.
 #
-# The full set is enforced by .github/workflows/lint.yaml, on every push and
-# pull request to main -- and as of honest-ci-gates it actually fails when a
-# linter finds something. A tag is cut from main, so main has already been
-# through it. Unifying the two is `actions-hygiene` epic 6.
+# So the full set does gate a release, via .github/workflows/gate.yml, which
+# both ci.yml and release.yml call. This target stays narrow because it is the
+# release *machinery* check -- tools/*.sh and the workflows -- and it is useful
+# precisely because it needs no pipenv and no node_modules, so it runs in
+# seconds locally.
 ci-lint-release:
 	@./tools/lint-release.sh

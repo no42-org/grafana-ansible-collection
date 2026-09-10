@@ -9,15 +9,19 @@
 #   - galaxy.yml, dependabot.yml     parseable, and with the fields the
 #                                    release needs
 #
-# It is not the full `make ci-lint` set. That used to be because ci-lint was
-# red on a pristine tree and fixing it would break the upstream-merge property.
-# Both halves of that were wrong: the findings were real but cost four
-# newly-diverging files of whitespace to fix, and they are fixed. The remaining
-# reason is that the yaml, editorconfig and ansible linters need pipenv (pinned
-# to Python 3.10) and node_modules, which the release lint job does not install
-# and should not have to. The full set gates on push and pull request via
-# .github/workflows/lint.yaml; a tag is cut from main, which has been through
-# it. See the Makefile's ci-lint-release comment.
+# It is not the full `make ci-lint` set, and that is a division of labour
+# rather than a gap. The full set gates a release too, in the `lint` job of
+# .github/workflows/gate.yml, which both ci.yml and release.yml call. This
+# script is the release *machinery* check, and its value is that it needs no
+# pipenv and no node_modules, so it runs in seconds locally.
+#
+# Two earlier justifications for the narrow scope were wrong and are recorded
+# here so they are not reinstated. "ci-lint is red on a pristine tree and
+# fixing it would break the upstream-merge property": the findings were real
+# but cost four newly-diverging files of whitespace, and they are fixed. "The
+# pipenv toolchain is too fragile for the release path": `make install` has
+# succeeded on every CI run, because setup-python supplies the Python 3.10 that
+# Pipfile pins. The fragility is local, not in CI.
 
 set -euo pipefail
 
