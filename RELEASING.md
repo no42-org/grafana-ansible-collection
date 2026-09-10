@@ -171,8 +171,21 @@ diff -rq -x MANIFEST.json -x FILES.json -x galaxy.yml up/ ours/
 `MANIFEST.json` and `FILES.json` are per-build metadata and always differ.
 `galaxy.yml` is excluded because the build consumes it: the tarball carries `MANIFEST.json` instead, so it always shows as present only upstream.
 
-Every differing file must be attributable to a carried contribution or to a documented maintainer change.
+Every differing file must be attributable to one of exactly three things:
+
+1. a **carried contribution** — an upstream pull request cherry-picked here, listed by `make carried-prs`
+2. a **maintainer change** — a fix or infrastructure change made here, documented below
+3. an **accepted fork-origin contribution** — a change contributed directly to this repository, with no upstream pull request behind it, which is where contributions now go
+
 Anything else is a bug in the rename or an unintended edit, and this diff is how you find it.
+`git log --format='%h %an | %s' <upstream base commit>..HEAD -- <path>` names the commit for each differing file, which is the attribution.
+
+At 6.2.0 the diff was 13 files, every one attributable: 3 to the release commit (`CHANGELOG.rst`, `changelogs/changelog.yaml`, `meta/runtime.yml`), 5 to carried contributions, 5 to maintainer changes, and none to category 3 — nothing has been contributed here yet.
+The `Only in up:` entries are the repository-only files `build_ignore` keeps out of the tarball, and are expected.
+
+**When category 3 outnumbers category 1, this is no longer a curated downstream.**
+A fork whose divergence is mostly its own work is its own project, and should be named and documented as one rather than continuing to describe itself as a curation of upstream.
+That is the signal to watch; it is a rename and a re-framing, not a failure.
 
 **The rename itself contributes nothing.** Applied to an unmodified upstream tree and then inverted, it produces no difference. That property held through 6.1.0, where the diff against upstream's published artifact was empty, and it is worth re-checking whenever the rewrite rule changes.
 

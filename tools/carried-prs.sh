@@ -162,6 +162,13 @@ fi
 
 echo ""
 info "carried: ${#carried[@]}"
+# Say what this does not cover. The table reads like an inventory of the
+# divergence, and it is not: it enumerates commits carrying a `cherry picked
+# from` line, so it sees upstream-origin work only. Maintainer fixes to
+# inherited files, this fork's infrastructure, and contributions that arrive
+# here with no upstream pull request behind them are all invisible to it.
+info "scope: upstream-origin commits only, not the whole divergence"
+info "       total accounting is the file diff in RELEASING.md, 'Verifying the divergence'"
 [[ "${unknown}" -gt 0 ]] && warning "unresolved: ${unknown} (no pull request found for the recorded origin)"
 
 if [[ "${droppable}" -gt 0 ]]; then
