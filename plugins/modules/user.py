@@ -5,13 +5,13 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import (absolute_import, division, print_function)
-from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 
 DOCUMENTATION = '''
 ---
 module: user
 author:
-  - Mathieu Valois, téïcée
+  - Mathieu Valois (@mvalois)
+  - téïcée (@teicee)
 version_added: "0.0.1"
 short_description: Manage Users in Grafana
 description:
@@ -30,36 +30,42 @@ options:
     description:
       - Grafana admin username
     type: str
-    required : true
+    required: true
   admin_password:
     description:
       - Grafana admin password
     type: str
-    required : true
+    required: true
   login:
     description:
       - Login of the user
     type: str
-    required : true
+    required: true
   password:
     description:
       - Password of the user. Should be provided if state=present
     type: str
-    required : false
+    required: false
   name:
     description:
       - Name of the user.
     type: str
-    required : false
+    required: false
   email:
     description:
       - Email address of the user.
     type: str
-    required : false
+    required: false
+  orgid:
+    description:
+      - Organization ID the user is created in.
+    type: int
+    required: false
   state:
     description:
       - State for the Grafana User.
-    choices: [ present, absent ]
+      - C(update_password) sets the password of an existing user.
+    choices: [ present, absent, update_password ]
     default: present
     type: str
 '''
@@ -69,7 +75,7 @@ EXAMPLES = '''
   grafana.grafana.user:
     login: "grafana_user"
     password: "{{ lookup('ansible.builtin.password') }}"
-    email: "grafana_user@localhost.local
+    email: "grafana_user@localhost.local"
     name: "grafana user"
     grafana_url: "{{ grafana_url }}"
     admin_name: "admin"
@@ -112,6 +118,8 @@ output:
       type: str
       sample: grafana_user
 '''
+
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 
 try:
     import requests

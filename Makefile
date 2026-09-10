@@ -2,7 +2,14 @@
 PATH := ./node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release dist dist-clean
+
+# Galaxy namespace this fork publishes to. The working tree keeps saying
+# "grafana", and the rename happens in build/src at dist time.
+GALAXY_NAMESPACE := indigo423
+BUILD_DIR := build
+DIST_SRC := $(BUILD_DIR)/src
+DIST_OUT := $(BUILD_DIR)/dist
 
 default: all
 
@@ -21,6 +28,27 @@ install:
 # remove the build and log folders
 clean:
 	rm -rf build node_modules
+
+####################################################################
+#                          Distribution                            #
+####################################################################
+
+# Build the publishable collection tarball.
+#
+# The tree is copied to build/src and the namespace rewrite happens there, so
+# the working tree is never modified and upstream merges stay conflict-free.
+# tools/rename-namespace.sh owns the exclude list, asked for via
+# --rsync-excludes, so the copy and the rewrite cannot disagree on scope.
+dist: dist-clean
+	@mkdir -p $(DIST_SRC) $(DIST_OUT)
+	rsync -a $$(./tools/rename-namespace.sh --rsync-excludes) ./ $(DIST_SRC)/
+	./tools/rename-namespace.sh $(GALAXY_NAMESPACE) $(DIST_SRC)
+	cd $(DIST_SRC) && ansible-galaxy collection build --output-path ../../$(DIST_OUT)
+	@ls -1 $(DIST_OUT)/*.tar.gz
+
+# remove only the dist output, leaving node_modules in place
+dist-clean:
+	rm -rf $(BUILD_DIR)
 
 # reinstall the node_modules and start with a fresh node build
 reinstall: clean install
@@ -84,3 +112,9 @@ ci-lint-editorconfig:
 # Ansible Linting
 ci-lint-ansible:
 	@./tools/lint-ansible.sh
+
+# Release machinery linting: the subset of ci-lint that gates a release.
+# ci-lint itself is red on a pristine tree from inherited upstream findings, and
+# fixing those would break the upstream-merge property this fork depends on.
+ci-lint-release:
+	@./tools/lint-release.sh

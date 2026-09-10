@@ -1,159 +1,336 @@
 ---
-name: GitHub Release
+name: Release
 
 # yamllint disable-line rule:truthy
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number to release'
-        required: true
+  push:
+    tags:
+      - 'v*'
+
+# The "v" prefix is load-bearing. Upstream's tags are bare (6.0.3 ... 6.1.0),
+# they are already present in this fork, and more arrive on every
+# `git fetch upstream --tags`. A pattern like '*' or '[0-9]*' would let an
+# upstream tag fetch fire a release.
+
 env:
-  NAMESPACE: grafana
+  # The namespace in the working tree. The rename to indigo423 happens inside
+  # `make dist`; ansible-test still needs the tree at its source path.
+  SOURCE_NAMESPACE: grafana
   COLLECTION_NAME: grafana
+  GALAXY_NAMESPACE: indigo423
+  GALAXY_SERVER: https://galaxy.ansible.com/api/
 
 jobs:
+  verify-version:
+    name: Verify tag matches galaxy.yml
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      # Runs before anything is built or published. Galaxy versions are
+      # immutable, so a mismatched tag must cost seconds, not a bad upload.
+      - name: Compare tag against galaxy.yml
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          GALAXY_VERSION="$(python -c "import yaml; print(yaml.safe_load(open('galaxy.yml'))['version'])")"
+          echo "tag:        ${GITHUB_REF_NAME} -> ${TAG_VERSION}"
+          echo "galaxy.yml: ${GALAXY_VERSION}"
+          if [ "${TAG_VERSION}" != "${GALAXY_VERSION}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match galaxy.yml version ${GALAXY_VERSION}"
+            exit 1
+          fi
+          echo "version=${GALAXY_VERSION}" >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Lint release machinery
+    runs-on: ubuntu-latest
+    needs: [verify-version]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install shellcheck
+        run: |
+          wget -c https://github.com/koalaman/shellcheck/releases/download/v0.9.0/shellcheck-v0.9.0.linux.x86_64.tar.xz -O shellcheck.tar.xz && \
+            tar -xvf shellcheck.tar.xz && \
+            sudo mv ./shellcheck-v0.9.0/shellcheck /usr/bin/shellcheck && \
+            rm -rf shellcheck-v0.9.0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      # Scoped to tools/ and this workflow on purpose. `make ci-lint` is red on
+      # a pristine tree from 62 error-level findings inherited from upstream,
+      # and fixing those means editing roles/ and changelogs/ -- the files this
+      # fork keeps identical to upstream so merges stay clean. See
+      # tools/lint-release.sh.
+      #
+      # CI calls a Makefile target, never the tooling directly, so local and CI
+      # linting cannot drift.
+      - name: Lint
+        run: make ci-lint-release
+
   sanity:
     name: Sanity (Ⓐ${{ matrix.ansible }})
+    runs-on: ubuntu-latest
+    needs: [verify-version]
+    # devel is advisory. It tracks unreleased ansible-core and breaks for
+    # reasons unrelated to this collection; a release must not stop for that.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
+      fail-fast: false
       matrix:
-        ansible:
-          - stable-2.12
-          - stable-2.13
-          - stable-2.14
-          - devel
-    runs-on: ubuntu-20.04
+        include:
+          - ansible: stable-2.17
+            python: '3.11'
+            experimental: false
+          - ansible: stable-2.18
+            python: '3.11'
+            experimental: false
+          - ansible: devel
+            python: '3.12'
+            experimental: true
     steps:
-
+      # ansible-test requires the collection to live at
+      # ansible_collections/<namespace>/<name>. The tree is unrenamed here, so
+      # that is the source namespace, not the Galaxy one.
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          path: ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
+          path: ansible_collections/${{ env.SOURCE_NAMESPACE }}/${{ env.COLLECTION_NAME }}
 
       - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.10'
-
-      - name: Install ansible-base (${{ matrix.ansible }})
-        run: pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible }}.tar.gz --disable-pip-version-check
-
-      - name: Run sanity tests
-        run: ansible-test sanity -v --docker --color --coverage
-        working-directory: ./ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
-
-  integration:
-    runs-on: ubuntu-20.04
-    name: Integration (Ⓐ${{ matrix.ansible }}-py${{ matrix.python }})
-    strategy:
-      fail-fast: true
-      max-parallel: 1
-      matrix:
-        ansible:
-          - stable-2.13
-        python:
-          - '3.10'
-
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-        with:
-          path: ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
-
-      - name: create integration_config
-        working-directory: ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}/tests/integration
-        run: |
-          cat <<EOF > integration_config.yml
-          org_name: ${{ secrets.ANSIBLE_TEST_ORG_NAME }}
-          grafana_cloud_api_key: ${{ secrets.ANSIBLE_TEST_CLOUD_API_KEY }}
-          grafana_api_key: ${{ secrets.ANSIBLE_TEST_GRAFANA_API_KEY }}
-          grafana_url: ${{ secrets.ANSIBLE_GRAFANA_URL }}
-          test_stack_name: ${{ secrets.ANSIBLE_TEST_CI_STACK }}
-          EOF
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Install ansible-base (${{ matrix.ansible }})
+      - name: Install ansible-core (${{ matrix.ansible }})
         run: pip install https://github.com/ansible/ansible/archive/${{ matrix.ansible }}.tar.gz --disable-pip-version-check
 
-      - name: Install Requests
-        run: pip install requests
+      - name: Run sanity tests
+        run: ansible-test sanity -v --docker --color
+        working-directory: ./ansible_collections/${{ env.SOURCE_NAMESPACE }}/${{ env.COLLECTION_NAME }}
 
-      - name: Create Test Stack
-        run: ansible-test integration -v create_cloud_stack --color --retry-on-error --continue-on-error --diff --python ${{ matrix.python }} --coverage --docker
-        working-directory: ./ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
+  build:
+    name: Build collection
+    runs-on: ubuntu-latest
+    needs: [lint, sanity]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - name: Test Modules
-        run: ansible-test integration -v alert_contact_point alert_notification_policy cloud_api_key cloud_plugin dashboard datasource folder --color --retry-on-error --continue-on-error --diff --python ${{ matrix.python }} --coverage --docker
-        working-directory: ./ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
 
-      - name: Delete Test Stack
-        if: success() || failure()
-        run: ansible-test integration -v delete_cloud_stack --color --retry-on-error --continue-on-error --diff --python ${{ matrix.python }} --coverage --docker
-        working-directory: ./ansible_collections/${{env.NAMESPACE}}/${{env.COLLECTION_NAME}}
+      - name: Install ansible-core
+        run: pip install ansible-core
+
+      # Copies the tree to build/src, rewrites the namespace there, asserts the
+      # rewrite count, and packages. The working tree is never modified.
+      - name: Build
+        run: make dist
+
+      - name: Upload collection artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: collection
+          path: build/dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Smoke test the built artifact
+    runs-on: ubuntu-latest
+    needs: [verify-version, build]
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core
+        run: pip install ansible-core
+
+      - name: Download collection artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: collection
+          path: dist
+
+      # This gate is why the build-time rename is safe. Every in-tree test
+      # exercises grafana.grafana, so a rename bug is invisible to the whole
+      # test suite and would only surface after the version is immutable on
+      # Galaxy. Here the real artifact is installed and the renamed names are
+      # resolved for real.
+      - name: Install the built collection
+        run: |
+          ansible-galaxy collection install \
+            "dist/${GALAXY_NAMESPACE}-${COLLECTION_NAME}-${{ needs.verify-version.outputs.version }}.tar.gz" \
+            -p ./collections
+
+      # A wrong namespace in galaxy.yml lands the collection elsewhere.
+      - name: Assert install path
+        run: |
+          INSTALLED="collections/ansible_collections/${GALAXY_NAMESPACE}/${COLLECTION_NAME}"
+          if [ ! -d "${INSTALLED}" ]; then
+            echo "::error::collection not installed at ${INSTALLED}"
+            find collections/ansible_collections -maxdepth 2 -type d
+            exit 1
+          fi
+          echo "installed at ${INSTALLED}"
+
+      - name: Assert modules resolve under the new namespace
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/collections
+        run: |
+          for module in dashboard datasource folder user alert_contact_point \
+                        alert_notification_policy cloud_api_key cloud_plugin cloud_stack; do
+            echo "--- ${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${module}"
+            ansible-doc "${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${module}" > /dev/null
+          done
+
+      - name: Assert roles resolve under the new namespace
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/collections
+        run: |
+          {
+            echo "---"
+            echo "- name: Resolve every role by its renamed FQCN"
+            echo "  hosts: localhost"
+            echo "  gather_facts: false"
+            echo "  roles:"
+            for role in alloy grafana grafana_agent loki mimir \
+                        opentelemetry_collector promtail tempo; do
+              echo "    - ${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${role}"
+            done
+          } > resolve-roles.yml
+          cat resolve-roles.yml
+          # --syntax-check resolves every role without running any task.
+          ansible-playbook --syntax-check resolve-roles.yml
+
+      - name: Assert the rename did not corrupt community.grafana references
+        run: |
+          INSTALLED="collections/ansible_collections/${GALAXY_NAMESPACE}/${COLLECTION_NAME}"
+          # community.grafana.grafana_datasource contains "grafana.grafana" as a
+          # substring; a naive rewrite turns it into a collection that does not
+          # exist, in runtime code, where no build step would notice.
+          if grep -rIq "community\.${GALAXY_NAMESPACE}\." "${INSTALLED}"; then
+            echo "::error::rename corrupted a community.grafana reference"
+            grep -rIn "community\.${GALAXY_NAMESPACE}\." "${INSTALLED}"
+            exit 1
+          fi
+          for expected in community.grafana.grafana_datasource community.grafana.grafana_dashboard; do
+            if ! grep -rIq "${expected}" "${INSTALLED}"; then
+              echo "::error::expected ${expected} to survive the rename"
+              exit 1
+            fi
+            echo "ok ${expected}"
+          done
 
   publish:
     name: Publish to Galaxy
     runs-on: ubuntu-latest
-    needs: [sanity, integration]
-    timeout-minutes: 15
+    needs: [verify-version, smoke]
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
-      - name: Install Ansible
+      - name: Install ansible-core
         run: pip install ansible-core
-      
-      - name: Install PyYaml
-        run: pip install pyyaml
 
-      - name: Validate version matches
+      - name: Download collection artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: collection
+          path: dist
+
+      # Galaxy's publish is asynchronous: the upload returns, then an import
+      # task runs and can still reject the collection. `ansible-galaxy
+      # collection publish` waits for that import and exits non-zero if it
+      # fails -- so do NOT add --no-wait here. A successful upload is not a
+      # successful release.
+      - name: Publish
+        env:
+          GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
         run: |
-          VERSION=$(python -c "import yaml; print(yaml.safe_load(open('galaxy.yml'))['version'])")
-          if [ "$VERSION" != "${{ github.event.inputs.version }}" ]; then
-            echo "Error: Input version (${{ github.event.inputs.version }}) doesn't match galaxy.yml version ($VERSION)"
+          if [ -z "${GALAXY_API_KEY}" ]; then
+            echo "::error::the GALAXY_API_KEY secret is not configured"
             exit 1
           fi
-
-      - name: Build collection
-        id: build
-        run: |
-          ansible-galaxy collection build
-          echo "archive_path=$(ls *.tar.gz)" >> $GITHUB_OUTPUT
-
-      - name: Publish collection to Galaxy
-        env:
-          ANSIBLE_GALAXY_API_KEY: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
-        run: ansible-galaxy collection publish --api-key ${{ secrets.ANSIBLE_GALAXY_API_KEY }} ${{ steps.build.outputs.archive_path }}
+          ansible-galaxy collection publish \
+            --server "${GALAXY_SERVER}" \
+            --api-key "${GALAXY_API_KEY}" \
+            "dist/${GALAXY_NAMESPACE}-${COLLECTION_NAME}-${{ needs.verify-version.outputs.version }}.tar.gz"
 
   release:
-    name: Create GitHub Release
+    name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: [publish]
+    needs: [verify-version, publish]
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          python-version: '3.10'
+          fetch-depth: 0
 
-      - name: Install PyYaml
-        run: pip install pyyaml
+      - name: Download collection artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: collection
+          path: dist
 
-      - name: Validate version is published to Galaxy
-        run: curl --head -s -f -o /dev/null https://galaxy.ansible.com/download/grafana-grafana-${{ github.event.inputs.version }}.tar.gz
+      # Version numbers mirror upstream, so the notes must say which upstream
+      # commit the release was actually cut from. Without it, "6.1.0" is
+      # ambiguous between upstream's tag and whatever this fork built.
+      - name: Compose release notes
+        id: notes
+        env:
+          VERSION: ${{ needs.verify-version.outputs.version }}
+        run: |
+          UPSTREAM_BASE="$(git rev-parse HEAD)"
+          {
+            echo "Release of \`${GALAXY_NAMESPACE}.${COLLECTION_NAME}\` version \`${VERSION}\`."
+            echo ""
+            echo "Install with:"
+            echo ""
+            echo '```'
+            echo "ansible-galaxy collection install ${GALAXY_NAMESPACE}.${COLLECTION_NAME}:${VERSION}"
+            echo '```'
+            echo ""
+            echo "This fork mirrors upstream version numbers."
+            echo "Built from commit \`${UPSTREAM_BASE}\`."
+            echo ""
+            echo "Published to https://galaxy.ansible.com/ui/repo/published/${GALAXY_NAMESPACE}/${COLLECTION_NAME}/"
+          } > release-notes.md
+          cat release-notes.md
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
-          tag_name: ${{ github.event.inputs.version }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ needs.verify-version.outputs.version }}
+          body_path: release-notes.md
+          files: dist/*.tar.gz
