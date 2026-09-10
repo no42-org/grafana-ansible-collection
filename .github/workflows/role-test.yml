@@ -45,14 +45,6 @@ jobs:
         distro:
           - debian
           - rhel
-        exclude:
-          # The loki role builds its RPM URL as loki-<version>.<arch>.rpm, but
-          # Grafana renamed the asset to loki-<version>-1.<arch>.rpm after
-          # v3.6.0, so RHEL installs 404 on the default `latest`. The naming
-          # change is tracked as separate work: a fix has to be version-aware,
-          # since pinning an older loki_version still needs the old name.
-          - role: loki
-            distro: rhel
 
     steps:
       - name: Check out code

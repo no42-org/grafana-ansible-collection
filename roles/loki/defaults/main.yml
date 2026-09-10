@@ -5,7 +5,20 @@ loki_uninstall: false
 loki_http_listen_port: 3100
 loki_http_listen_address: "0.0.0.0"
 loki_expose_port: false
-loki_download_url_rpm: "https://github.com/grafana/loki/releases/download/v{{ loki_version }}/loki-{{ loki_version }}.{{ __loki_arch }}.rpm"
+# Grafana added an RPM release number to the asset name from Loki 3.7.5 on:
+#
+#   v3.7.4   loki-3.7.4.x86_64.rpm
+#   v3.7.5   loki-3.7.5-1.x86_64.rpm
+#
+# So a single fixed shape cannot fetch both, and the default `latest` 404s on
+# RHEL against any current release. The suffix is applied by version rather
+# than unconditionally, because pinning an older loki_version still needs the
+# old name. The .deb assets never changed, which is why only RHEL broke.
+#
+# `-1` is the release number every 3.7.5+ asset has carried so far. If Grafana
+# ever ships a rebuild as `-2`, override loki_download_url_rpm directly; it is
+# a public variable for exactly that reason.
+loki_download_url_rpm: "https://github.com/grafana/loki/releases/download/v{{ loki_version }}/loki-{{ loki_version }}{{ '-1' if loki_version is version('3.7.5', '>=') else '' }}.{{ __loki_arch }}.rpm"
 loki_download_url_deb: "https://github.com/grafana/loki/releases/download/v{{ loki_version }}/loki_{{ loki_version }}_{{ __loki_arch }}.deb"
 loki_working_path: "/var/lib/loki"
 loki_ruler_alert_path: "{{ loki_working_path }}/rules/fake"

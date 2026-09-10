@@ -367,14 +367,14 @@ and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: thr
 | `opentelemetry_collector` | ✅ | ✅ | carries `#475` |
 | `mimir` | ✅ | ✅ | carries `#461`; three nodes plus MinIO |
 | `alloy` | ✅ | ✅ | |
-| `loki` | ✅ | — | see below |
+| `loki` | ✅ | ✅ | |
 | `promtail` | — | — | see below |
 | `tempo` | — | — | see below |
 | `grafana_agent` | — | — | superseded upstream by `alloy`; never had a scenario |
 
-Three roles cannot install their software with default settings. All three are inherited, all three are the same shape — a role building URLs or config from templates that upstream has since outgrown — and none was ever executed, which is why none was noticed:
+Two roles still cannot install their software with default settings. Both are inherited, both are the same shape — a role building URLs or config from templates that upstream has since outgrown — and neither was ever executed, which is why neither was noticed. `loki` on RHEL was the third and is now fixed:
 
-- **`loki` on RHEL.** The role builds `loki-<version>.<arch>.rpm`, but Grafana renamed the asset to `loki-<version>-1.<arch>.rpm` after v3.6.0, so the default `latest` 404s. Excluded from the RHEL matrix. A fix has to be version-aware, since pinning an older `loki_version` still needs the old name.
+- **`loki` on RHEL — fixed.** The role built `loki-<version>.<arch>.rpm`, but Grafana added an RPM release number from **3.7.5** on, so the default `latest` 404s against any current release. `loki_download_url_rpm` now applies the `-1` suffix by version, because pinning an older `loki_version` still needs the old name. The `.deb` assets never changed, which is why only RHEL broke. `loki`/`rhel` is back in the role-test matrix and passes.
 - **`promtail`.** Grafana stopped shipping promtail packages after Loki v3.6.0; v3.7.7 has zero promtail assets, so `latest` 404s everywhere. `promtail-molecule.yml` is kept manual-only rather than replaced, because there is nothing to replace it with until the role is fixed or retired.
 - **`tempo`.** The role's own default `tempo_metrics_generator` emits a `traces_storage` field that Tempo 3.0.3 rejects (`field traces_storage not found in type generator.Config`), so Tempo crash-loops and the role's own readiness check fails.
 
