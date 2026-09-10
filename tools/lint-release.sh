@@ -160,6 +160,21 @@ if [[ -n "${missingVersionComments}" ]]; then
   statusCode=1
 fi
 
+# What the published collection claims about its own dependencies.
+#
+# Two checks, both in tools/check-shipped-manifests.py: the declared Python
+# dependencies are derived from plugins/ and compared in both directions, and
+# no manifest inside the artifact names a development-only tool.
+#
+# The second reads the built tarball when one exists, so it validates
+# build_ignore at the same time, and says which surface it inspected when one
+# does not.
+echo "  ‣ shipped manifests declare only what the collection needs"
+if ! python3 tools/check-shipped-manifests.py; then
+  lintError "a shipped manifest does not match the collection's actual dependencies"
+  statusCode=1
+fi
+
 echo "  ‣ yaml parse galaxy.yml .github/dependabot.yml"
 if ! python3 -c "
 import sys, yaml

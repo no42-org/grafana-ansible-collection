@@ -1,7 +1,7 @@
 ---
 namespace: grafana
 name: grafana
-version: 6.2.1
+version: 6.2.2
 readme: README.md
 authors:
   - Grafana Labs <grafana.com>
@@ -49,6 +49,21 @@ build_ignore:
   - .textlintrc
   - .shellcheckrc
   - .gitignore
+  # Manifests addressed to this repository rather than to a consumer.
+  #
+  # Excluded rather than deleted or edited: both are inherited and stay
+  # byte-identical to upstream this way, so an upstream merge is unaffected.
+  # requirements.yml also has to keep working -- ansible-lint provisions its
+  # dependency collections from it, so deleting it would break a lint gate to
+  # fix a packaging problem.
+  #
+  # test-requirements.txt lists Molecule's dependencies for scenarios this fork
+  # never invokes. requirements.yml duplicates galaxy.yml's own `dependencies`
+  # as unconstrained git URLs, so a consumer following it would install three
+  # collections from main instead of the constrained versions that
+  # ansible-galaxy resolves from MANIFEST.json.
+  - roles/grafana/test-requirements.txt
+  - requirements.yml
 # Documentation for maintainers and contributors of this fork, not for
 # consumers of the collection. A consumer receives collection content; they do
 # not receive this project's code of conduct.
