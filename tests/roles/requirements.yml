@@ -1,0 +1,17 @@
+---
+# Collections the role test harness needs.
+#
+# community.docker provides the connection plugin the harness uses to reach the
+# test container. The rest are what the roles under test call into: they are
+# also declared in galaxy.yml's dependencies, but a role test runs against the
+# source tree rather than an installed collection, so they must be present
+# independently.
+collections:
+  - name: community.docker
+    version: ">=5.0.0"
+  - name: community.general
+    version: ">=8.2.0"
+  - name: community.grafana
+    version: ">=1.5.4"
+  - name: ansible.posix
+    version: ">=1.5.4"

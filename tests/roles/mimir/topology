@@ -1,0 +1,5 @@
+# Mimir is tested as a three-node cluster on a private network, because the
+# role configures memberlist gossip between replicas and an S3-compatible
+# object store. A single node would leave the clustering paths unexercised.
+NODES=3
+NETWORK=1

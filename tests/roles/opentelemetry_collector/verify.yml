@@ -1,0 +1,81 @@
+---
+# Assert the end state after the opentelemetry_collector role has been applied.
+#
+# Ports the assertions from the retired testinfra suite, and adds the one it
+# could not make: that #475's owner and group actually reached the extracted
+# binary, rather than leaving it owned by root.
+- name: Verify
+  hosts: all
+  any_errors_fatal: true
+  become: true
+  tasks:
+    - name: "Collect service facts"
+      ansible.builtin.service_facts:
+
+    - name: "Stat the directories the role must create"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __dirs
+      loop:
+        - /etc/otel-collector
+        - /var/lib/otel-collector
+
+    - name: "Assert each is a directory"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "expected directory missing: {{ item.item }}"
+      loop: "{{ __dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Stat the configuration file"
+      ansible.builtin.stat:
+        path: /etc/otel-collector/config.yaml
+      register: __config
+
+    - name: "Assert the configuration file exists"
+      ansible.builtin.assert:
+        that:
+          - __config.stat.exists
+          - __config.stat.isreg
+        fail_msg: "/etc/otel-collector/config.yaml is missing"
+
+    - name: "Assert otel-collector is running"
+      ansible.builtin.assert:
+        that:
+          - "'otel-collector.service' in ansible_facts.services"
+          - "ansible_facts.services['otel-collector.service'].state == 'running'"
+        fail_msg: >-
+          otel-collector is not running:
+          {{ ansible_facts.services['otel-collector.service'].state | default('absent') }}
+
+    - name: "Assert the prometheus exporter endpoint is listening"
+      ansible.builtin.wait_for:
+        port: 9999
+        host: 127.0.0.1
+        timeout: 60
+
+    # ------------------------------- #475 the extracted binary is not root-owned
+    - name: "Stat the extracted collector binary"
+      ansible.builtin.stat:
+        path: "/etc/otel-collector/otelcol-contrib"
+      register: __binary
+
+    - name: "Assert the binary exists"
+      ansible.builtin.assert:
+        that:
+          - __binary.stat.exists
+        fail_msg: "the collector binary was not extracted"
+
+    - name: "Assert the binary belongs to the service user, not root"
+      ansible.builtin.assert:
+        that:
+          - __binary.stat.pw_name == 'otel'
+          - __binary.stat.gr_name == 'otel'
+        fail_msg: >-
+          the extracted binary is owned by
+          {{ __binary.stat.pw_name }}:{{ __binary.stat.gr_name }} rather than
+          otel:otel; the owner and group on the unarchive step did not take
+          effect

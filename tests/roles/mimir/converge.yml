@@ -1,0 +1,40 @@
+---
+# Apply the mimir role to a three-node cluster.
+#
+# Carries one curated contribution:
+#   #461  the version-detection regex accepts a `mimir-` prefixed release tag,
+#         not only a bare or `v`-prefixed one
+#
+# memberlist join_members is built from the inventory rather than hardcoded, so
+# the node names live in one place: tools/role-test.sh derives them from the
+# role name and the harness passes each host its own via role_test_node_name.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  vars:
+    mimir_storage:
+      storage:
+        backend: s3
+        s3:
+          endpoint: "minio:9000"
+          access_key_id: testtest
+          secret_access_key: testtest
+          insecure: true
+          bucket_name: mimir
+
+    # Blocks storage needs a prefix when it shares a bucket with other stores.
+    mimir_blocks_storage:
+      storage_prefix: blocks
+      tsdb:
+        dir: "{{ mimir_working_path }}/ingester"
+
+    # Gossip between the three replicas. Derived from the inventory so adding a
+    # node to tests/roles/mimir/topology needs no change here.
+    mimir_memberlist:
+      join_members: >-
+        {{ groups['all']
+           | map('extract', hostvars, 'role_test_node_name')
+           | map('regex_replace', '$', ':7946')
+           | list }}
+  roles:
+    - mimir
