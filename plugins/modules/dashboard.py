@@ -143,7 +143,7 @@ def absent_dashboard(module):
     if 'uid' not in module.params['dashboard']['dashboard']:
         return True, False, "UID is not defined in the the Dashboard configuration"
 
-    api_url = api_url = module.params['grafana_url'] + '/api/dashboards/uid/' + module.params['dashboard']['dashboard']['uid']
+    api_url = module.params['grafana_url'] + '/api/dashboards/uid/' + module.params['dashboard']['dashboard']['uid']
 
     result = requests.delete(api_url, headers={
         "Authorization": 'Bearer ' + module.params['grafana_api_key'],
