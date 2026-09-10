@@ -106,7 +106,14 @@ readonly EXCLUDE_FILES=(
 #   minus excluded changelogs   grep -Io "grafana\.grafana" \
 #                                 CHANGELOG.rst changelogs/changelog.yaml =  6
 #                                                                          ----
-#   expected rewrites                                                        83
+#   expected rewrites                                                        80
+#
+# Was 83 until the README's three install commands were hardcoded to
+# indigo423.grafana. They had to be: a reader on GitHub sees the tree, not the
+# rewritten artifact, so `ansible-galaxy collection install grafana.grafana`
+# installed upstream's collection. Those three occurrences are now outside the
+# rename's scope, which is why this number dropped rather than the rewrite
+# breaking.
 #
 # After merging upstream, re-derive with:
 #
@@ -116,7 +123,7 @@ readonly EXCLUDE_FILES=(
 # before updating this constant: a new "community.grafana.*" reference or a new
 # way of spelling the collection name may need MATCH_REGEX adjusted, not just
 # the count bumped.
-readonly EXPECTED_REWRITES=83
+readonly EXPECTED_REWRITES=80
 
 # Files whose "grafana.grafana" references record what upstream released rather
 # than referring to this collection. Rewriting them would attribute upstream's
