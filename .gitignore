@@ -240,3 +240,11 @@ dist
 # Toolchain install targets
 # ---------------------------------------------------
 .venv/
+
+
+# Ansible local artifacts
+# ---------------------------------------------------
+# ansible-galaxy installs the collections the role-test harness needs here.
+# It holds a copy of this collection, so an un-ignored .ansible/ makes every
+# linter report every finding twice -- once for the source, once for the copy.
+.ansible/
