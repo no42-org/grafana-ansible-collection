@@ -41,6 +41,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -69,6 +70,20 @@ jobs:
             exit 1
           fi
           echo "version=${GALAXY_VERSION}" >> "$GITHUB_OUTPUT"
+
+          # A semver pre-release carries a hyphen after the patch number:
+          # 6.2.1-rc1, 6.3.0-beta.2. Galaxy already treats such a version as a
+          # pre-release and will not resolve it for a plain
+          # `ansible-galaxy collection install indigo423.grafana`. GitHub does
+          # not infer it, so without this the RC would take over "Latest
+          # release" on the repository page.
+          if [ "${GALAXY_VERSION}" != "${GALAXY_VERSION%%-*}" ]; then
+            echo "pre-release: yes (${GALAXY_VERSION})"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pre-release: no"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # The shared gate, the same jobs ci.yml runs on every pull request. Before
   # this, release.yml defined its own lint and sanity and nothing kept the two
@@ -278,6 +293,7 @@ jobs:
         id: notes
         env:
           VERSION: ${{ needs.verify-version.outputs.version }}
+          PRERELEASE: ${{ needs.verify-version.outputs.prerelease }}
         run: |
           git remote add upstream https://github.com/grafana/grafana-ansible-collection.git 2>/dev/null || true
           git fetch -q --no-tags upstream main
@@ -285,6 +301,12 @@ jobs:
           {
             echo "Release of \`${GALAXY_NAMESPACE}.${COLLECTION_NAME}\` version \`${VERSION}\`."
             echo ""
+            if [ "${PRERELEASE}" = "true" ]; then
+              echo "> **Pre-release.** Galaxy will not resolve this version for a plain"
+              echo "> \`ansible-galaxy collection install ${GALAXY_NAMESPACE}.${COLLECTION_NAME}\`;"
+              echo "> it has to be asked for by name. Install it only to test it."
+              echo ""
+            fi
             echo "Install with:"
             echo ""
             echo '```'
@@ -309,6 +331,9 @@ jobs:
           } > release-notes.md
           cat release-notes.md
 
+      # prerelease is load-bearing, not decoration: it is what keeps a
+      # v6.3.0-rc1 tag from moving "Latest release" on the repository page,
+      # which is the first thing a reader uses to decide what to install.
       - name: Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
@@ -316,3 +341,5 @@ jobs:
           name: ${{ needs.verify-version.outputs.version }}
           body_path: release-notes.md
           files: dist/*.tar.gz
+          prerelease: ${{ needs.verify-version.outputs.prerelease }}
+          make_latest: ${{ needs.verify-version.outputs.prerelease == 'false' }}
