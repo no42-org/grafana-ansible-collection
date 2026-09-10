@@ -1,0 +1,76 @@
+---
+# Apply the grafana role. Run twice by tools/role-test.sh: once to converge,
+# once to prove idempotence.
+#
+# This role carries four of the fork's seven curated contributions, and had no
+# runtime coverage at all before this harness:
+#
+#   #510  chdir so grafana-cli finds its homepath on Grafana 13
+#   #448  dashboard folder loop receives a list, not a stringified list
+#   #534  grafana_rhsm_* conditions survive undefined variables   (yum/dnf only)
+#   #538  module_hotfixes on the yum repository                   (yum/dnf only)
+#
+# A dashboards subdirectory is configured deliberately: without one, #448's
+# folder loop never executes and the fix ships unexercised.
+- name: Converge
+  hosts: all
+  any_errors_fatal: true
+  vars:
+    grafana_ini:
+      security:
+        admin_user: admin
+        admin_password: password
+    # Exercises #448: the loop that turns dashboard subdirectory paths into
+    # folder names. With no subdirectories the block is skipped entirely.
+    grafana_dashboards_dir: "{{ role_test_fixtures }}/dashboards"
+    # Exercises #510: installing a plugin is the only thing that runs
+    # grafana-cli, and grafana-cli is what fails on Grafana 13 without chdir.
+    # An empty list skips the task and the fix ships unexercised.
+    grafana_plugins:
+      - grafana-clock-panel
+    # The role fails fast if dashboards are provisioned without a datasource.
+    grafana_datasources:
+      - name: role-test
+        type: prometheus
+        access: proxy
+        url: http://127.0.0.1:9090
+        isDefault: true
+  pre_tasks:
+    # grafana_dashboards_dir is a CONTROL-NODE path: the role's discovery tasks
+    # are delegate_to: localhost and copy what they find onto the target. The
+    # subdirectories therefore have to exist here, not in the container.
+    #
+    # Created rather than committed because git cannot track empty directories,
+    # and each needs a dashboard file for the copy step to have work to do.
+    - name: "Create dashboard fixtures on the control node"
+      ansible.builtin.file:
+        path: "{{ grafana_dashboards_dir }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - team-a
+        - nested/team-b
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: "Place a dashboard in each fixture folder"
+      ansible.builtin.copy:
+        content: |
+          {
+            "title": "role-test {{ item }}",
+            "uid": "roletest-{{ item | replace('/', '-') }}",
+            "panels": [],
+            "schemaVersion": 39
+          }
+        dest: "{{ grafana_dashboards_dir }}/{{ item }}/dashboard.json"
+        mode: "0644"
+      loop:
+        - team-a
+        - nested/team-b
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+  roles:
+    - grafana

@@ -1,0 +1,164 @@
+---
+# Assert the end state after the grafana role has been applied.
+#
+# Ports the assertions from the retired testinfra suite
+# (roles/grafana/molecule/default/tests/test_default.py) into Ansible, so the
+# checks are in the same language as the role they verify and no pytest or
+# testinfra dependency is needed.
+#
+# Adds assertions the testinfra suite could not make, because it never ran at
+# all for this role: that #448's folder loop produced directories rather than a
+# stringified list, that #510's grafana-cli invocation actually succeeded, and
+# that #538's module_hotfixes reached the repository file on the RHEL family.
+- name: Verify
+  hosts: all
+  any_errors_fatal: true
+  become: true
+  tasks:
+    - name: "Gather service and package facts"
+      block:
+        - name: "Collect service facts"
+          ansible.builtin.service_facts:
+
+        - name: "Collect package facts"
+          ansible.builtin.package_facts:
+            manager: auto
+
+    # ------------------------------------------------ directories and files
+    - name: "Stat the directories the role must create"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __dirs
+      loop:
+        - /etc/grafana
+        - /var/log/grafana
+        - /var/lib/grafana
+        - /var/lib/grafana/dashboards
+        - /var/lib/grafana/plugins
+
+    - name: "Assert each is a directory"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "expected directory missing: {{ item.item }}"
+      loop: "{{ __dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Stat the configuration file"
+      ansible.builtin.stat:
+        path: /etc/grafana/grafana.ini
+      register: __ini
+
+    - name: "Assert grafana.ini exists and is a file"
+      ansible.builtin.assert:
+        that:
+          - __ini.stat.exists
+          - __ini.stat.isreg
+        fail_msg: "/etc/grafana/grafana.ini is missing or not a regular file"
+
+    # ---------------------------------------------------- package and service
+    - name: "Assert the grafana package is installed"
+      ansible.builtin.assert:
+        that:
+          - "'grafana' in ansible_facts.packages"
+        fail_msg: "the grafana package is not installed"
+
+    - name: "Assert grafana-server is running"
+      ansible.builtin.assert:
+        that:
+          - "'grafana-server.service' in ansible_facts.services"
+          - "ansible_facts.services['grafana-server.service'].state == 'running'"
+        fail_msg: >-
+          grafana-server is not running:
+          {{ ansible_facts.services['grafana-server.service'].state | default('absent') }}
+
+    - name: "Assert the HTTP port is listening"
+      ansible.builtin.wait_for:
+        port: 3000
+        host: 127.0.0.1
+        timeout: 60
+
+    # ------------------------------------- #448 dashboard folders were created
+    - name: "Stat the dashboard folders the role should have created"
+      ansible.builtin.stat:
+        path: "/var/lib/grafana/dashboards/{{ item }}"
+      register: __folders
+      loop:
+        - team-a
+        - nested/team-b
+
+    - name: "Assert the folder loop produced directories, not a stringified list"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: >-
+          dashboard folder '{{ item.item }}' was not created; the loop in
+          dashboards.yml may have received a string or a list of characters
+          rather than a list of folder names
+      loop: "{{ __folders.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # ------------------------------------------- #510 grafana-cli ran at all
+    - name: "Stat the plugin directory grafana-cli should have created"
+      ansible.builtin.stat:
+        path: /var/lib/grafana/plugins/grafana-clock-panel
+      register: __plugin
+
+    - name: "Assert the plugin was installed"
+      ansible.builtin.assert:
+        that:
+          - __plugin.stat.exists
+          - __plugin.stat.isdir
+        fail_msg: >-
+          grafana-clock-panel was not installed. On Grafana 13 grafana-cli
+          fails unless it runs from its homepath, which is what the chdir in
+          plugins.yml provides:
+          "Grafana-server Init Failed: Could not find config defaults"
+
+    # --------------------------------- RHEL-family only: #538 module_hotfixes
+    - name: "RHEL family assertions"
+      when: ansible_facts['os_family'] == 'RedHat'
+      block:
+        - name: "Stat the yum repository file"
+          ansible.builtin.stat:
+            path: /etc/yum.repos.d/grafana.repo
+          register: __repo
+
+        - name: "Assert the repository file exists"
+          ansible.builtin.assert:
+            that:
+              - __repo.stat.exists
+              - __repo.stat.isreg
+            fail_msg: "/etc/yum.repos.d/grafana.repo is missing"
+
+        - name: "Read the repository file"
+          ansible.builtin.slurp:
+            src: /etc/yum.repos.d/grafana.repo
+          register: __repo_content
+
+        - name: "Assert module_hotfixes is set, so grafana wins over system modules"
+          ansible.builtin.assert:
+            that:
+              - "'module_hotfixes' in (__repo_content.content | b64decode)"
+            fail_msg: >-
+              module_hotfixes is absent from grafana.repo; dnf may prefer a
+              system module over the grafana repository
+
+    # ------------------------------- Debian family: the repo path is not taken
+    - name: "Assert no yum repository was written on the Debian family"
+      when: ansible_facts['os_family'] == 'Debian'
+      block:
+        - name: "Stat the yum repository file"
+          ansible.builtin.stat:
+            path: /etc/yum.repos.d/grafana.repo
+          register: __norepo
+
+        - name: "Assert it is absent"
+          ansible.builtin.assert:
+            that:
+              - not __norepo.stat.exists
+            fail_msg: "a yum repository file was written on a Debian-family host"
