@@ -70,10 +70,21 @@ readonly EXCLUDE_FILES=(
   "Pipfile.lock"
   "package.json"
   "yarn.lock"
-  # Release documentation deliberately discusses both namespaces. Rewriting it
-  # would turn "grafana.grafana -> indigo423.grafana" into
-  # "indigo423.grafana -> indigo423.grafana" and destroy the explanation.
+  # Maintainer and contributor documentation deliberately discusses both
+  # namespaces. Rewriting it would turn "grafana.grafana -> indigo423.grafana"
+  # into "indigo423.grafana -> indigo423.grafana" and destroy the explanation.
+  #
+  # These are also excluded from the tarball by galaxy.yml's build_ignore, but
+  # that is a separate mechanism: build_ignore acts at packaging time, while
+  # this list keeps them out of the copy the rewrite runs over — which is what
+  # the count assertion measures.
   "RELEASING.md"
+  "CONTRIBUTING.md"
+  "SECURITY.md"
+  "SUPPORT.md"
+  "CODE_OF_CONDUCT.md"
+  "AGENTS.md"
+  "CLAUDE.md"
 )
 
 # Number of occurrences the rewrite is expected to replace.

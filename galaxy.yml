@@ -48,6 +48,13 @@ build_ignore:
 - .textlintrc
 - .shellcheckrc
 - .gitignore
-# Release process documentation for maintainers of this fork, not for
-# consumers of the collection.
+# Documentation for maintainers and contributors of this fork, not for
+# consumers of the collection. A consumer receives collection content; they do
+# not receive this project's code of conduct.
 - RELEASING.md
+- CONTRIBUTING.md
+- SECURITY.md
+- CODE_OF_CONDUCT.md
+- SUPPORT.md
+- AGENTS.md
+- CLAUDE.md

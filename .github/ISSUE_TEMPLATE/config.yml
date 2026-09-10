@@ -1,0 +1,11 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/no42-org/grafana-ansible-collection/security/advisories/new
+    about: Report privately, never as a public issue.
+  - name: Upstream collection
+    url: https://github.com/grafana/grafana-ansible-collection/issues
+    about: >-
+      Most role and module code originates upstream. Reporting there as well
+      reaches more users, though its maintainership is currently dormant.
