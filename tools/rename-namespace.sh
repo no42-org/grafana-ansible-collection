@@ -62,6 +62,11 @@ readonly EXCLUDE_DIRS=(
   ".github"
   ".claude"
   ".agent"
+  # ansible-galaxy's local install target. ansible-lint populates it on its
+  # own, with a copy of this collection, so an un-excluded .ansible/ takes the
+  # rewrite count from 83 to 174 and fails the assertion for anyone who has run
+  # `make ci-lint-ansible`. It is a linter artifact, not repository content.
+  ".ansible"
 )
 
 readonly EXCLUDE_FILES=(
