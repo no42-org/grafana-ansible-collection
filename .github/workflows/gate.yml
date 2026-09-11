@@ -38,6 +38,12 @@ on:
 permissions:
   contents: read
 
+# uv's own version, in one place. Two jobs provision it, and the second one
+# was added without a pin, which is the drift this repository had just finished
+# removing from the linters it installs.
+env:
+  UV_VERSION: '0.12.7'
+
 jobs:
   lint-release:
     name: Lint release machinery
@@ -66,7 +72,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
+          # Distinct per job. Both jobs in this workflow run concurrently and
+          # would otherwise derive the same cache key, so one loses the race
+          # and warns "Unable to reserve cache with key ... another job may be
+          # creating this cache". Harmless, and exactly the kind of warning
+          # that teaches people to ignore warnings.
+          cache-suffix: lint-release
 
       - name: Lint the release machinery
         run: make ci-lint-release
@@ -101,8 +114,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          version: '0.12.7'
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
+          cache-suffix: lint-collection
 
       - name: Install the lint toolchain
         run: make install

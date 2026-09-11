@@ -36,12 +36,12 @@ build_ignore:
   - .venv/*
   - package.json
   - yarn.lock
-# Fork test infrastructure. Consumers get collection content; the harness that
-# tests it is this repository's business, like tools/.
+  # Fork test infrastructure. Consumers get collection content; the harness
+  # that tests it is this repository's business, like tools/.
   - tests/roles
-# Lint and editor configuration: repository scaffolding, never read by a
-# consumer of the collection. Excluding it keeps the pipeline commit from
-# altering shipped content, so "our X.Y.Z is upstream's X.Y.Z" stays true.
+  # Lint and editor configuration: repository scaffolding, never read by a
+  # consumer of the collection. Excluding it keeps the pipeline commit from
+  # altering shipped content, so "our X.Y.Z is upstream's X.Y.Z" stays true.
   - .yamllint
   - .ansible-lint
   - .editorconfig
@@ -64,9 +64,9 @@ build_ignore:
   # ansible-galaxy resolves from MANIFEST.json.
   - roles/grafana/test-requirements.txt
   - requirements.yml
-# Documentation for maintainers and contributors of this fork, not for
-# consumers of the collection. A consumer receives collection content; they do
-# not receive this project's code of conduct.
+  # Documentation for maintainers and contributors of this fork, not for
+  # consumers of the collection. A consumer receives collection content; they
+  # do not receive this project's code of conduct.
   - RELEASING.md
   - CONTRIBUTING.md
   - SECURITY.md
