@@ -21,6 +21,12 @@ on:
 permissions:
   contents: read
 
+# uv's own version. This workflow is not called through gate.yml and cannot
+# inherit its `env:`, so this is the second place the value appears.
+# tools/lint-release.sh fails `make ci-lint-release` if the two disagree.
+env:
+  UV_VERSION: '0.12.7'
+
 concurrency:
   group: role-test-${{ github.ref }}
   cancel-in-progress: true
@@ -53,20 +59,23 @@ jobs:
         with:
           persist-credentials: false
 
-      # Pinned together on purpose. A pinned ansible-core against a floating
-      # `3.x` Python is exactly what broke the Molecule workflows this harness
-      # replaces: python-version '3.x' resolved to 3.14, ansible-core was
-      # pinned to 2.16, and ansible-compat refused the pair at import.
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # No setup-python and no `pip install ansible-core`. The harness runs
+      # ansible-playbook through `uv run --group ansible`, the one declaration
+      # of the ansible-core version in pyproject.toml, and uv provisions an
+      # interpreter that satisfies requires-python. The pair this replaces was
+      # a pinned ansible-core against a separately pinned Python, which is the
+      # shape that broke the Molecule workflows: python-version '3.x' resolved
+      # to 3.14, ansible-core was pinned to 2.16, and ansible-compat refused
+      # the pair at import. uv.lock now resolves both together.
+      #
+      # The harness also installs tests/roles/requirements.yml itself, so the
+      # collections are no longer a separate step here that a local run lacks.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          python-version: '3.12'
-
-      - name: Install ansible-core
-        run: pip install 'ansible-core~=2.18.0' --disable-pip-version-check
-
-      - name: Install the collections the harness and roles need
-        run: ansible-galaxy collection install -r tests/roles/requirements.yml
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: role-test
 
       # CI calls the Makefile target, never the script directly, so local and
       # CI cannot drift.

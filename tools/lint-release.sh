@@ -211,6 +211,20 @@ if [[ -n "${missingVersionComments}" ]]; then
   statusCode=1
 fi
 
+# uv is the one tool a workflow must name, because it is what installs
+# everything else. gate.yml declares it once for the jobs it defines, and
+# role-test.yml runs outside gate.yml and must declare it again. Two values
+# that can be edited independently is exactly the drift the linters were
+# cured of, so the two must agree.
+echo "  ‣ every workflow's UV_VERSION agrees"
+uvVersions="$(grep -rhoE "^[[:space:]]*UV_VERSION:[[:space:]]*'[^']+'" .github/workflows/ \
+  | sed -E "s/.*'([^']+)'/\1/" | sort -u || true)"
+if [[ "$(echo "${uvVersions}" | wc -l | tr -d ' ')" != "1" ]]; then
+  grep -rn 'UV_VERSION:' .github/workflows/
+  lintError "workflows declare different UV_VERSION values: they must agree"
+  statusCode=1
+fi
+
 # What the published collection claims about its own dependencies.
 #
 # Two checks, both in tools/check-shipped-manifests.py: the declared Python

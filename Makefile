@@ -48,7 +48,8 @@ clean:
 ####################################################################
 
 # Run a role test: converge, idempotence, verify — against a container.
-# Replaces the Molecule workflows; depends only on ansible-core and docker.
+# Replaces the Molecule workflows; depends only on uv and docker. ansible-core
+# comes from pyproject.toml's `ansible` group, the same version CI runs.
 #
 #   make role-test ROLE=grafana DISTRO=rhel
 #
