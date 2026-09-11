@@ -9,6 +9,8 @@ on:
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/role-test.yml'
   pull_request:
     branches: ["main"]
@@ -16,6 +18,8 @@ on:
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/role-test.yml'
 
 permissions:
@@ -81,6 +85,73 @@ jobs:
       # CI cannot drift.
       - name: Role test
         run: make role-test ROLE=${{ matrix.role }} DISTRO=${{ matrix.distro }}
+
+      - name: Show the logs on failure
+        if: failure()
+        run: |
+          for log in build/role-test/*/*.log; do
+            echo "::group::${log}"
+            tail -80 "${log}"
+            echo "::endgroup::"
+          done
+
+  # The top of the claimed range, sampled.
+  #
+  # meta/runtime.yml claims requires_ansible ">=2.17.0,<3.0.0". The matrix
+  # above executes 2.18, and until this job existed nothing executed anything
+  # newer: the sanity matrix covers 2.17, 2.18 and devel, and sanity is static.
+  # A consumer on the newest release was the first to run the roles on it.
+  #
+  # A sample, not a second matrix. Twelve more jobs on the slowest gate is a
+  # real cost, and the claim under test, "the roles work at the top of the
+  # range", does not need every role on every package family. The roles here
+  # are chosen for version sensitivity, measured as task count and distinct
+  # modules used, not for speed:
+  #
+  #   grafana   85 tasks, 29 modules, the only role with a yum/dnf path and
+  #             the most inherited task logic. Both families, because the
+  #             package-manager block is unreachable on Debian.
+  #   alloy     65 tasks, 21 modules, and this fork's replacement for the two
+  #             removed roles. No package-manager branching, so one family.
+  #
+  # Omitted: loki, mimir, tempo, opentelemetry_collector, at 19 to 34 tasks and
+  # 11 to 15 modules each, most of them the same modules grafana already
+  # exercises. A regression confined to one of them on the newest ansible would
+  # pass this job. That is the difference between evidence and proof, and it is
+  # recorded in RELEASING.md.
+  #
+  # The version is pinned in pyproject.toml's ansible-top group and moves only
+  # by commit. The job carries no version of its own.
+  role-test-top:
+    name: ${{ matrix.role }} (${{ matrix.distro }}) on newest ansible
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: grafana
+            distro: debian
+          - role: grafana
+            distro: rhel
+          - role: alloy
+            distro: debian
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: role-test-top
+
+      - name: Role test
+        run: make role-test ROLE=${{ matrix.role }} DISTRO=${{ matrix.distro }} ANSIBLE_GROUP=ansible-top
 
       - name: Show the logs on failure
         if: failure()

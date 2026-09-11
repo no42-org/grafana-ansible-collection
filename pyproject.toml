@@ -14,7 +14,11 @@
 name = "grafana-ansible-collection-toolchain"
 version = "0"
 description = "Lint toolchain for this repository. Not published, not importable."
-requires-python = ">=3.11"
+# 3.12, because ansible-core 2.21.4 in the ansible-top group below declares
+# `>=3.12`, and a lock must resolve for every Python the project admits. This
+# is the toolchain's floor, not the collection's: what a consumer may run the
+# roles with is meta/runtime.yml's business. CI's ubuntu-24.04 gives 3.12.3.
+requires-python = ">=3.12"
 
 [dependency-groups]
 
@@ -31,6 +35,17 @@ requires-python = ">=3.11"
 # the two differing is legitimate rather than a mistake.
 ansible = [
     "ansible-core>=2.18,<2.19",
+]
+
+# The newest ansible-core inside requires_ansible's range, for the sampled
+# second leg of the role tests. Pinned exactly: a floating bound here would
+# change the gate without a commit, which is the `latest` failure mode already
+# rejected for role versions. It goes stale on purpose and is bumped by hand.
+#
+# Cannot be installed alongside the group above, and [tool.uv] conflicts says
+# so; each is a separate resolution in uv.lock and a separate environment.
+ansible-top = [
+    "ansible-core==2.21.4",
 ]
 
 # The linters that gate. pylint is deliberately absent: nothing in this
@@ -61,3 +76,11 @@ lint = [
 [tool.uv]
 # No build backend: nothing here is built or installed as a package.
 package = false
+# Two ansible-core versions cannot share one environment. Declaring the
+# conflict lets uv.lock hold both resolutions; `uv run --group` picks one.
+conflicts = [
+    [
+        { group = "ansible" },
+        { group = "ansible-top" },
+    ],
+]

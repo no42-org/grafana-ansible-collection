@@ -5,7 +5,8 @@
 # Replaces the Molecule workflows, which failed for two unrelated reasons: one
 # pinned ansible-core against a floating Python and died at import, and the
 # scenario files use platform keys current Molecule rejects. This harness
-# depends only on ansible-core and docker, both already required.
+# depends only on uv and docker; ansible-core comes from the dependency group
+# pyproject.toml declares, so a local run and a CI run execute the same engine.
 #
 # Three phases, in order:
 #
@@ -22,6 +23,12 @@
 #
 #   <role>    a directory under tests/roles/
 #   <distro>  a key from DISTRO_IMAGES below
+#
+# ROLE_TEST_ANSIBLE_GROUP selects which pyproject.toml dependency group supplies
+# ansible-core: `ansible` (default, the version this repository builds against)
+# or `ansible-top` (the newest inside meta/runtime.yml's requires_ansible, run
+# on a sampled subset of roles in CI). Anything else is refused: the point is
+# that only a declared version can execute a role.
 #
 # Containers are named deterministically and removed unconditionally before and
 # after the run, so a crashed or interrupted run cannot poison the next one.
@@ -106,16 +113,30 @@ fi
 # It matters more here than it did for the linters. A linter at the wrong
 # version reports the wrong findings; an execution engine at the wrong version
 # runs a different test.
-ansiblePlaybook=(uv run --frozen --group ansible ansible-playbook)
-ansibleGalaxy=(uv run --frozen --group ansible ansible-galaxy)
+ansibleGroup="${ROLE_TEST_ANSIBLE_GROUP:-ansible}"
+case "${ansibleGroup}" in
+  ansible|ansible-top) ;;
+  *)
+    echo >&2 "ROLE_TEST_ANSIBLE_GROUP must be 'ansible' or 'ansible-top', not '${ansibleGroup}'";
+    exit 1;;
+esac
+ansiblePlaybook=(uv run --frozen --group "${ansibleGroup}" ansible-playbook)
+ansibleGalaxy=(uv run --frozen --group "${ansibleGroup}" ansible-galaxy)
 if [[ "$(command -v uv)" = "" ]]; then
   echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
   exit 1;
 fi
-if ! "${ansiblePlaybook[@]}" --version >/dev/null 2>&1; then
+# The version line goes to the log on purpose. It is the fact this whole block
+# exists to control, and a log that omits it cannot be compared with another.
+if ! ansibleVersion="$("${ansiblePlaybook[@]}" --version </dev/null 2>/dev/null | head -1)"; then
   echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-core is not available. Run \"make install\".";
   exit 1;
 fi
+if [[ -z "${ansibleVersion}" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-core is not available. Run \"make install\".";
+  exit 1;
+fi
+info "engine: ${ansibleVersion} from dependency group '${ansibleGroup}'"
 
 # The collections the harness and the roles need, from the repository's own
 # requirements, under the provisioned engine.
