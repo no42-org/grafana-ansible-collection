@@ -4,7 +4,7 @@ metadata:
   name: grafana-ansible-collection
   title: grafana-ansible-collection
   description: |
-    This collection (grafana.grafana) contains modules and roles to assist in automating the management of resources in Grafana, Grafana Agent, OpenTelemetry Collector, Loki, Mimir, Alloy, and Promtail with Ansible.
+    This collection (grafana.grafana) contains modules and roles to assist in automating the management of resources in Grafana, OpenTelemetry Collector, Loki, Mimir, and Alloy with Ansible.
   tags:
     - gitops
   links:

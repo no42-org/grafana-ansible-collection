@@ -38,7 +38,7 @@ from pathlib import Path
 
 # role -> (defaults file, version variable, upstream repo, tag prefixes to strip)
 #
-# Tracked roles only. The two exclusions are deliberate and are listed in
+# Tracked roles only. The one exclusion is deliberate and is listed in
 # EXCLUDED below rather than being absent without explanation.
 TRACKED: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     "loki": ("roles/loki/defaults/main.yml", "loki_version", "grafana/loki", ("v",)),
@@ -53,17 +53,9 @@ TRACKED: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     ),
 }
 
-# Not tracked, each for a reason that will not change on its own.
+# Not tracked, for a reason that will not change on its own. It is still
+# pinned; the exclusion is from the automated bump, not from having a version.
 EXCLUDED: dict[str, str] = {
-    "promtail": (
-        "end of life 2026-03-02; Grafana published no packages after Loki 3.6.0, "
-        "so nothing upstream will ever be newer. Use the alloy role."
-    ),
-    "grafana_agent": (
-        "ships no role test -- upstream superseded it with Alloy -- so a bump "
-        "could not be verified, and this would open pull requests nobody can "
-        "responsibly merge."
-    ),
     "grafana": (
         "installs through a package manager, not a release download: the "
         "version becomes grafana-<v> on RHEL and grafana=<v> on Debian, which "

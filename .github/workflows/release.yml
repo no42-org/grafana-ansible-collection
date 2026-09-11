@@ -200,8 +200,8 @@ jobs:
             echo "  hosts: localhost"
             echo "  gather_facts: false"
             echo "  roles:"
-            for role in alloy grafana grafana_agent loki mimir \
-                        opentelemetry_collector promtail tempo; do
+            for role in alloy grafana loki mimir \
+                        opentelemetry_collector tempo; do
               echo "    - ${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${role}"
             done
           } > resolve-roles.yml

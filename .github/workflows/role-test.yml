@@ -43,7 +43,6 @@ jobs:
           - loki
           - alloy
           - tempo
-          - promtail
         distro:
           - debian
           - rhel

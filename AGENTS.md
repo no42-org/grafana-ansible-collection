@@ -8,7 +8,7 @@ Four things here are non-obvious. Each has already been got wrong at least once.
 
 The rename happens at **build time**, in a copy under `build/src`. Never rename in the tree — that would conflict on every upstream merge, across 51 files.
 
-`make dist` asserts an **exact count of 80 rewrites** and fails if it moves. If your change adds or removes a fully-qualified collection name, that build failure is the assertion working, not a bug:
+`make dist` asserts an **exact count of 72 rewrites** and fails if it moves. If your change adds or removes a fully-qualified collection name, that build failure is the assertion working, not a bug:
 
 ```bash
 ./tools/rename-namespace.sh --expected-count   # re-derive, then read the diff before bumping
@@ -61,11 +61,11 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 - **A linter that cannot run is not a linter that found nothing.** `make install` used to need Python 3.10 exactly, and without it every Python linter bailed at its guard and *looked* like failing lint — three wrong conclusions before it was pinned down. `uv` provisions its own interpreter now, and the guards print `TOOLCHAIN NOT INSTALLED`. Keep that distinction when adding a gate.
 - **A tool that cannot run may still exit 0.** `editorconfig-checker@5.0.1` shipped no `darwin-arm64` binary and exited 0 when it could not find one, so that gate passed without reading a file. It is a pinned standalone binary now, provisioned by `tools/includes/editorconfig-checker.sh`.
 - **A file in the tree is not automatically addressed to a consumer.** `requirements.txt` shipped this repository's linters for years while the one library every module imports was declared nowhere. `tools/check-shipped-manifests.py` derives the answer from `plugins/` and fails in both directions; the second is the one that catches it.
-- **Tools install into the working tree, and every one needs excluding four times.** `.ansible/`, `ansible_collections/`, `.venv/`, `tools/bin/`. The same defect was fixed four times before the list moved to `tools/includes/lint-paths.sh`; `.yamllint`, `.ansible-lint` and `tools/rename-namespace.sh` keep their own copies and all four must agree. Un-ignored, they produce findings in other people's code — 4851 once — and take `make dist`'s rename count from 80 to well over double.
+- **Tools install into the working tree, and every one needs excluding four times.** `.ansible/`, `ansible_collections/`, `.venv/`, `tools/bin/`. The same defect was fixed four times before the list moved to `tools/includes/lint-paths.sh`; `.yamllint`, `.ansible-lint` and `tools/rename-namespace.sh` keep their own copies and all four must agree. Un-ignored, they produce findings in other people's code — 4851 once — and take `make dist`'s rename count from 72 to well over double.
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
-- **`promtail` is end of life upstream** (2026-03-02) and pinned to 3.6.0, the last version with published packages. It works and is tested, but Grafana directs users to `alloy`. See `RELEASING.md`.
+- **`grafana_agent` and `promtail` are removed from this fork**, though upstream still ships both. The Agent is archived. Promtail went end of life on 2026-03-02. `alloy` replaces both. An upstream merge reintroduces both directories, and the removal has to be reapplied across seven places; `RELEASING.md` lists them.
 
-- **Every role's version is pinned, and the pin is watched.** `<role>_version` is a concrete version, never `latest`, so a role's behaviour cannot change without a commit. A weekly workflow opens a bump pull request when a pin falls behind, and the role tests verify the bump before it merges — that verification is why pinning is safe rather than a risk moved elsewhere. `promtail`, `grafana_agent` and `grafana` are excluded for recorded reasons. See `RELEASING.md`.
+- **Every role's version is pinned, and the pin is watched.** `<role>_version` is a concrete version, never `latest`, so a role's behaviour cannot change without a commit. A weekly workflow opens a bump pull request when a pin falls behind, and the role tests verify the bump before it merges — that verification is why pinning is safe rather than a risk moved elsewhere. `grafana` is excluded for a recorded reason. See `RELEASING.md`.
 
 ## Conventions
 
