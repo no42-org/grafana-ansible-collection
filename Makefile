@@ -27,23 +27,28 @@ clean:
 ####################################################################
 
 # Run a role test: converge, idempotence, verify — against a container.
-# Replaces the Molecule workflows; depends only on ansible-core and docker.
+# Replaces the Molecule workflows; depends only on uv and docker. ansible-core
+# comes from pyproject.toml's `ansible` group, the same version CI runs.
 #
 #   make role-test ROLE=grafana DISTRO=rhel
 #
 # DISTRO is a family, not a distribution. The rhel entry is not symmetry: the
 # grafana role's yum/dnf block, and the carried fixes inside it, are
 # unreachable on Debian.
+#
+# ANSIBLE_GROUP picks the pyproject.toml group that supplies ansible-core:
+# `ansible` (default) or `ansible-top`, the newest inside requires_ansible.
 ROLE ?=
 DISTRO ?= debian
+ANSIBLE_GROUP ?= ansible
 
 role-test:
 	@if [ -z "$(ROLE)" ]; then \
-		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel]"; \
+		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel] [ANSIBLE_GROUP=ansible|ansible-top]"; \
 		echo "       make role-test-list"; \
 		exit 1; \
 	fi
-	@./tools/role-test.sh $(ROLE) $(DISTRO)
+	@ROLE_TEST_ANSIBLE_GROUP=$(ANSIBLE_GROUP) ./tools/role-test.sh $(ROLE) $(DISTRO)
 
 role-test-list:
 	@./tools/role-test.sh --list

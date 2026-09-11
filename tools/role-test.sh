@@ -5,7 +5,8 @@
 # Replaces the Molecule workflows, which failed for two unrelated reasons: one
 # pinned ansible-core against a floating Python and died at import, and the
 # scenario files use platform keys current Molecule rejects. This harness
-# depends only on ansible-core and docker, both already required.
+# depends only on uv and docker; ansible-core comes from the dependency group
+# pyproject.toml declares, so a local run and a CI run execute the same engine.
 #
 # Three phases, in order:
 #
@@ -22,6 +23,12 @@
 #
 #   <role>    a directory under tests/roles/
 #   <distro>  a key from DISTRO_IMAGES below
+#
+# ROLE_TEST_ANSIBLE_GROUP selects which pyproject.toml dependency group supplies
+# ansible-core: `ansible` (default, the version this repository builds against)
+# or `ansible-top` (the newest inside meta/runtime.yml's requires_ansible, run
+# on a sampled subset of roles in CI). Anything else is refused: the point is
+# that only a declared version can execute a role.
 #
 # Containers are named deterministically and removed unconditionally before and
 # after the run, so a crashed or interrupted run cannot poison the next one.
@@ -95,8 +102,81 @@ if [[ "$(command -v docker)" = "" ]]; then
   echo >&2 "docker command is required";
   exit 1;
 fi
-if [[ "$(command -v ansible-playbook)" = "" ]]; then
-  echo >&2 "ansible-playbook is required; the role-test toolchain is not installed";
+# ansible-playbook from the version this repository declares, not from PATH.
+#
+# This used to be `command -v ansible-playbook`, which is how the harness came
+# to execute ansible-core 2.21.3 on a maintainer's machine while CI executed
+# 2.18.19. A local pass and a CI pass on different engines are statements about
+# different software, and the role-testing spec claims they are runnable
+# "exactly as CI runs them".
+#
+# It matters more here than it did for the linters. A linter at the wrong
+# version reports the wrong findings; an execution engine at the wrong version
+# runs a different test.
+ansibleGroup="${ROLE_TEST_ANSIBLE_GROUP:-ansible}"
+case "${ansibleGroup}" in
+  ansible|ansible-top) ;;
+  *)
+    echo >&2 "ROLE_TEST_ANSIBLE_GROUP must be 'ansible' or 'ansible-top', not '${ansibleGroup}'";
+    exit 1;;
+esac
+ansiblePlaybook=(uv run --frozen --group "${ansibleGroup}" ansible-playbook)
+ansibleGalaxy=(uv run --frozen --group "${ansibleGroup}" ansible-galaxy)
+if [[ "$(command -v uv)" = "" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
+  exit 1;
+fi
+# The version line goes to the log on purpose. It is the fact this whole block
+# exists to control, and a log that omits it cannot be compared with another.
+if ! ansibleVersion="$("${ansiblePlaybook[@]}" --version </dev/null 2>/dev/null | head -1)"; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-core is not available. Run \"make install\".";
+  exit 1;
+fi
+if [[ -z "${ansibleVersion}" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-core is not available. Run \"make install\".";
+  exit 1;
+fi
+info "engine: ${ansibleVersion} from dependency group '${ansibleGroup}'"
+
+# The collections the harness and the roles need, from the repository's own
+# requirements, under the provisioned engine.
+#
+# Not optional, and not a convenience. community.docker provides the connection
+# plugin every one of these tests reaches the container with, and before this
+# was here, local runs resolved it from a Homebrew `ansible` bundle carrying
+# roughly 800 collections while CI ran the four declared below. The repository
+# supplied none of it. A role calling a module that exists only in that bundle
+# would have passed locally and failed in CI, and nothing would have said why.
+#
+# ansible.cfg sets `collections_path = ./`, so these land in
+# ./ansible_collections/, which is gitignored and is where ansible-lint already
+# installs the same dependency set.
+readonly roleTestRequirements="tests/roles/requirements.yml"
+if [[ ! -f "${roleTestRequirements}" ]]; then
+  echo >&2 "missing ${roleTestRequirements}; the harness cannot resolve its collections";
+  exit 1;
+fi
+info "resolving harness collections from ${roleTestRequirements}"
+# Galaxy is a remote service and fails on its own schedule: the first CI run
+# of this block failed in one job of twelve at this line, and because the
+# output was discarded the log said only that it could not install. Bounded
+# retries for the transient case; the output is kept and shown when the
+# last attempt fails, so the next such failure names its cause.
+readonly galaxyAttempts=3
+galaxyOutput=""
+for attempt in $(seq 1 "${galaxyAttempts}"); do
+  if galaxyOutput="$("${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" </dev/null 2>&1)"; then
+    galaxyOutput=""
+    break
+  fi
+  if [[ "${attempt}" -lt "${galaxyAttempts}" ]]; then
+    info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in 15s"
+    sleep 15
+  fi
+done
+if [[ -n "${galaxyOutput}" ]]; then
+  echo "${galaxyOutput}" >&2
+  echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements} after ${galaxyAttempts} attempts";
   exit 1;
 fi
 
@@ -234,7 +314,7 @@ mkdir -p "${fixturesDir}"
 runPlaybook() {
   local playbook="${1}"
   local logFile="${2}"
-  ansible-playbook \
+  "${ansiblePlaybook[@]}" \
     -i "${workDir}/inventory.yml" \
     -e "role_test_fixtures=${fixturesDir}" \
     "${playbook}" 2>&1 | tee "${logFile}"
