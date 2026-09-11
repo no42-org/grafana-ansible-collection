@@ -499,3 +499,11 @@ releases:
         - 'The mimir role''s wait for /ready is configurable through mimir_ready_retries (default 5) and mimir_ready_delay (default 8 seconds), the values that were previously literal. A clustered node that joins memberlist before its ingester reports ready can need more than the 40 seconds those allow.'
         - 'The mimir role test sets multitenancy_enabled: false through the passthrough and checks it from outside: a labels query with no X-Scope-OrgID header is answered rather than refused.'
     release_date: '2026-09-11'
+  7.2.0:
+    changes:
+      release_summary: 'Two literals in the mimir role become variables, both defaulting to what the role always did. mimir_target is the target line of the configuration; a consumer that never calls the alertmanager can run all alone, which also leaves the memberlist KV service uninitialised on a single node. mimir_config_mode is the mode of /etc/mimir/config.yml; a consumer that renders object-store credentials into it can set 0640. No existing behaviour changes. Version numbers are this fork''s own and do not correspond to any grafana.grafana release; the upstream commit this release is built from is recorded in its GitHub release notes.'
+      minor_changes:
+        - 'The mimir role gains mimir_target, the target line of /etc/mimir/config.yml, defaulting to the all,alertmanager,overrides-exporter the template always wrote. target joins the keys mimir_config_extra refuses.'
+        - 'The mimir role gains mimir_config_mode, the mode of /etc/mimir/config.yml, defaulting to the 0644 the task always wrote. The file carries secret_access_key when an S3 backend is configured; 0640 keeps it to the mimir user and group.'
+        - 'The mimir role test sets mimir_config_mode to 0640 and asserts the mode of the rendered file.'
+    release_date: '2026-09-11'
