@@ -5,14 +5,13 @@ name: CodeQL
 on:
   push:
     branches: ["main"]
-    paths:
+    paths: &codeql_paths
       - 'plugins/**'
+      - 'tools/**.py'
       - '.github/workflows/codeql.yml'
   pull_request:
     branches: ["main"]
-    paths:
-      - 'plugins/**'
-      - '.github/workflows/codeql.yml'
+    paths: *codeql_paths
   schedule:
     # Weekly, so a newly published query catches something without waiting for
     # the next change to plugins/.
@@ -40,9 +39,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # Scoped to plugins/, which is the only compiled-or-analysable code the
-      # collection ships: nine Python modules. The roles are YAML and are
-      # covered by ansible-test sanity and the role test harness instead.
+      # Analyses every Python file in the checkout, not just plugins/. The
+      # path filter above governs *when* this runs, not what it reads, and
+      # tools/ is in it because tools/check-shipped-manifests.py and
+      # tools/check-role-versions.py gate a release: a defect there is a
+      # defect in what decides whether the collection ships. The roles are
+      # YAML and are covered by ansible-test sanity and the role tests.
       - name: Initialise CodeQL
         uses: github/codeql-action/init@4bd7200e1f146b1c937cae12d258b50f41a53cf8  # v4.38.0
         with:
