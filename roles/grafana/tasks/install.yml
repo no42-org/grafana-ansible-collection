@@ -131,4 +131,8 @@
   ansible.builtin.package:
     name: "{{ grafana_package }}"
     state: "{{ (grafana_version == 'latest') | ternary('latest', 'present') }}"
+  register: __grafana_install
+  until: __grafana_install is succeeded
+  retries: "{{ grafana_install_retries | int }}"
+  delay: "{{ grafana_install_retry_delay | int }}"
   notify: restart_grafana
