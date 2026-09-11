@@ -78,6 +78,31 @@
     - mimir_ruler_alert_path is defined
     - mimir_ruler is defined
 
+- name: Refuse a top-level key that the template already renders
+  ansible.builtin.assert:
+    that:
+      - (mimir_config_extra | default({})).keys() | intersect(__mimir_named_sections) | length == 0
+    fail_msg: >-
+      mimir_config_extra carries {{ (mimir_config_extra | default({})).keys() | intersect(__mimir_named_sections) | join(', ') }},
+      which the template already renders from its own variable
+      (mimir_<section>, or mimir_storage for `common`). Set that variable
+      instead; a top-level key present twice is read once, unpredictably.
+    quiet: true
+  vars:
+    __mimir_named_sections:
+      - common
+      - blocks_storage
+      - ruler_storage
+      - alertmanager_storage
+      - memberlist
+      - ruler
+      - alertmanager
+      - server
+      - limits
+      - distributor
+      - ingester
+      - querier
+
 - name: Template Mimir config - /etc/mimir/config.yml
   ansible.builtin.template:
     src: "config.yml.j2"
@@ -106,6 +131,6 @@
     url: "http://{{ mimir_http_listen_address }}:{{ mimir_http_listen_port }}/ready"
     method: GET
   register: mimir_verify_url_status_code
-  retries: 5
-  delay: 8
+  retries: "{{ mimir_ready_retries }}"
+  delay: "{{ mimir_ready_delay }}"
   until: mimir_verify_url_status_code.status == 200

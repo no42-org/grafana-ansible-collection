@@ -68,3 +68,33 @@
           mimir reported '{{ __version.stdout | default('') }}{{ __version.stderr | default('') }}';
           the version-detection regex may have left a `mimir-` prefixed tag
           unparsed
+
+    # ------------------------- mimir_config_extra reached the file and Mimir
+    - name: "Read the rendered configuration"
+      ansible.builtin.slurp:
+        src: /etc/mimir/config.yml
+      register: __config
+
+    - name: "Assert the passthrough keys are rendered once each"
+      ansible.builtin.assert:
+        that:
+          - (__config.content | b64decode | regex_findall('^multitenancy_enabled: false$', multiline=True)) | length == 1
+          - (__config.content | b64decode | regex_findall('^store_gateway:$', multiline=True)) | length == 1
+        fail_msg: >-
+          mimir_config_extra did not render as one top-level block each:
+          {{ __config.content | b64decode }}
+
+    - name: "Query labels without a tenant header"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8080/prometheus/api/v1/labels"
+        status_code: 200
+      register: __labels
+      retries: 6
+      delay: 5
+      until: __labels.status == 200
+
+    - name: "Assert multitenancy is off, as the passthrough said"
+      ansible.builtin.assert:
+        that:
+          - __labels.status == 200
+        fail_msg: "a tenant-less query was refused, so multitenancy_enabled did not reach Mimir"
