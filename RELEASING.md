@@ -452,6 +452,11 @@ All three of the roles that could not install their software with default settin
 
 They are not what runs. `make role-test` is.
 
+The three workflows that drove them are gone: `roles-test.yml`, `modules-test.yml` and `full-integration-test.yml`.
+They were `workflow_dispatch:` only, and dispatching them on 2026-09-10 is what settled it. They failed, and the reason was not fixable by a small edit: their matrix targets `stable-2.13`, four minors below the `requires_ansible: ">=2.17.0,<3.0.0"` this collection declares, on `ubuntu-20.04` where `docker.service` does not start inside the test container.
+
+A workflow that cannot pass is not a fallback. Keeping them cost seven OpenSSF Scorecard findings and implied a safety net that did not exist. The scenarios under `roles/*/molecule/` are untouched, so re-adopting Molecule means writing a current workflow, which is work that would have been needed anyway.
+
 Molecule was replaced rather than pinned because pinning would have cost four scenario-file edits — `network` and `network_mode` in `mimir`, `cgroup_parent` in four `opentelemetry_collector` scenarios, and content for two `grafana` scenario files that are empty documents — in exactly the files this fork keeps identical to upstream. The two failures that prompted it were unrelated to each other: Mimir pinned `ansible-core==2.16` against `python-version: '3.x'`, which resolved to Python 3.14 and died at import before reading any config, and the scenario files use platform keys current Molecule rejects.
 
 ## When the rewrite count changes
