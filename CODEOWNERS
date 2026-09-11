@@ -1,7 +1,5 @@
 ./                             @grafana/grafana-ansible-collection-maintainers
 /roles/grafana                 @grafana/grafana-ansible-collection-maintainers @gardar
-/roles/grafana_agent           @grafana/grafana-ansible-collection-maintainers @gardar
 /roles/alloy                   @grafana/grafana-ansible-collection-maintainers @gardar @voidquark
 /roles/loki                    @grafana/grafana-ansible-collection-maintainers @voidquark
 /roles/mimir                   @grafana/grafana-ansible-collection-maintainers @GVengelen @gardar
-/roles/promtail                @grafana/grafana-ansible-collection-maintainers @voidquark

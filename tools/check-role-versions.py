@@ -122,19 +122,6 @@ TRACKED: dict[str, dict[str, object]] = {
     },
 }
 
-# Not tracked, each for a reason that will not change on its own.
-EXCLUDED: dict[str, str] = {
-    "promtail": (
-        "end of life 2026-03-02; Grafana published no packages after Loki 3.6.0, "
-        "so nothing upstream will ever be newer. Use the alloy role."
-    ),
-    "grafana_agent": (
-        "ships no role test -- upstream superseded it with Alloy -- so a bump "
-        "could not be verified, and this would open pull requests nobody can "
-        "responsibly merge."
-    ),
-}
-
 
 def fail(message: str) -> None:
     print(f"    \033[31m\033[1m[error]\033[0m {message}", file=sys.stderr)
@@ -303,9 +290,6 @@ def main() -> int:
                 {"role": role, "defaults": defaults, "variable": variable,
                  "current": current, "upstream": upstream, "repo": source}
             )
-
-    for role, reason in sorted(EXCLUDED.items()):
-        print(f"    {role:26} not tracked: {reason.split(';')[0].split('--')[0].strip()}")
 
     # Consumed by the workflow to decide what to open.
     out = os.environ.get("ROLE_VERSION_REPORT")
