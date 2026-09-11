@@ -93,11 +93,13 @@ carried-prs:
 # the working tree is never modified and upstream merges stay conflict-free.
 # tools/rename-namespace.sh owns the exclude list, asked for via
 # --rsync-excludes, so the copy and the rewrite cannot disagree on scope.
+# ansible-galaxy comes from pyproject.toml's `ansible` group, so the artifact
+# is built by the ansible-core the gates and role tests run on.
 dist: dist-clean
 	@mkdir -p $(DIST_SRC) $(DIST_OUT)
 	rsync -a $$(./tools/rename-namespace.sh --rsync-excludes) ./ $(DIST_SRC)/
 	./tools/rename-namespace.sh $(GALAXY_NAMESPACE) $(DIST_SRC)
-	cd $(DIST_SRC) && ansible-galaxy collection build --output-path ../../$(DIST_OUT)
+	uv run --frozen --group ansible ansible-galaxy collection build $(DIST_SRC) --output-path $(DIST_OUT)
 	@ls -1 $(DIST_OUT)/*.tar.gz
 
 # remove only the dist output, leaving node_modules in place

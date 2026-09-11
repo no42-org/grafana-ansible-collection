@@ -27,6 +27,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # uv's own version, the one tool a workflow must name because it installs
+  # everything else. gate.yml and role-test.yml declare the same value;
+  # tools/lint-release.sh fails `make ci-lint-release` if any two disagree.
+  UV_VERSION: '0.12.7'
   # The namespace in the working tree. The rename to indigo423 happens inside
   # `make dist`; ansible-test still needs the tree at its source path.
   SOURCE_NAMESPACE: grafana
@@ -48,16 +52,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # No setup-python and no `pip install pyyaml`. PyYAML arrives as a
+      # dependency of ansible-core in pyproject.toml's `ansible` group, with
+      # its hash in uv.lock, which is a stronger pin than the `==6.0.3` this
+      # replaces and one fewer version declared in a workflow.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          python-version: '3.12'
-
-      - name: Install PyYAML
-        # Pinned, like every other dependency of the release path. An
-        # unversioned install makes the release depend on whatever PyPI served
-        # that morning.
-        run: pip install 'pyyaml==6.0.3'
+          version: ${{ env.UV_VERSION }}
+          # No cache, unlike gate.yml and role-test.yml. This workflow publishes
+          # what it builds, and a restored cache is an input to that artifact
+          # which nobody reviewed. zizmor reports it as cache poisoning, and it
+          # is right. A release runs rarely enough that the cache saved nothing.
+          enable-cache: false
 
       # Runs before anything is built or published. Galaxy versions are
       # immutable, so a mismatched tag must cost seconds, not a bad upload.
@@ -65,7 +72,7 @@ jobs:
         id: version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          GALAXY_VERSION="$(python -c "import yaml; print(yaml.safe_load(open('galaxy.yml'))['version'])")"
+          GALAXY_VERSION="$(uv run --frozen --group ansible python -c "import yaml; print(yaml.safe_load(open('galaxy.yml'))['version'])")"
           echo "tag:        ${GITHUB_REF_NAME} -> ${TAG_VERSION}"
           echo "galaxy.yml: ${GALAXY_VERSION}"
           if [ "${TAG_VERSION}" != "${GALAXY_VERSION}" ]; then
@@ -120,21 +127,23 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # ansible-core comes from pyproject.toml's `ansible` group, the one
+      # declaration the gates and the role tests already run on, so the tooling
+      # that builds, installs and verifies the artifact is the tooling the
+      # artifact was tested with. This step used to pin `~=2.18.0` itself, one
+      # of five restatements of that fact, and an unconstrained
+      # `pip install ansible-core` resolved 2.21.4. The collection's own
+      # requires_ansible is what consumers may use, not what this pipeline
+      # should pick at random.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          python-version: '3.12'
-
-      - name: Install ansible-core
-        # Constrained to the version the gates test against, not left to
-        # resolve. `pip install ansible-core` currently installs 2.21.4, three
-        # minors past the newest leg of `Gate / Sanity` and past the <2.19
-        # bound pyproject.toml sets for exactly this reason: the tooling that
-        # builds, installs and verifies the artifact must be the tooling the
-        # artifact was tested with. The collection itself declares
-        # requires_ansible ">=2.17.0,<3.0.0"; that is what consumers may use,
-        # not what this pipeline should pick at random.
-        run: pip install 'ansible-core~=2.18.0'
+          version: ${{ env.UV_VERSION }}
+          # No cache, unlike gate.yml and role-test.yml. This workflow publishes
+          # what it builds, and a restored cache is an input to that artifact
+          # which nobody reviewed. zizmor reports it as cache poisoning, and it
+          # is right. A release runs rarely enough that the cache saved nothing.
+          enable-cache: false
 
       # Copies the tree to build/src, rewrites the namespace there, asserts the
       # rewrite count, and packages. The working tree is never modified.
@@ -155,21 +164,32 @@ jobs:
     timeout-minutes: 15
     needs: [verify-version, build]
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # The checkout is for pyproject.toml and uv.lock, so ansible-core can be
+      # resolved from the declared group. Nothing under test is read from the
+      # tree: the artifact is installed to ./collections and every assertion
+      # points ANSIBLE_COLLECTIONS_PATH at it.
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          python-version: '3.12'
+          persist-credentials: false
 
-      - name: Install ansible-core
-        # Constrained to the version the gates test against, not left to
-        # resolve. `pip install ansible-core` currently installs 2.21.4, three
-        # minors past the newest leg of `Gate / Sanity` and past the <2.19
-        # bound pyproject.toml sets for exactly this reason: the tooling that
-        # builds, installs and verifies the artifact must be the tooling the
-        # artifact was tested with. The collection itself declares
-        # requires_ansible ">=2.17.0,<3.0.0"; that is what consumers may use,
-        # not what this pipeline should pick at random.
-        run: pip install 'ansible-core~=2.18.0'
+      # ansible-core comes from pyproject.toml's `ansible` group, the one
+      # declaration the gates and the role tests already run on, so the tooling
+      # that builds, installs and verifies the artifact is the tooling the
+      # artifact was tested with. This step used to pin `~=2.18.0` itself, one
+      # of five restatements of that fact, and an unconstrained
+      # `pip install ansible-core` resolved 2.21.4. The collection's own
+      # requires_ansible is what consumers may use, not what this pipeline
+      # should pick at random.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          # No cache, unlike gate.yml and role-test.yml. This workflow publishes
+          # what it builds, and a restored cache is an input to that artifact
+          # which nobody reviewed. zizmor reports it as cache poisoning, and it
+          # is right. A release runs rarely enough that the cache saved nothing.
+          enable-cache: false
 
       - name: Download collection artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -184,7 +204,7 @@ jobs:
       # resolved for real.
       - name: Install the built collection
         run: |
-          ansible-galaxy collection install \
+          uv run --frozen --group ansible ansible-galaxy collection install \
             "dist/${GALAXY_NAMESPACE}-${COLLECTION_NAME}-${{ needs.verify-version.outputs.version }}.tar.gz" \
             -p ./collections
 
@@ -206,7 +226,7 @@ jobs:
           for module in dashboard datasource folder user alert_contact_point \
                         alert_notification_policy cloud_api_key cloud_plugin cloud_stack; do
             echo "--- ${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${module}"
-            ansible-doc "${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${module}" > /dev/null
+            uv run --frozen --group ansible ansible-doc "${GALAXY_NAMESPACE}.${COLLECTION_NAME}.${module}" > /dev/null
           done
 
       - name: Assert roles resolve under the new namespace
@@ -226,7 +246,7 @@ jobs:
           } > resolve-roles.yml
           cat resolve-roles.yml
           # --syntax-check resolves every role without running any task.
-          ansible-playbook --syntax-check resolve-roles.yml
+          uv run --frozen --group ansible ansible-playbook --syntax-check resolve-roles.yml
 
       - name: Assert the rename did not corrupt community.grafana references
         run: |
@@ -253,21 +273,29 @@ jobs:
     needs: [verify-version, smoke]
     timeout-minutes: 30
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      # The checkout is for pyproject.toml and uv.lock, nothing else.
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          python-version: '3.12'
+          persist-credentials: false
 
-      - name: Install ansible-core
-        # Constrained to the version the gates test against, not left to
-        # resolve. `pip install ansible-core` currently installs 2.21.4, three
-        # minors past the newest leg of `Gate / Sanity` and past the <2.19
-        # bound pyproject.toml sets for exactly this reason: the tooling that
-        # builds, installs and verifies the artifact must be the tooling the
-        # artifact was tested with. The collection itself declares
-        # requires_ansible ">=2.17.0,<3.0.0"; that is what consumers may use,
-        # not what this pipeline should pick at random.
-        run: pip install 'ansible-core~=2.18.0'
+      # ansible-core comes from pyproject.toml's `ansible` group, the one
+      # declaration the gates and the role tests already run on, so the tooling
+      # that builds, installs and verifies the artifact is the tooling the
+      # artifact was tested with. This step used to pin `~=2.18.0` itself, one
+      # of five restatements of that fact, and an unconstrained
+      # `pip install ansible-core` resolved 2.21.4. The collection's own
+      # requires_ansible is what consumers may use, not what this pipeline
+      # should pick at random.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          # No cache, unlike gate.yml and role-test.yml. This workflow publishes
+          # what it builds, and a restored cache is an input to that artifact
+          # which nobody reviewed. zizmor reports it as cache poisoning, and it
+          # is right. A release runs rarely enough that the cache saved nothing.
+          enable-cache: false
 
       - name: Download collection artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -288,7 +316,7 @@ jobs:
             echo "::error::the GALAXY_API_KEY secret is not configured"
             exit 1
           fi
-          ansible-galaxy collection publish \
+          uv run --frozen --group ansible ansible-galaxy collection publish \
             --server "${GALAXY_SERVER}" \
             --api-key "${GALAXY_API_KEY}" \
             "dist/${GALAXY_NAMESPACE}-${COLLECTION_NAME}-${{ needs.verify-version.outputs.version }}.tar.gz"
