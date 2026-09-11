@@ -21,8 +21,19 @@ requires-python = ">=3.11"
 # repository invoked it, and `ansible-test sanity` runs its own pylint test
 # over plugins/.
 lint = [
-    "yamllint==1.35.1",
+    # 1.38.0, not 1.35.1. This was pinned twice and to two different versions:
+    # here, and in gate.yml, because lint-yaml.sh resolved yamllint through uv
+    # while lint-release.sh called a bare binary that CI installed separately.
+    # Neither pin was wrong for its own call site, which is why the drift
+    # survived. There is one call path now, so there is one pin. 1.38.0 is the
+    # version CI had been passing on; both report 0 errors and 78 warnings over
+    # this tree, with identical per-rule counts, measured before the change.
+    "yamllint==1.38.0",
     "ansible-lint==25.6.1",
+    # Workflow security auditing, invoked by lint-release.sh. Here rather than
+    # installed by the workflow so that its version has one definition, and so
+    # that uv.lock records a hash for it.
+    "zizmor==1.30.1",
     # ansible-lint runs against whatever ansible-core is installed, and its
     # rule behaviour follows that version. Left unconstrained, uv resolved
     # 2.21.4 -- four minors ahead of what the release gates on -- so the linter

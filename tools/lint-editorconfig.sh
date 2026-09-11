@@ -7,6 +7,7 @@ source "./tools/includes/logging.sh"
 # output the heading
 heading "Grafana Ansible Collection" "Performing Editorconfig Linting using editorconfig-checker"
 
+source "./tools/includes/provision.sh"
 source "./tools/includes/editorconfig-checker.sh"
 
 source "./tools/includes/lint-paths.sh"
