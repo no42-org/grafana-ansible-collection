@@ -148,7 +148,7 @@ info "engine: ${ansibleVersion} from dependency group '${ansibleGroup}'"
 # supplied none of it. A role calling a module that exists only in that bundle
 # would have passed locally and failed in CI, and nothing would have said why.
 #
-# ansible.cfg sets `collections_paths = ./`, so these land in
+# ansible.cfg sets `collections_path = ./`, so these land in
 # ./ansible_collections/, which is gitignored and is where ansible-lint already
 # installs the same dependency set.
 readonly roleTestRequirements="tests/roles/requirements.yml"
@@ -157,8 +157,26 @@ if [[ ! -f "${roleTestRequirements}" ]]; then
   exit 1;
 fi
 info "resolving harness collections from ${roleTestRequirements}"
-if ! "${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" >/dev/null 2>&1; then
-  echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements}";
+# Galaxy is a remote service and fails on its own schedule: the first CI run
+# of this block failed in one job of twelve at this line, and because the
+# output was discarded the log said only that it could not install. Bounded
+# retries for the transient case; the output is kept and shown when the
+# last attempt fails, so the next such failure names its cause.
+readonly galaxyAttempts=3
+galaxyOutput=""
+for attempt in $(seq 1 "${galaxyAttempts}"); do
+  if galaxyOutput="$("${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" </dev/null 2>&1)"; then
+    galaxyOutput=""
+    break
+  fi
+  if [[ "${attempt}" -lt "${galaxyAttempts}" ]]; then
+    info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in 15s"
+    sleep 15
+  fi
+done
+if [[ -n "${galaxyOutput}" ]]; then
+  echo "${galaxyOutput}" >&2
+  echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements} after ${galaxyAttempts} attempts";
   exit 1;
 fi
 

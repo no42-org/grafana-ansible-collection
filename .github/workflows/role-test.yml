@@ -89,6 +89,9 @@ jobs:
       - name: Show the logs on failure
         if: failure()
         run: |
+          # nullglob: a run that failed before writing a log must not turn
+          # this step into a second failure about a literal '*.log'.
+          shopt -s nullglob
           for log in build/role-test/*/*.log; do
             echo "::group::${log}"
             tail -80 "${log}"
@@ -156,6 +159,9 @@ jobs:
       - name: Show the logs on failure
         if: failure()
         run: |
+          # nullglob: a run that failed before writing a log must not turn
+          # this step into a second failure about a literal '*.log'.
+          shopt -s nullglob
           for log in build/role-test/*/*.log; do
             echo "::group::${log}"
             tail -80 "${log}"
