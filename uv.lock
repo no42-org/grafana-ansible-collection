@@ -296,6 +296,9 @@ version = "0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
+ansible = [
+    { name = "ansible-core" },
+]
 lint = [
     { name = "ansible-core" },
     { name = "ansible-lint" },
@@ -306,6 +309,7 @@ lint = [
 [package.metadata]
 
 [package.metadata.requires-dev]
+ansible = [{ name = "ansible-core", specifier = ">=2.18,<2.19" }]
 lint = [
     { name = "ansible-core", specifier = ">=2.18,<2.19" },
     { name = "ansible-lint", specifier = "==25.6.1" },
