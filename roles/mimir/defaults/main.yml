@@ -23,6 +23,17 @@ mimir_http_listen_address: "0.0.0.0"
 # duplicated top-level key and Mimir would read whichever survived parsing.
 mimir_config_extra: {}
 
+# Which modules the single process runs. The default is what the template
+# always wrote. `all` alone leaves the alertmanager and overrides-exporter
+# modules off, which a consumer that never calls them may prefer, since the
+# alertmanager module also initialises the memberlist KV service and needs
+# its storage backend reachable.
+mimir_target: "all,alertmanager,overrides-exporter"
+
+# Mode of /etc/mimir/config.yml. The file carries object-store credentials
+# when an S3 backend is configured; 0640 keeps it to the mimir user and group.
+mimir_config_mode: "0644"
+
 # How long the role waits for /ready after starting the service. The defaults
 # are what the role always did; a clustered node that has to join memberlist
 # before its ingester reports ready may need more.

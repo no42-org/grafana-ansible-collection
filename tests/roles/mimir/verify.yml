@@ -98,3 +98,14 @@
         that:
           - __labels.status == 200
         fail_msg: "a tenant-less query was refused, so multitenancy_enabled did not reach Mimir"
+
+    - name: "Stat the rendered configuration"
+      ansible.builtin.stat:
+        path: /etc/mimir/config.yml
+      register: __config_stat
+
+    - name: "Assert the configuration carries the requested mode"
+      ansible.builtin.assert:
+        that:
+          - __config_stat.stat.mode == "0640"
+        fail_msg: "expected /etc/mimir/config.yml mode 0640, got {{ __config_stat.stat.mode }}"
