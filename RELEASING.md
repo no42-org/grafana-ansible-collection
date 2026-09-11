@@ -277,8 +277,7 @@ Two roles upstream still ships are **not** in this collection. Removing a role i
 Both were working and, in promtail's case, tested when they were removed. That is the point worth recording: neither was dropped because it was broken. They were dropped because the software behind them is no longer maintained, and carrying a role for dead software costs merge surface on every upstream merge while quietly inviting someone to deploy it.
 
 This is the fork diverging on purpose. An upstream merge will reintroduce both directories, and the removal has to be reapplied in eleven places.
-
-Code and configuration:
+The first seven are code and configuration. The last four are prose, and the prose is the half that gets forgotten, because an upstream merge restores upstream's own wording.
 
 1. `git rm` the role directory.
 2. Its `tests/roles/<role>/` scenario.
@@ -287,9 +286,6 @@ Code and configuration:
 5. Its option in `.github/ISSUE_TEMPLATE/bug_report.yml`.
 6. Its entry in `role-test.yml`'s matrix and in `release.yml`'s role-resolution list.
 7. Its row in `tools/check-role-versions.py`.
-
-Prose, which is the half that gets forgotten, because an upstream merge restores upstream's own wording:
-
 8. `README.md`: the role list, the opening sentence naming each product, the pin badge, and the tracker-exclusion table.
 9. `catalog-info.yaml`, whose description repeats that same sentence.
 10. `SUPPORT.md`, which says which roles are not here.
