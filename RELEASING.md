@@ -43,6 +43,39 @@ The workflow triggers on `v*` so that fetching upstream tags cannot fire a relea
 The tag must agree with the `version` field in `galaxy.yml`.
 The first job checks this and fails in seconds if it does not, before anything is built or published.
 
+A genuine prerelease is cut the same way with a hyphenated version, `7.1.0-rc1`.
+`verify-version` derives `prerelease` from the hyphen, the GitHub release is marked prerelease and does not move **Latest release**, and `ansible-galaxy` will not resolve it for a plain install.
+Check that with the client, not with Galaxy's `highest_version` field, which reports the prerelease.
+
+### If a release fails
+
+Every stage before `publish` fails closed, so a defect in the release path costs a retag, not a bad version.
+
+```text
+stage that fails   published?   left behind                 recovery
+──────────────────────────────────────────────────────────────────────────────────────
+verify-version     no           the tag                     delete the tag, fix, tag again
+gate               no           the tag                     delete the tag, fix, tag again
+build              no           the tag                     delete the tag, fix, tag again
+smoke              no           the tag                     delete the tag, fix, tag again
+publish            no *         the tag                     delete the tag, fix, tag again
+release            yes          Galaxy version, the tag     create the GitHub release by hand
+                                                            from the same artifact
+```
+
+`*` `publish` waits for Galaxy's import and fails if the import is rejected, so a rejected import publishes nothing.
+The one case to check by hand is an upload Galaxy accepted and imported while the job still exited non-zero: look for the version on Galaxy before deleting the tag.
+
+`galaxy.yml` keeps the last released version between releases.
+
+**There is no rehearsal step.** Until 7.0.0 this document prescribed a throwaway `-rc1` tag before any release that followed a change to the release path.
+It was done twice.
+`v6.2.1-rc1` found the missing `prerelease` input, a defect only a prerelease could reach.
+`v7.0.0-rc1` found nothing.
+Each cost a version-bump pull request, a tag and a GitHub release to delete afterwards, and a version on Galaxy that the pipeline cannot remove and the namespace owner deleted by hand.
+Against that, a real release that fails costs a retag, per the table above.
+The prerelease mechanism stays for genuine release candidates; publishing one to exercise the pipeline is not part of the process.
+
 ### Pipeline
 
 ```text
@@ -73,45 +106,6 @@ Before it existed, `lint.yaml` gated pull requests while `release.yml` defined i
 
 A reusable workflow does not inherit its caller's `env:`, so the source namespace and collection name arrive as inputs.
 `ansible-test` needs the collection at `ansible_collections/<namespace>/<name>`, and the tree is unrenamed at that point, so those are the source names rather than the Galaxy ones.
-
-## Rehearsing the pipeline
-
-The pipeline can be exercised end-to-end on a **prerelease** tag, which costs nothing a user can trip over.
-
-```bash
-# on a branch, because main is protected
-git switch -c release/7.0.0-rc1
-# galaxy.yml: version: 7.0.0-rc1
-git commit -s -m "chore(release): v7.0.0-rc1"
-gh pr create --fill        # merge once the gate is green
-git switch main && git pull
-git tag -s v7.0.0-rc1 -m "release 7.0.0-rc1 (pipeline rehearsal)"
-git push origin v7.0.0-rc1
-```
-
-A SemVer prerelease carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
-
-`ansible-galaxy` excludes prereleases from resolution unless `--pre` is passed. Do not trust Galaxy's `highest_version` field for this — it reports the RC. Check the client instead:
-
-```bash
-ansible-galaxy collection install indigo423.grafana -p /tmp/x   # -> 6.2.0
-ansible-galaxy collection install indigo423.grafana:6.2.1-rc1 -p /tmp/y
-```
-
-The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v7.0.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
-
-What it confirmed, in order:
-
-```text
-  verify-version   tag == galaxy.yml, prerelease=true
-  gate             lint-release, lint, sanity (devel advisory and red)
-  build            indigo423-grafana-6.2.1-rc1.tar.gz
-  smoke            installed, indigo423.grafana.* resolved
-  publish          accepted by Galaxy
-  release          GitHub release, marked Pre-release, 6.2.0 still Latest
-```
-
-**`galaxy.yml` keeps the last released version between releases**, so it reads `6.2.1-rc1` after a rehearsal. The next real release bumps it to a plain version.
 
 ## Version policy
 
