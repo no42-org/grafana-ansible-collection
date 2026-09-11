@@ -82,11 +82,13 @@ jobs:
           echo "version=${GALAXY_VERSION}" >> "$GITHUB_OUTPUT"
 
           # A semver pre-release carries a hyphen after the patch number:
-          # 6.2.1-rc1, 6.3.0-beta.2. Galaxy already treats such a version as a
+          # 7.1.0-rc1, 7.1.0-beta.2. This is for a genuine release candidate
+          # that consumers install by name; it is not a rehearsal step, and
+          # RELEASING.md says why. Galaxy already treats such a version as a
           # pre-release and will not resolve it for a plain
           # `ansible-galaxy collection install indigo423.grafana`. GitHub does
-          # not infer it, so without this the RC would take over "Latest
-          # release" on the repository page.
+          # not infer it, so without this the candidate would take over
+          # "Latest release" on the repository page.
           if [ "${GALAXY_VERSION}" != "${GALAXY_VERSION%%-*}" ]; then
             echo "pre-release: yes (${GALAXY_VERSION})"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
@@ -387,8 +389,9 @@ jobs:
           cat release-notes.md
 
       # prerelease is load-bearing, not decoration: it is what keeps a
-      # v6.3.0-rc1 tag from moving "Latest release" on the repository page,
-      # which is the first thing a reader uses to decide what to install.
+      # genuine release candidate such as v7.1.0-rc1 from moving "Latest
+      # release" on the repository page, which is the first thing a reader
+      # uses to decide what to install.
       - name: Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
