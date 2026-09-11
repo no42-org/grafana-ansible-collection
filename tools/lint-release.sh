@@ -28,24 +28,29 @@ set -euo pipefail
 source "$(pwd)/tools/includes/utils.sh"
 source "$(pwd)/tools/includes/logging.sh"
 
+source "./tools/includes/provision.sh"
+source "./tools/includes/shellcheck.sh"
+source "./tools/includes/actionlint.sh"
+
 heading "Grafana Ansible Collection" "Linting the release machinery"
 
-# make sure shellcheck exists
-if [[ "$(command -v shellcheck)" = "" ]]; then
-  echo >&2 "shellcheck command is required, see (https://www.shellcheck.net/) or run: brew install shellcheck";
+# The pinned, checksum-verified shellcheck, not whatever is on PATH.
+if ! shellcheckCmd="$(shellcheckBin)"; then
+  echo >&2 "shellcheck could not be provisioned; see the message above";
   exit 1;
 fi
 
-# yamllint on PATH if the environment provides one, otherwise the pinned copy
-# in the project's uv environment. Preferring PATH keeps this script usable
-# before `make install` has run, which matters because it is the one lint gate
-# that needs no toolchain provisioning.
-yamllintCmd=()
-if [[ "$(command -v yamllint)" != "" ]]; then
-  yamllintCmd=(yamllint)
-elif uv run --frozen --group lint yamllint --version >/dev/null 2>&1; then
-  yamllintCmd=(uv run --frozen --group lint yamllint)
-else
+# yamllint from the project's uv environment, and only from there.
+#
+# This used to prefer a copy on PATH, reasoning that it kept the script usable
+# before `make install` had run, because this was the one gate needing no
+# provisioning. That stopped being true when shellcheck and actionlint became
+# provisioned, and the preference was never free: it is exactly how yamllint
+# came to be pinned to 1.35.1 in pyproject.toml and 1.38.0 in gate.yml. One
+# tool, two call paths, two pins, and a green local run that said nothing about
+# CI. There is one call path now.
+yamllintCmd=(uv run --frozen --group lint yamllint)
+if ! "${yamllintCmd[@]}" --version >/dev/null 2>&1; then
   echo >&2 "TOOLCHAIN NOT INSTALLED: yamllint is required, see (https://pypi.org/project/yamllint/). Run \"make install\".";
   exit 1;
 fi
@@ -53,7 +58,7 @@ fi
 statusCode=0
 
 echo "  ‣ shellcheck tools/*.sh"
-if ! shellcheck -x tools/*.sh; then
+if ! "${shellcheckCmd}" -x tools/*.sh; then
   lintError "shellcheck reported issues in tools/"
   statusCode=1
 fi
@@ -106,12 +111,15 @@ fi
 #
 # Required, not optional. It used to run only if it happened to be installed,
 # which the actions-hygiene proposal correctly called "not enforcement".
-if [[ "$(command -v actionlint)" = "" ]]; then
-  echo >&2 "actionlint command is required, see (https://github.com/rhysd/actionlint) or run: brew install actionlint";
+if ! actionlintCmd="$(actionlintBin)"; then
+  echo >&2 "actionlint could not be provisioned; see the message above";
   exit 1;
 fi
 echo "  ‣ actionlint .github/workflows/"
-if ! actionlint; then
+# -shellcheck is given the provisioned binary explicitly. actionlint shells out
+# to shellcheck for `run:` blocks and would otherwise find an ambient one,
+# reintroducing through a back door exactly the drift this provisioning removes.
+if ! "${actionlintCmd}" -shellcheck "${shellcheckCmd}"; then
   lintError "actionlint reported issues in .github/workflows/"
   statusCode=1
 fi
@@ -132,12 +140,13 @@ fi
 # attacker-controllable -- and a suggestion to replace the release action with
 # `gh release`. Failing the gate on those would make it noise. Anything at low
 # or above fails.
-if [[ "$(command -v zizmor)" = "" ]]; then
-  echo >&2 "zizmor command is required, see (https://docs.zizmor.sh/) or run: pip install zizmor";
+zizmorCmd=(uv run --frozen --group lint zizmor)
+if ! "${zizmorCmd[@]}" --version >/dev/null 2>&1; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: zizmor is required, see (https://docs.zizmor.sh/). Run \"make install\".";
   exit 1;
 fi
 echo "  ‣ zizmor .github/workflows/"
-if ! zizmor --no-progress --min-severity low .github/workflows/; then
+if ! "${zizmorCmd[@]}" --no-progress --min-severity low .github/workflows/; then
   lintError "zizmor reported issues in .github/workflows/"
   statusCode=1
 fi
