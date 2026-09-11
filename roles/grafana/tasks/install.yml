@@ -9,6 +9,16 @@
     name: "{{ _grafana_dependencies }}"
     state: present
     update_cache: true
+  # Retried for the same reason as "Install Grafana" below, and it is not
+  # redundant. update_cache refreshes every enabled repository, so on a first
+  # converge this runs before grafana.repo exists and cannot hit the grafana
+  # repository at all -- but on any re-run, including the idempotence pass of
+  # `make role-test ROLE=grafana`, the file is already there and dnf refreshes
+  # it here, at task two, before the retry below is ever reached.
+  register: __grafana_dependencies_install
+  until: __grafana_dependencies_install is succeeded
+  retries: "{{ grafana_install_retries | int }}"
+  delay: "{{ grafana_install_retry_delay | int }}"
   when:
     - _grafana_dependencies is defined
     - _grafana_dependencies | length > 0

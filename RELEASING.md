@@ -80,13 +80,13 @@ The pipeline can be exercised end-to-end on a **prerelease** tag, which costs no
 
 ```bash
 # on a branch, because main is protected
-git switch -c release/6.3.0-rc1
-# galaxy.yml: version: 6.3.0-rc1
-git commit -s -m "chore(release): v6.3.0-rc1"
+git switch -c release/7.0.0-rc1
+# galaxy.yml: version: 7.0.0-rc1
+git commit -s -m "chore(release): v7.0.0-rc1"
 gh pr create --fill        # merge once the gate is green
 git switch main && git pull
-git tag -s v6.3.0-rc1 -m "release 6.3.0-rc1 (pipeline rehearsal)"
-git push origin v6.3.0-rc1
+git tag -s v7.0.0-rc1 -m "release 7.0.0-rc1 (pipeline rehearsal)"
+git push origin v7.0.0-rc1
 ```
 
 A SemVer prerelease carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
@@ -98,7 +98,7 @@ ansible-galaxy collection install indigo423.grafana -p /tmp/x   # -> 6.2.0
 ansible-galaxy collection install indigo423.grafana:6.2.1-rc1 -p /tmp/y
 ```
 
-The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v6.3.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
+The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v7.0.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
 
 What it confirmed, in order:
 
@@ -263,7 +263,7 @@ Recorded so the reasoning is not repeated:
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
 | `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
-| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **6.3.0 candidates** — see Deferred. |
+| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **7.0.0 candidates** — see Deferred. |
 
 ### Roles removed from the fork
 
@@ -276,7 +276,9 @@ Two roles upstream still ships are **not** in this collection. Removing a role i
 
 Both were working and, in promtail's case, tested when they were removed. That is the point worth recording: neither was dropped because it was broken. They were dropped because the software behind them is no longer maintained, and carrying a role for dead software costs merge surface on every upstream merge while quietly inviting someone to deploy it.
 
-This is the fork diverging on purpose. An upstream merge will reintroduce both directories, and the removal has to be reapplied in seven places:
+This is the fork diverging on purpose. An upstream merge will reintroduce both directories, and the removal has to be reapplied in eleven places.
+
+Code and configuration:
 
 1. `git rm` the role directory.
 2. Its `tests/roles/<role>/` scenario.
@@ -286,7 +288,14 @@ This is the fork diverging on purpose. An upstream merge will reintroduce both d
 6. Its entry in `role-test.yml`'s matrix and in `release.yml`'s role-resolution list.
 7. Its row in `tools/check-role-versions.py`.
 
-The rewrite count moves with them. See **When the rewrite count changes**.
+Prose, which is the half that gets forgotten, because an upstream merge restores upstream's own wording:
+
+8. `README.md`: the role list, the opening sentence naming each product, the pin badge, and the tracker-exclusion table.
+9. `catalog-info.yaml`, whose description repeats that same sentence.
+10. `SUPPORT.md`, which says which roles are not here.
+11. `AGENTS.md`, which carries the removal as a trap.
+
+Miss the prose and the collection ships a README advertising roles it does not contain. The rewrite count moves with all of it; see **When the rewrite count changes**.
 
 ## Releases are cut from `main`
 
@@ -331,15 +340,15 @@ That is acceptable here for two reasons. The gate's value in a solo project is c
 The release procedure's `chore(release): vX.Y.Z` commit is a change to `galaxy.yml` and the changelog, so it goes through a pull request like anything else, and the tag is pushed at the merged commit.
 
 ```bash
-git switch -c release/6.3.0
+git switch -c release/7.0.0
 # bump galaxy.yml, changelogs/
-git commit -s -m "chore(release): v6.3.0"
-git push -u origin release/6.3.0
+git commit -s -m "chore(release): v7.0.0"
+git push -u origin release/7.0.0
 gh pr create --fill
 # merge once the gate is green, then
 git switch main && git pull
-git tag -s v6.3.0 -m "release 6.3.0"
-git push origin v6.3.0
+git tag -s v7.0.0 -m "release 7.0.0"
+git push origin v7.0.0
 ```
 
 Direct pushes to `main` still work, because of the bypass. That is the case the bypass exists for — a version bump where a pull request would be pure ceremony — but it should be a decision each time, not the default.
@@ -505,7 +514,7 @@ promtail        1  examples/promtail-multiple-logs.yml
 ```
 
 Role task files do not name the collection; the documentation and examples around them do.
-So deleting 38 files moved the count by eight, and a removal that touches only `tasks/` will not move it at all.
+So deleting 46 files moved the count by eight, and a removal that touches only `tasks/` will not move it at all.
 
 Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
 
@@ -649,6 +658,6 @@ make install             # provisions both toolchains
 
 ## Deferred
 
-- **6.3.0 candidates:** the three feature pull requests deferred from 6.2.0 — `#529` (OpenTelemetry Collector extra args), `#462` (Mimir target), `#463` (Mimir multitenancy). None was test-applied, and `#462`/`#463` touch the same Mimir files, so they need sequencing like `#534`/`#538` did.
+- **7.0.0 candidates:** the three feature pull requests deferred from 6.2.0 — `#529` (OpenTelemetry Collector extra args), `#462` (Mimir target), `#463` (Mimir multitenancy). None was test-applied, and `#462`/`#463` touch the same Mimir files, so they need sequencing like `#534`/`#538` did.
 - Cosign signatures on the GitHub release tarball.
   Galaxy does not consume them, so they would cover the GitHub artifact only.
