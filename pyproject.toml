@@ -14,13 +14,50 @@
 name = "grafana-ansible-collection-toolchain"
 version = "0"
 description = "Lint toolchain for this repository. Not published, not importable."
-requires-python = ">=3.11"
+# 3.12, because ansible-core 2.21.4 in the ansible-top group below declares
+# `>=3.12`, and a lock must resolve for every Python the project admits. This
+# is the toolchain's floor, not the collection's: what a consumer may run the
+# roles with is meta/runtime.yml's business. CI's ubuntu-24.04 gives 3.12.3.
+requires-python = ">=3.12"
 
 [dependency-groups]
-# The two linters that gate. pylint is deliberately absent: nothing in this
+
+# The ansible-core this repository builds and tests against, in one place.
+#
+# It was in five: here, three times in release.yml, and once in role-test.yml,
+# in two syntaxes that resolve identically today and are not held to by
+# anything. tools/role-test.sh made it a sixth by declaring nothing at all and
+# taking ansible-playbook from PATH, which is how a maintainer's machine came
+# to run 2.21.3 against CI's 2.18.19 with neither side able to notice.
+#
+# Distinct from meta/runtime.yml's requires_ansible, ">=2.17.0,<3.0.0". That is
+# the range a consumer may use. This is the version this repository runs, and
+# the two differing is legitimate rather than a mistake.
+ansible = [
+    "ansible-core>=2.18,<2.19",
+]
+
+# The newest ansible-core inside requires_ansible's range, for the sampled
+# second leg of the role tests. Pinned exactly: a floating bound here would
+# change the gate without a commit, which is the `latest` failure mode already
+# rejected for role versions. It goes stale on purpose and is bumped by hand.
+#
+# Cannot be installed alongside the group above, and [tool.uv] conflicts says
+# so; each is a separate resolution in uv.lock and a separate environment.
+ansible-top = [
+    "ansible-core==2.21.4",
+]
+
+# The linters that gate. pylint is deliberately absent: nothing in this
 # repository invoked it, and `ansible-test sanity` runs its own pylint test
 # over plugins/.
 lint = [
+    # ansible-lint grades the collection against whatever ansible-core is
+    # installed, and its rule behaviour follows that version. It takes the one
+    # declared above rather than restating a bound: left unconstrained, uv
+    # resolved 2.21.4, so the linter would judge the collection against an
+    # ansible nothing else here uses.
+    {include-group = "ansible"},
     # 1.38.0, not 1.35.1. This was pinned twice and to two different versions:
     # here, and in gate.yml, because lint-yaml.sh resolved yamllint through uv
     # while lint-release.sh called a bare binary that CI installed separately.
@@ -34,14 +71,16 @@ lint = [
     # installed by the workflow so that its version has one definition, and so
     # that uv.lock records a hash for it.
     "zizmor==1.30.1",
-    # ansible-lint runs against whatever ansible-core is installed, and its
-    # rule behaviour follows that version. Left unconstrained, uv resolved
-    # 2.21.4 -- four minors ahead of what the release gates on -- so the linter
-    # would judge the collection against an ansible it is not tested with.
-    # Pinned to the highest blocking sanity leg instead.
-    "ansible-core>=2.18,<2.19",
 ]
 
 [tool.uv]
 # No build backend: nothing here is built or installed as a package.
 package = false
+# Two ansible-core versions cannot share one environment. Declaring the
+# conflict lets uv.lock hold both resolutions; `uv run --group` picks one.
+conflicts = [
+    [
+        { group = "ansible" },
+        { group = "ansible-top" },
+    ],
+]

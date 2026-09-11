@@ -22,7 +22,11 @@ This collection (`grafana.grafana`) contains modules and roles to assist in auto
 
 ## Ansible version compatibility
 
-This fork is tested against `ansible-core` 2.17 and 2.18, and declares `requires_ansible: ">=2.17.0,<3.0.0"`.
+This fork declares `requires_ansible: ">=2.17.0,<3.0.0"`, and the claim is tested at both ends rather than asserted.
+Every role is executed on `ansible-core` 2.18 on both package families.
+A sample of the roles, `grafana` on both families and `alloy` on Debian, is also executed on the newest release inside the range, 2.21.4 at the time of writing.
+Static analysis runs on 2.17, 2.18 and `devel`.
+The versions executed are declared once, in `pyproject.toml`, and `RELEASING.md` records what the sample omits.
 The upstream collection claims `ansible >= 2.9`; that claim was inherited and is not what is tested here.
 
 ## Versions the roles install

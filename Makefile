@@ -48,23 +48,28 @@ clean:
 ####################################################################
 
 # Run a role test: converge, idempotence, verify — against a container.
-# Replaces the Molecule workflows; depends only on ansible-core and docker.
+# Replaces the Molecule workflows; depends only on uv and docker. ansible-core
+# comes from pyproject.toml's `ansible` group, the same version CI runs.
 #
 #   make role-test ROLE=grafana DISTRO=rhel
 #
 # DISTRO is a family, not a distribution. The rhel entry is not symmetry: the
 # grafana role's yum/dnf block, and the carried fixes inside it, are
 # unreachable on Debian.
+#
+# ANSIBLE_GROUP picks the pyproject.toml group that supplies ansible-core:
+# `ansible` (default) or `ansible-top`, the newest inside requires_ansible.
 ROLE ?=
 DISTRO ?= debian
+ANSIBLE_GROUP ?= ansible
 
 role-test:
 	@if [ -z "$(ROLE)" ]; then \
-		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel]"; \
+		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel] [ANSIBLE_GROUP=ansible|ansible-top]"; \
 		echo "       make role-test-list"; \
 		exit 1; \
 	fi
-	@./tools/role-test.sh $(ROLE) $(DISTRO)
+	@ROLE_TEST_ANSIBLE_GROUP=$(ANSIBLE_GROUP) ./tools/role-test.sh $(ROLE) $(DISTRO)
 
 role-test-list:
 	@./tools/role-test.sh --list
@@ -88,11 +93,13 @@ carried-prs:
 # the working tree is never modified and upstream merges stay conflict-free.
 # tools/rename-namespace.sh owns the exclude list, asked for via
 # --rsync-excludes, so the copy and the rewrite cannot disagree on scope.
+# ansible-galaxy comes from pyproject.toml's `ansible` group, so the artifact
+# is built by the ansible-core the gates and role tests run on.
 dist: dist-clean
 	@mkdir -p $(DIST_SRC) $(DIST_OUT)
 	rsync -a $$(./tools/rename-namespace.sh --rsync-excludes) ./ $(DIST_SRC)/
 	./tools/rename-namespace.sh $(GALAXY_NAMESPACE) $(DIST_SRC)
-	cd $(DIST_SRC) && ansible-galaxy collection build --output-path ../../$(DIST_OUT)
+	uv run --frozen --group ansible ansible-galaxy collection build $(DIST_SRC) --output-path $(DIST_OUT)
 	@ls -1 $(DIST_OUT)/*.tar.gz
 
 # remove only the dist output, leaving node_modules in place
