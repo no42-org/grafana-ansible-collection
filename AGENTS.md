@@ -43,6 +43,8 @@ make role-test-list
 
 `DISTRO` is a package family. `rhel` is not optional politeness — the `grafana` role's `yum`/`dnf` block is unreachable on Debian, so a Debian-only pass can hide a broken change.
 
+`ANSIBLE_GROUP=ansible-top` runs the same test on the newest ansible-core inside `requires_ansible`'s range instead of the 2.18 everything else runs on. Both versions are declared once, in `pyproject.toml`, and the harness refuses anything from `PATH`: a local pass and a CI pass are statements about the same engine and the same collections, which they were not before. The log names the engine it ran on. Do not trust a role-test log that does not.
+
 ## Commands
 
 ```bash

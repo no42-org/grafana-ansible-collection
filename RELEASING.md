@@ -391,11 +391,11 @@ Renovate's `customManagers` can do exactly this. It is not used because the main
 
 ## Role tests
 
-Roles are tested against containers by a harness that depends only on
-`ansible-core` and `docker`. Three phases, in order:
+Roles are tested against containers by a harness that depends only on `uv` and `docker`. Three phases, in order:
 
 ```bash
 make role-test ROLE=grafana DISTRO=rhel
+make role-test ROLE=grafana DISTRO=rhel ANSIBLE_GROUP=ansible-top   # newest in-range ansible-core
 make role-test-list            # roles and distro families
 ```
 
@@ -445,6 +445,30 @@ All three of the roles that could not install their software with default settin
 - **`tempo` — fixed.** Two of the role's defaults referred to things Tempo 3.0 removed. `tempo_metrics_generator` set `traces_storage`, and `tempo_overrides` listed `local-blocks` among the generator's processors; Tempo 3.0 deleted that processor and all its local block plumbing (grafana/tempo#6555), and `traces_storage` was its storage config. Tempo rejected the key outright and refused to start. Both are gone, `tempo` is in the role-test matrix on both families, and the verify step asks Tempo's own `/ready` endpoint rather than trusting systemd — a crash-looping unit can be caught mid-restart in the `running` state.
 
 `loki` and `tempo` both ship a test, and neither test overrides a default that was broken. That distinction is the whole point: a test that passes only by overriding the broken default would have hidden the defect rather than caught it. `promtail`'s test went with the role.
+
+### Which ansible executes them
+
+`meta/runtime.yml` claims `requires_ansible: ">=2.17.0,<3.0.0"`. That is the range a consumer may use, and it is wider than what runs here on purpose. The claim is an interval; the evidence is its endpoints, and the difference is stated rather than smoothed over.
+
+| Surface | ansible-core | What it does |
+| --- | --- | --- |
+| `ansible-test sanity` | 2.17, 2.18, `devel` | static analysis; `devel` is advisory |
+| role tests, all six roles, both families | 2.18 | executes the roles |
+| role tests, sampled: `grafana` (both families), `alloy` (Debian) | 2.21.4, the newest inside the range | executes the roles |
+| `make dist`, smoke test, publish | 2.18 | builds and verifies the artifact |
+| `ansible-lint` | 2.18 | grades the collection |
+
+Both executed versions are declared once, as dependency groups in `pyproject.toml`: `ansible` for 2.18 and `ansible-top` for the newest in-range release. Every surface above resolves through `uv run --frozen --group <group>`, and **no workflow names an ansible-core version**, except the sanity matrix, where the version is the deliberate input. `tools/role-test.sh` refuses an engine from `PATH`. It used to take one, which is how a full local matrix came to pass on 2.21.3 while CI passed on 2.18.19 with neither side able to notice, and it took its collections from a Homebrew bundle of roughly 800 while CI had the four in `tests/roles/requirements.yml`. The harness now installs those itself, under the declared engine, so a local run and a CI run are statements about the same engine and the same collection set. The log names the engine it ran on.
+
+**The second leg is a sample, and it says so.** Twelve more jobs on the slowest gate would be a real cost, and "the roles work at the top of the range" does not need every role on every package family to be tested. `grafana` and `alloy` were chosen for version sensitivity, measured as task count and distinct modules used, not for speed: 85 tasks and 29 modules with the only `yum`/`dnf` path, and 65 and 21 as the replacement for the two removed roles. `loki`, `mimir`, `tempo` and `opentelemetry_collector`, at 19 to 34 tasks each and mostly modules `grafana` already exercises, are **not** executed on the newest ansible. A regression confined to one of them there passes CI. That is the difference between evidence and proof, and the current arrangement offers the former where before it offered neither.
+
+It found something on its first run, before CI had reported: `ansible.cfg` set `collections_paths`, plural, which 2.18 accepts with a deprecation warning and 2.21 ignores without one, silently falling back to `~/.ansible/collections`. The singular is now used, and both versions read the same path.
+
+**The `ansible-top` pin goes stale on purpose.** A floating bound would move the gate without a commit, the `latest` failure mode already rejected for role versions. Dependabot's `uv` ecosystem watches `pyproject.toml` and opens a pull request when a newer ansible-core is released, and `role-test.yml` triggers on `pyproject.toml` and `uv.lock`, so the bump runs the sampled leg before a human merges it. That verification is the justification for the pin, as it is for the role versions. A bump that crosses a minor is where the sample is most likely to say something, and the pull request is where to read it.
+
+**`requires-python` is 3.12** because ansible-core 2.21.4 declares `>=3.12`, and a lock must resolve for every Python the project admits. This is the toolchain's floor. What a consumer may run the roles with is `meta/runtime.yml`'s business.
+
+The fallback, if the sampled leg is ever judged too expensive, is to narrow `requires_ansible` to what is executed. That is a consumer-facing decision and is named here so it is not taken quietly by dropping the leg.
 
 ### The dormant Molecule scenarios
 
@@ -678,7 +702,7 @@ make install             # provisions both toolchains
 
 | Tool | Provides | Pinned by |
 | --- | --- | --- |
-| `uv` | `yamllint`, `ansible-lint` | `pyproject.toml` + `uv.lock` |
+| `uv` | `ansible-core` (both executed versions), `yamllint`, `ansible-lint`, `zizmor` | `pyproject.toml` + `uv.lock` |
 | `corepack` + `yarn` | `markdownlint-cli2`, `textlint` | `package.json` `packageManager` + `yarn.lock` |
 | `shellcheck` | shell linting | version-pinned download in CI; whatever is installed locally |
 | `docker` | role tests, `ansible-test sanity --docker` | — |
@@ -686,7 +710,7 @@ make install             # provisions both toolchains
 
 **`make install` no longer depends on a specific Python.** It used to: `Pipfile` pinned `python_version = "3.10"`, and without that exact interpreter pipenv failed, every Python linter bailed at its guard, and the output looked like failing lint. `uv` provisions its own interpreter from `pyproject.toml`'s `requires-python`.
 
-`ansible-core` is pinned to `>=2.18,<2.19` in the lint group on purpose: `ansible-lint` judges a collection against whatever `ansible-core` is installed, and unconstrained `uv` resolved 2.21.4 — four minors past what the release gates on.
+`ansible-core` is declared once, in the `ansible` dependency group as `>=2.18,<2.19`, and the lint group includes that group rather than restating it: `ansible-lint` judges a collection against whatever `ansible-core` is installed, and unconstrained `uv` resolved 2.21.4. The `ansible-top` group pins that newest in-range release for the sampled role-test leg; see "Which ansible executes them" under Role tests.
 
 ### Release
 
