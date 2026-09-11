@@ -14,6 +14,10 @@
 #
 # Overriding this with an older version still works. Overriding it with
 # anything from 3.7.0 on cannot.
+#
+# Deliberately excluded from tools/check-role-versions.py: every other role's
+# pin is watched for going stale, and this one cannot, because nothing newer
+# will ever exist.
 promtail_version: "3.6.0"
 promtail_uninstall: false
 promtail_http_listen_port: 9080

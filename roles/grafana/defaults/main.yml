@@ -1,5 +1,18 @@
 ---
-grafana_version: latest
+# Pinned, like the other roles -- but this one is different in kind and the
+# difference matters if you change it.
+#
+# grafana installs from a package repository, not a release download, so this
+# string is interpolated into a package name: grafana-<version> on RHEL and
+# SUSE, grafana=<version> on Debian. It is not a GitHub tag, and a version
+# that exists as a release is not guaranteed to exist as a package --
+# repositories carry their own revisions and drop old versions on their own
+# schedule.
+#
+# So it is excluded from tools/check-role-versions.py, which compares against
+# GitHub releases, and maintained by hand. `make role-test ROLE=grafana` on
+# both package families is what proves a pin here is installable.
+grafana_version: "13.2.1"
 grafana_manage_repo: true
 
 grafana_yum_repo: "https://rpm.grafana.com"

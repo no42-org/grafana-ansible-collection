@@ -1,5 +1,12 @@
-otel_collector_version: "0.90.1"
-
+# Was 0.90.1, released 2023-12-01, while upstream reached 0.160.0 -- an
+# inherited pin that nobody moved for nearly three years because nothing
+# asked them to. That is the failure mode pinning invites, and why
+# tools/check-role-versions.py exists.
+#
+# The worry when raising it was that the collector's configuration schema had
+# moved on and templates/otel_collector_config.yml.j2 would no longer be
+# valid. It is: the role test passes at 0.160.0 on both package families.
+otel_collector_version: "0.160.0"
 otel_collector_binary_url: "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version }}/{% if otel_collector_type == 'contrib' %}otelcol-contrib_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% else %}otelcol_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% endif %}.tar.gz"
 
 otel_collector_latest_url: 'https://api.github.com/repos/open-telemetry/opentelemetry-collector-releases/releases/latest'
