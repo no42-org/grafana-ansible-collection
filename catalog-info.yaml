@@ -1,10 +1,15 @@
+---
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: grafana-ansible-collection
   title: grafana-ansible-collection
-  description: |
-    This collection (grafana.grafana) contains modules and roles to assist in automating the management of resources in Grafana, OpenTelemetry Collector, Loki, Mimir, and Alloy with Ansible.
+  # Folded, not literal: this renders as one paragraph, so the wrapping here
+  # is for the file rather than for the reader.
+  description: >-
+    This collection (grafana.grafana) contains modules and roles to assist in
+    automating the management of resources in Grafana, OpenTelemetry Collector,
+    Loki, Mimir, and Alloy with Ansible.
   tags:
     - gitops
   links:
