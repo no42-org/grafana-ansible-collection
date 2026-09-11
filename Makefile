@@ -84,3 +84,14 @@ ci-lint-editorconfig:
 # Ansible Linting
 ci-lint-ansible:
 	@./tools/lint-ansible.sh
+
+# Compares each role's pinned version against the upstream project's latest
+# release. Fails if a pin is unreadable or an upstream lookup does not resolve
+# -- "could not look" must not read as "nothing to do".
+role-versions-check:
+	@python3 tools/check-role-versions.py
+
+# Opens one pull request per behind role, from the report the check writes.
+# Never merges: the bump is verified by the role tests first.
+role-versions-bump:
+	@./tools/bump-role-versions.sh

@@ -1,6 +1,12 @@
 ---
 # defaults file for loki
-loki_version: "latest"
+# Pinned, not `latest`. A floating label makes this role's behaviour change
+# when nobody changed this repository, and makes a passing role test undurable:
+# it proved whichever release happened to be current that day, and nothing
+# recorded which. tools/check-role-versions.py watches this pin and opens a
+# pull request when grafana/loki releases something newer; the bump is then verified
+# by the role tests on both package families before it can merge.
+loki_version: "3.7.7"
 loki_uninstall: false
 loki_http_listen_port: 3100
 loki_http_listen_address: "0.0.0.0"

@@ -1,6 +1,12 @@
 ---
 # defaults file for alloy
-alloy_version: "latest"
+# Pinned, not `latest`. A floating label makes this role's behaviour change
+# when nobody changed this repository, and makes a passing role test undurable:
+# it proved whichever release happened to be current that day, and nothing
+# recorded which. tools/check-role-versions.py watches this pin and opens a
+# pull request when grafana/alloy releases something newer; the bump is then verified
+# by the role tests on both package families before it can merge.
+alloy_version: "1.19.2"
 alloy_uninstall: false
 alloy_expose_port: false
 alloy_github_api_url: "https://api.github.com/repos/grafana/alloy/releases/latest"

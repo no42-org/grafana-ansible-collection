@@ -1,7 +1,11 @@
 ---
 # version of the agent to install
-grafana_agent_version: latest
-
+# Pinned, and deliberately NOT tracked by tools/check-role-versions.py.
+# This role ships no test -- upstream superseded Grafana Agent with Alloy --
+# so a version bump could not be verified on either package family, and an
+# automated pull request proposing one would be unmergeable in good faith.
+# Prefer the `alloy` role. 0.44.3 is grafana/agent's latest release.
+grafana_agent_version: "0.44.3"
 # base download url. Github or mirror to download from
 grafana_agent_base_download_url: "https://github.com/{{ _grafana_agent_github_org }}/{{ _grafana_agent_github_repo }}/releases/download"
 

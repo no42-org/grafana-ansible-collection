@@ -1,6 +1,12 @@
 ---
 # defaults file for tempo
-tempo_version: "latest"
+# Pinned, not `latest`. A floating label makes this role's behaviour change
+# when nobody changed this repository, and makes a passing role test undurable:
+# it proved whichever release happened to be current that day, and nothing
+# recorded which. tools/check-role-versions.py watches this pin and opens a
+# pull request when grafana/tempo releases something newer; the bump is then verified
+# by the role tests on both package families before it can merge.
+tempo_version: "3.0.3"
 tempo_uninstall: false
 __tempo_arch: "{{ arch_mapping[ansible_facts['architecture']] | default('amd64') }}"
 tempo_download_url_rpm: "https://github.com/grafana/tempo/releases/download/v{{ tempo_version }}/tempo_{{ tempo_version }}_linux_{{ __tempo_arch }}.rpm"

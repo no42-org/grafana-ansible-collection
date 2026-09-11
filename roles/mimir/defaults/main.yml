@@ -1,6 +1,12 @@
 ---
 # defaults file for mimir
-mimir_version: "latest"
+# Pinned, not `latest`. A floating label makes this role's behaviour change
+# when nobody changed this repository, and makes a passing role test undurable:
+# it proved whichever release happened to be current that day, and nothing
+# recorded which. tools/check-role-versions.py watches this pin and opens a
+# pull request when grafana/mimir releases something newer; the bump is then verified
+# by the role tests on both package families before it can merge.
+mimir_version: "3.2.1"
 mimir_uninstall: false
 __mimir_arch: "{{ arch_mapping[ansible_facts['architecture']] | default('amd64') }}"
 mimir_download_url_rpm: "https://github.com/grafana/mimir/releases/download/mimir-{{ mimir_version }}/mimir-{{ mimir_version }}_{{ __mimir_arch }}.rpm"
