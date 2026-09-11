@@ -67,7 +67,7 @@ readonly EXCLUDE_DIRS=(
   # rewrite count from 83 to 174 and fails the assertion for anyone who has run
   # `make ci-lint-ansible`. It is a linter artifact, not repository content.
   ".ansible"
-  # The same thing one level up: ansible.cfg sets `collections_paths = ./`, so
+  # The same thing one level up: ansible.cfg sets `collections_path = ./`, so
   # in CI the dependency collections land here instead.
   "ansible_collections"
   # uv's project virtualenv.
