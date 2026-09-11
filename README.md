@@ -38,15 +38,6 @@ Every role installs a **pinned** version. None resolves `latest` at run time, so
 [![promtail](https://img.shields.io/badge/promtail-3.6.0%20%C2%B7%20end%20of%20life-critical)](https://github.com/no42-org/grafana-ansible-collection/issues/4)
 [![grafana_agent](https://img.shields.io/badge/grafana__agent-0.44.3%20%C2%B7%20superseded-yellow)](https://github.com/grafana/agent)
 
-Upstream's newest release, for comparison. Where these differ from the pins above, an update is pending:
-
-[![grafana upstream](https://img.shields.io/github/v/release/grafana/grafana?label=grafana%20upstream&color=lightgrey)](https://github.com/grafana/grafana/releases)
-[![loki upstream](https://img.shields.io/github/v/release/grafana/loki?label=loki%20upstream&color=lightgrey)](https://github.com/grafana/loki/releases)
-[![mimir upstream](https://img.shields.io/github/v/release/grafana/mimir?label=mimir%20upstream&color=lightgrey)](https://github.com/grafana/mimir/releases)
-[![tempo upstream](https://img.shields.io/github/v/release/grafana/tempo?label=tempo%20upstream&color=lightgrey)](https://github.com/grafana/tempo/releases)
-[![alloy upstream](https://img.shields.io/github/v/release/grafana/alloy?label=alloy%20upstream&color=lightgrey)](https://github.com/grafana/alloy/releases)
-[![otel upstream](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-collector-releases?label=otel%20upstream&color=lightgrey)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
-
 ### How the pins stay current
 
 A weekly workflow compares each pin against the upstream project's latest release and opens a pull request when one falls behind. The bump then runs that role's tests on **both** package families before anyone merges it.
