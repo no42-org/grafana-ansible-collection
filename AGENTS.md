@@ -65,6 +65,8 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
 - **`promtail` is end of life upstream** (2026-03-02) and pinned to 3.6.0, the last version with published packages. It works and is tested, but Grafana directs users to `alloy`. See `RELEASING.md`.
 
+- **Every role's version is pinned, and the pin is watched.** `<role>_version` is a concrete version, never `latest`, so a role's behaviour cannot change without a commit. A weekly workflow opens a bump pull request when a pin falls behind, and the role tests verify the bump before it merges — that verification is why pinning is safe rather than a risk moved elsewhere. `promtail`, `grafana_agent` and `grafana` are excluded for recorded reasons. See `RELEASING.md`.
+
 ## Conventions
 
 Conventional commits. `git commit -s` always. AI-assisted commits carry `Assisted-by: <Agent>:<model>`.

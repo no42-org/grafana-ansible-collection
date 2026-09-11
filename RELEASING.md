@@ -321,6 +321,50 @@ git push origin v6.3.0
 
 Direct pushes to `main` still work, because of the bypass. That is the case the bypass exists for — a version bump where a pull request would be pure ceremony — but it should be a decision each time, not the default.
 
+## Version pins
+
+Every role installs a pinned version. None resolves `latest` at runtime.
+
+```text
+  grafana                  13.2.1     package version, not a release tag
+  loki                     3.7.7
+  mimir                    3.2.1      upstream tags these mimir-3.2.1
+  tempo                    3.0.3
+  alloy                    1.19.2
+  opentelemetry_collector  0.160.0
+  grafana_agent            0.44.3     pinned, not tracked
+  promtail                 3.6.0      pinned, not tracked; EOL
+```
+
+A floating label makes a role's behaviour change when nobody changed this repository, and makes a passing role test undurable — it proved whichever release was current that day, and nothing recorded which. All three inherited role defects this fork fixed were upstream moving under a role that assumed it would not.
+
+**Pinning alone would be worse than the label it replaces.** `opentelemetry_collector` sat at 0.90.1, released 2023-12-01, until upstream reached 0.160.0, because nothing asked anyone to move it. So the pin and the thing that moves it are one mechanism.
+
+### The tracker
+
+`.github/workflows/role-versions.yml` runs weekly and on demand. It calls `make role-versions-check`, which compares each pin against the upstream project's latest release, then `make role-versions-bump`, which opens one pull request per behind role.
+
+It merges nothing. `role-test.yml` already triggers on `roles/**`, so a bump runs that role's tests on both package families unprompted, and a human merges it once they pass. **That verification is the justification for pinning**; an unverified bump would move the risk rather than remove it, which is how the `tempo` role came to ship a configuration Tempo rejects.
+
+Two behaviours are deliberate and were verified by triggering them:
+
+- **A lookup that cannot resolve fails the run.** A rate limit, a network failure or a renamed repository must not read as "nothing to do" — a quiet tracker and an up-to-date repository otherwise look identical, and this repository has twice shipped a check whose silence was mistaken for success.
+- **A tag that matches no known prefix fails too.** `grafana/mimir` tags releases `mimir-3.2.1`. Conventions live in a table in `tools/check-role-versions.py`, not in a pattern that copes today.
+
+### Why not Dependabot
+
+Dependabot's ecosystems are a fixed list — `pip`, `npm`, `github-actions`, `uv` and the rest — each parsing a specific manifest format. None reads a key out of an Ansible defaults file, and there is no pattern-matching or custom manager to teach it one.
+
+Renovate's `customManagers` can do exactly this. It is not used because the maintainer checklist requires exactly one dependency bot and this repository has just finished getting Dependabot right, including the `uv` ecosystem. Trading a working bot for one needing actions, npm and uv migrated to it is a larger change than the problem warrants.
+
+### The three exclusions
+
+| Role | Why |
+| --- | --- |
+| `promtail` | End of life 2026-03-02; nothing upstream will ever be newer. |
+| `grafana_agent` | Ships no role test, so a bump could not be verified. Upstream superseded it with Alloy. |
+| `grafana` | Installs from a package repository. Its version becomes `grafana-<v>` on RHEL and `grafana=<v>` on Debian, which repositories serve on their own schedule and retention, so a version that exists as a release may not exist as a package. Bumped by hand, and `make role-test ROLE=grafana` on both families is what proves a pin is installable. |
+
 ## Role tests
 
 Roles are tested against containers by a harness that depends only on

@@ -43,7 +43,7 @@ python3 -c '
 import json, os
 for e in json.load(open(os.environ["ROLE_VERSION_REPORT"])):
     print("\t".join([e["role"], e["defaults"], e["variable"],
-                     e["current"], e["upstream"], e["repo"]]))
+                      e["current"], e["upstream"], e["repo"]]))
 ' > "${plan}"
 
 while IFS=$'\t' read -r role defaults variable current upstream repo; do
@@ -54,7 +54,7 @@ while IFS=$'\t' read -r role defaults variable current upstream repo; do
     continue
   fi
 
-  git checkout -B "${branch}" origin/main >/dev/null 2>&1
+  git checkout -B "${branch}" origin/main
   python3 - "${defaults}" "${variable}" "${current}" "${upstream}" <<'PYEOF'
 import re, sys
 path, var, cur, new = sys.argv[1:5]
@@ -71,7 +71,13 @@ PYEOF
     -m "${repo} released ${upstream}; this role pinned ${current}." \
     -m "Opened by .github/workflows/role-versions.yml. Not to be merged until the role tests pass on both package families: verifying the bump is what makes pinning safe rather than a risk moved elsewhere." \
     -m "Assisted-by: GitHubActions:role-versions"
-  git push -u origin "${branch}" >/dev/null 2>&1
+  # Not silenced. Hiding a push failure here is how the first run of this
+  # script produced a confusing "No commits between main and ..." from
+  # `gh pr create`: the push had failed and nothing said so.
+  if ! git push -u origin "${branch}"; then
+    echo >&2 "${role}: could not push ${branch}"
+    exit 1
+  fi
 
   # Built with a heredoc rather than printf: the body is markdown, its
   # backticks are code spans rather than command substitution, and a quoted
@@ -85,10 +91,27 @@ Opened automatically by \`.github/workflows/role-versions.yml\`.
 bump is the reason pinning is safe rather than a risk moved elsewhere.
 EOF
 )"
-  gh pr create --base main --head "${branch}" \
-    --title "chore(${role}): bump to ${upstream}" \
-    --body "${body}" \
-    --label dependencies
+  # Retried, because a freshly pushed ref is not always visible to the API
+  # yet. The first real run of this script failed here with "No commits
+  # between main and chore/... Head ref must be a branch" -- the push had
+  # succeeded and GitHub simply had not caught up. Retrying the same command
+  # a few seconds later worked.
+  opened=0
+  for attempt in 1 2 3 4 5; do
+    if gh pr create --base main --head "${branch}" \
+          --title "chore(${role}): bump to ${upstream}" \
+          --body "${body}" \
+          --label dependencies; then
+      opened=1
+      break
+    fi
+    warning "${role}: pull request creation attempt ${attempt} failed, retrying"
+    sleep 5
+  done
+  if [[ "${opened}" -ne 1 ]]; then
+    echo >&2 "${role}: could not open a pull request for ${branch}"
+    exit 1
+  fi
   success "${role}: opened a pull request for ${current} -> ${upstream}"
 done < "${plan}"
 

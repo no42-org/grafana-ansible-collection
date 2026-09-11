@@ -41,7 +41,7 @@ from pathlib import Path
 # Tracked roles only. The two exclusions are deliberate and are listed in
 # EXCLUDED below rather than being absent without explanation.
 TRACKED: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
-    "loki":  ("roles/loki/defaults/main.yml",  "loki_version",  "grafana/loki",  ("v",)),
+    "loki": ("roles/loki/defaults/main.yml", "loki_version", "grafana/loki", ("v",)),
     "mimir": ("roles/mimir/defaults/main.yml", "mimir_version", "grafana/mimir", ("mimir-", "v")),
     "tempo": ("roles/tempo/defaults/main.yml", "tempo_version", "grafana/tempo", ("v",)),
     "alloy": ("roles/alloy/defaults/main.yml", "alloy_version", "grafana/alloy", ("v",)),
