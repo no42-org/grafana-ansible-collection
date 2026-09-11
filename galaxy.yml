@@ -23,8 +23,8 @@ build_ignore:
   - pyproject.toml
   - uv.lock
   - .venv/*
-# Fork test infrastructure. Consumers get collection content; the harness that
-# tests it is this repository's business, like tools/.
+  # Fork test infrastructure. Consumers get collection content; the harness
+  # that tests it is this repository's business, like tools/.
   - tests/roles
   # Manifests addressed to this repository rather than to a consumer.
   #
