@@ -39,6 +39,9 @@
     # Two top-level keys the template has no named section for. multitenancy
     # is observable from outside: with it off, a query without X-Scope-OrgID is
     # answered instead of refused, which verify.yml checks.
+    # Exercise both knobs at a non-default value; verify.yml checks each.
+    mimir_config_mode: "0640"
+
     mimir_config_extra:
       multitenancy_enabled: false
       store_gateway:

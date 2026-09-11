@@ -90,6 +90,7 @@
     quiet: true
   vars:
     __mimir_named_sections:
+      - target
       - common
       - blocks_storage
       - ruler_storage
@@ -109,7 +110,7 @@
     dest: "/etc/mimir/config.yml"
     owner: "mimir"
     group: "mimir"
-    mode: "0644"
+    mode: "{{ mimir_config_mode }}"
     validate: "mimir -modules --config.file=%s"
   environment:
     PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
