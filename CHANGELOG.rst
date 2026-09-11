@@ -4,6 +4,31 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v7.2.0
+======
+
+Release Summary
+---------------
+
+Two literals in the mimir role become variables, both defaulting to what the role always did.
+mimir_target is the target line of the configuration; a consumer that never calls the alertmanager
+can run all alone, which also leaves the memberlist KV service uninitialised on a single node.
+mimir_config_mode is the mode of /etc/mimir/config.yml; a consumer that renders object-store
+credentials into it can set 0640. No existing behaviour changes. Version numbers are this fork's own
+and do not correspond to any grafana.grafana release; the upstream commit this release is built from
+is recorded in its GitHub release notes.
+
+Minor Changes
+-------------
+
+- The mimir role gains mimir_target, the target line of /etc/mimir/config.yml, defaulting to the
+  all,alertmanager,overrides-exporter the template always wrote. target joins the keys
+  mimir_config_extra refuses.
+- The mimir role gains mimir_config_mode, the mode of /etc/mimir/config.yml, defaulting to the 0644
+  the task always wrote. The file carries secret_access_key when an S3 backend is configured; 0640
+  keeps it to the mimir user and group.
+- The mimir role test sets mimir_config_mode to 0640 and asserts the mode of the rendered file.
+
 v7.1.0
 ======
 
