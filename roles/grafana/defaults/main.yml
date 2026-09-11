@@ -15,14 +15,30 @@
 grafana_version: "13.2.1"
 grafana_manage_repo: true
 
-# Retry the package installation, because fetching repository metadata is a
-# network operation against a CDN and fails transiently. The observed failure
-# is "repomd.xml GPG signature verification error: Bad GPG signature" on
-# rpm.grafana.com, which is a cache serving a repomd.xml and its detached
-# signature from different repository generations, not a wrong or expired key.
+# Retry the package installation. The failure being mitigated is
+#
+#   Failed to download metadata for repo 'grafana':
+#   repomd.xml GPG signature verification error: Bad GPG signature
+#
+# and it is a defect in rpm.grafana.com, not in the key or the version. The
+# origin serves repodata with "cache-control: private, max-age=0"; the Varnish
+# in front of it caches anyway, for 600 seconds, and caches repomd.xml and
+# repomd.xml.asc as independent objects whose refresh windows drift apart.
+# Measured on 2026-09-11: both on a 600s TTL, offset by 110s. A repository
+# republish landing inside that offset leaves one object refreshed and the
+# other still served from the previous generation, so the signature does not
+# match the metadata it signs. See grafana/grafana#110177.
+#
+# The delay therefore has to outlast the offset, which is what the first
+# attempt at this got wrong: 3 retries 10s apart span 30s and would have
+# retried three times inside the same bad window. 5 retries 30s apart span
+# 150s, which covers the measured offset with margin.
+#
+# It is a probability reduction, not a guarantee. The offset is bounded by the
+# 600s TTL, not by the 110s measured once, so a long enough drift still fails.
 # Set grafana_install_retries to 0 to install exactly once.
-grafana_install_retries: 3
-grafana_install_retry_delay: 10
+grafana_install_retries: 5
+grafana_install_retry_delay: 30
 
 grafana_yum_repo: "https://rpm.grafana.com"
 grafana_yum_key: "https://rpm.grafana.com/gpg.key"
