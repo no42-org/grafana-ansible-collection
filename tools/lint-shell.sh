@@ -6,12 +6,17 @@ source "./tools/includes/logging.sh"
 
 source "./tools/includes/lint-paths.sh"
 
+source "./tools/includes/provision.sh"
+source "./tools/includes/shellcheck.sh"
+
 # output the heading
 heading "Grafana Ansible Collection" "Performing Shell Linting using shellcheck"
 
-# check to see if shellcheck is installed
-if [[ "$(command -v shellcheck)" = "" ]]; then
-  emergency "shellcheck is required if running lint locally, see: (https://shellcheck.net) or run: brew install nvm && nvm install 18";
+# The pinned, checksum-verified shellcheck, not whatever is on PATH. An ambient
+# copy is a gate measuring a version nobody chose: this repository ran 0.11.0
+# locally and 0.9.0 in CI for months, and neither side could have noticed.
+if ! shellcheckCmd="$(shellcheckBin)"; then
+  emergency "shellcheck could not be provisioned; see the message above";
 fi
 
 # determine whether or not the script is called directly or sourced
@@ -19,7 +24,7 @@ fi
 
 statusCode=0
 while read -r file; do
-  shellcheck \
+  "${shellcheckCmd}" \
     --external-sources \
     --shell bash \
     --source-path "$(dirname "$file")" \
