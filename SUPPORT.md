@@ -34,4 +34,4 @@ Practically, that means:
 
 - **Role and module behaviour is mostly upstream's code.** A bug you find here probably exists there too. Reporting it upstream as well reaches more people, though you should not wait on it.
 - **Version numbers are this fork's own** and do not correspond to upstream releases of the same number. Each release records the upstream commit it was built from.
-- **Three roles are known broken with default settings** — `promtail`, `tempo`, and `loki` on the RHEL family — for reasons inherited from upstream. Details in [RELEASING.md](RELEASING.md). If one of those is what you needed, an issue saying so is genuinely useful: a stated need is a much better reason to fix something than a checklist.
+- **Two roles upstream ships are not here**: `grafana_agent` and `promtail`. The software behind both is unmaintained and `alloy` replaces them; details in [RELEASING.md](RELEASING.md). If one of those is what you needed, an issue saying so is genuinely useful: a stated need is a much better reason to carry something than a checklist.

@@ -21,8 +21,10 @@ All variables which can be overridden are stored in [defaults/main.yml](defaults
 | -------------- | ------------- | -----------------------------------|
 | `grafana_use_provisioning` | true | Use Grafana provisioning capability when possible (**grafana_version=latest will assume >= 5.0**). |
 | `grafana_provisioning_synced` | false | Ensure no previously provisioned dashboards are kept if not referenced anymore. |
-| `grafana_version` | latest | Grafana package version |
+| `grafana_version` | 13.2.1 | Grafana package version |
 | `grafana_manage_repo` | true | Manage package repository (or don't) |
+| `grafana_install_retries` | 5 | Retries for the package installation, which fetches repository metadata over the network. Set to 0 to install exactly once. |
+| `grafana_install_retry_delay` | 30 | Seconds between those retries. Long enough to outlast a Grafana CDN cache serving `repomd.xml` and its signature from different repository generations. |
 | `grafana_yum_repo` | https://rpm.grafana.com | Yum repository URL |
 | `grafana_yum_key` | https://rpm.grafana.com/gpg.key | Yum repository gpg key |
 | `grafana_rhsm_subscription` | | rhsm subscription name (redhat subscription-manager) |

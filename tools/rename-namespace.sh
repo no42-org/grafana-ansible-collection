@@ -101,19 +101,25 @@ readonly EXCLUDE_FILES=(
 #
 # Derivation, over collection content only (EXCLUDE_DIRS/EXCLUDE_FILES applied):
 #
-#   total                       grep -rIo "grafana\.grafana" .            = 91
+#   total                       grep -rIo "grafana\.grafana" .            = 86
 #   minus community-prefixed    grep -rIo "community\.grafana\.grafana" . =  2
 #   minus excluded changelogs   grep -Io "grafana\.grafana" \
-#                                 CHANGELOG.rst changelogs/changelog.yaml =  6
+#                                 CHANGELOG.rst changelogs/changelog.yaml = 12
 #                                                                          ----
-#   expected rewrites                                                        80
+#   expected rewrites                                                        72
 #
-# Was 83 until the README's three install commands were hardcoded to
-# indigo423.grafana. They had to be: a reader on GitHub sees the tree, not the
-# rewritten artifact, so `ansible-galaxy collection install grafana.grafana`
-# installed upstream's collection. Those three occurrences are now outside the
-# rename's scope, which is why this number dropped rather than the rewrite
-# breaking.
+# It has dropped three times, each deliberately, and RELEASING.md reconciles
+# the arithmetic of all three:
+#
+#   83 -> 80  the README's three install commands hardcoded to indigo423.grafana.
+#             They had to be: a reader on GitHub sees the tree, not the rewritten
+#             artifact, so `ansible-galaxy collection install grafana.grafana`
+#             installed upstream's collection.
+#   80 -> 75  the grafana_agent role removed.
+#   75 -> 72  the promtail role removed.
+#
+# In all three the occurrences left the rename's scope, which is why the number
+# dropped rather than the rewrite breaking.
 #
 # After merging upstream, re-derive with:
 #
@@ -123,7 +129,7 @@ readonly EXCLUDE_FILES=(
 # before updating this constant: a new "community.grafana.*" reference or a new
 # way of spelling the collection name may need MATCH_REGEX adjusted, not just
 # the count bumped.
-readonly EXPECTED_REWRITES=80
+readonly EXPECTED_REWRITES=72
 
 # Files whose "grafana.grafana" references record what upstream released rather
 # than referring to this collection. Rewriting them would attribute upstream's

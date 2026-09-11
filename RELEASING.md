@@ -80,13 +80,13 @@ The pipeline can be exercised end-to-end on a **prerelease** tag, which costs no
 
 ```bash
 # on a branch, because main is protected
-git switch -c release/6.3.0-rc1
-# galaxy.yml: version: 6.3.0-rc1
-git commit -s -m "chore(release): v6.3.0-rc1"
+git switch -c release/7.0.0-rc1
+# galaxy.yml: version: 7.0.0-rc1
+git commit -s -m "chore(release): v7.0.0-rc1"
 gh pr create --fill        # merge once the gate is green
 git switch main && git pull
-git tag -s v6.3.0-rc1 -m "release 6.3.0-rc1 (pipeline rehearsal)"
-git push origin v6.3.0-rc1
+git tag -s v7.0.0-rc1 -m "release 7.0.0-rc1 (pipeline rehearsal)"
+git push origin v7.0.0-rc1
 ```
 
 A SemVer prerelease carries a hyphen after the patch number. `verify-version` derives a `prerelease` output from that, and the release job passes both `prerelease` and `make_latest` to `action-gh-release`, so the RC does not take over **Latest release** on the repository page.
@@ -98,7 +98,7 @@ ansible-galaxy collection install indigo423.grafana -p /tmp/x   # -> 6.2.0
 ansible-galaxy collection install indigo423.grafana:6.2.1-rc1 -p /tmp/y
 ```
 
-The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v6.3.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
+The rehearsal at `v6.2.1-rc1` is what found the missing `prerelease` input: without it a `v7.0.0-rc1` tag would have created a normal release and moved **Latest release** to a release candidate — the first thing a reader uses to decide what to install. That defect could not have surfaced on a plain version, which is the argument for rehearsing on a throwaway tag rather than letting the next real release be the test.
 
 What it confirmed, in order:
 
@@ -263,7 +263,35 @@ Recorded so the reasoning is not repeated:
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
 | `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
-| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **6.3.0 candidates** — see Deferred. |
+| `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **7.0.0 candidates** — see Deferred. |
+
+### Roles removed from the fork
+
+Two roles upstream still ships are **not** in this collection. Removing a role is a breaking change for anyone calling it, so each is recorded with what to use instead.
+
+| Role | Removed in | Why | Replacement |
+| --- | --- | --- | --- |
+| `grafana_agent` | 7.0.0 | Grafana archived the Agent. It was superseded by Alloy, and the role shipped no test, so a version bump could never be verified. | `alloy` |
+| `promtail` | 7.0.0 | [End of life on 2026-03-02](https://grafana.com/docs/loki/latest/send-data/promtail/). Grafana published no packages after Loki 3.6.0, so nothing upstream will ever be newer. | `alloy` |
+
+Both were working and, in promtail's case, tested when they were removed. That is the point worth recording: neither was dropped because it was broken. They were dropped because the software behind them is no longer maintained, and carrying a role for dead software costs merge surface on every upstream merge while quietly inviting someone to deploy it.
+
+This is the fork diverging on purpose. An upstream merge will reintroduce both directories, and the removal has to be reapplied in eleven places.
+The first seven are code and configuration. The last four are prose, and the prose is the half that gets forgotten, because an upstream merge restores upstream's own wording.
+
+1. `git rm` the role directory.
+2. Its `tests/roles/<role>/` scenario.
+3. Its files under `examples/`.
+4. Its `CODEOWNERS` line.
+5. Its option in `.github/ISSUE_TEMPLATE/bug_report.yml`.
+6. Its entry in `role-test.yml`'s matrix and in `release.yml`'s role-resolution list.
+7. Its row in `tools/check-role-versions.py`.
+8. `README.md`: the role list, the opening sentence naming each product, the pin badge, and the tracker-exclusion table.
+9. `catalog-info.yaml`, whose description repeats that same sentence.
+10. `SUPPORT.md`, which says which roles are not here.
+11. `AGENTS.md`, which carries the removal as a trap.
+
+Miss the prose and the collection ships a README advertising roles it does not contain. The rewrite count moves with all of it; see **When the rewrite count changes**.
 
 ## Releases are cut from `main`
 
@@ -308,15 +336,15 @@ That is acceptable here for two reasons. The gate's value in a solo project is c
 The release procedure's `chore(release): vX.Y.Z` commit is a change to `galaxy.yml` and the changelog, so it goes through a pull request like anything else, and the tag is pushed at the merged commit.
 
 ```bash
-git switch -c release/6.3.0
+git switch -c release/7.0.0
 # bump galaxy.yml, changelogs/
-git commit -s -m "chore(release): v6.3.0"
-git push -u origin release/6.3.0
+git commit -s -m "chore(release): v7.0.0"
+git push -u origin release/7.0.0
 gh pr create --fill
 # merge once the gate is green, then
 git switch main && git pull
-git tag -s v6.3.0 -m "release 6.3.0"
-git push origin v6.3.0
+git tag -s v7.0.0 -m "release 7.0.0"
+git push origin v7.0.0
 ```
 
 Direct pushes to `main` still work, because of the bypass. That is the case the bypass exists for — a version bump where a pull request would be pure ceremony — but it should be a decision each time, not the default.
@@ -332,8 +360,6 @@ Every role installs a pinned version. None resolves `latest` at runtime.
   tempo                    3.0.3
   alloy                    1.19.2
   opentelemetry_collector  0.160.0
-  grafana_agent            0.44.3     pinned, not tracked
-  promtail                 3.6.0      pinned, not tracked; EOL
 ```
 
 A floating label makes a role's behaviour change when nobody changed this repository, and makes a passing role test undurable — it proved whichever release was current that day, and nothing recorded which. All three inherited role defects this fork fixed were upstream moving under a role that assumed it would not.
@@ -357,12 +383,10 @@ Dependabot's ecosystems are a fixed list — `pip`, `npm`, `github-actions`, `uv
 
 Renovate's `customManagers` can do exactly this. It is not used because the maintainer checklist requires exactly one dependency bot and this repository has just finished getting Dependabot right, including the `uv` ecosystem. Trading a working bot for one needing actions, npm and uv migrated to it is a larger change than the problem warrants.
 
-### The three exclusions
+### The one exclusion
 
 | Role | Why |
 | --- | --- |
-| `promtail` | End of life 2026-03-02; nothing upstream will ever be newer. |
-| `grafana_agent` | Ships no role test, so a bump could not be verified. Upstream superseded it with Alloy. |
 | `grafana` | Installs from a package repository. Its version becomes `grafana-<v>` on RHEL and `grafana=<v>` on Debian, which repositories serve on their own schedule and retention, so a version that exists as a release may not exist as a package. Bumped by hand, and `make role-test ROLE=grafana` on both families is what proves a pin is installable. |
 
 ## Role tests
@@ -412,21 +436,15 @@ and start sidecars from `tests/roles/<role>/sidecars.sh`. `mimir` uses both: thr
 | `mimir` | ✅ | ✅ | carries `#461`; three nodes plus MinIO |
 | `alloy` | ✅ | ✅ | |
 | `loki` | ✅ | ✅ | |
-| `promtail` | ✅ | ✅ | EOL upstream; pinned to 3.6.0 |
 | `tempo` | ✅ | ✅ | |
-| `grafana_agent` | — | — | superseded upstream by `alloy`; never had a scenario |
 
 All three of the roles that could not install their software with default settings are now fixed. All three were inherited, all three were the same shape — a role building URLs or config from templates that upstream has since outgrown — and none had ever been executed, which is why none was noticed:
 
 - **`loki` on RHEL — fixed.** The role built `loki-<version>.<arch>.rpm`, but Grafana added an RPM release number from **3.7.5** on, so the default `latest` 404s against any current release. `loki_download_url_rpm` now applies the `-1` suffix by version, because pinning an older `loki_version` still needs the old name. The `.deb` assets never changed, which is why only RHEL broke. `loki`/`rhel` is back in the role-test matrix and passes.
-- **`promtail` — fixed, and end of life upstream.** Grafana declared promtail EOL on 2026-03-02 and stopped publishing packages after Loki 3.6.0: v3.6.0 carries 14 promtail assets, v3.7.0 carries none, so the old default of `latest` 404d everywhere. `promtail_version` is pinned to **3.6.0** — the last release with packages, and the last there will ever be — and the role warns at runtime that promtail is EOL and points at the `alloy` role.
-
-  Two guards were added because the role previously failed unhelpfully. It now fails with an explanation if `promtail_version` is 3.7.0 or newer, rather than with a bare 404; and it asserts `promtail_clients` is set, which its own README calls mandatory. An empty list produced a config promtail rejects at startup (`at least one client config must be provided`) while the role still reported `Ensure that Promtail is started: ok`, leaving a unit crash-looping on a five-second timer.
-
-  `promtail` is in the role-test matrix on both families. Its test sets `promtail_clients`, and that is not the same as overriding a broken default: it is a mandatory user input with no sensible universal value, so the test does what any user must do.
+- **`promtail` was fixed, then removed.** Grafana declared promtail end of life on 2026-03-02 and stopped publishing packages after Loki 3.6.0: v3.6.0 carries 14 promtail assets, v3.7.0 carries none, so the old default of `latest` 404d everywhere. The role was pinned to 3.6.0, given two guards and a role test on both families, and passed. It was then removed from the collection, because a role whose software will never be released again is not a role worth carrying. Use `alloy`.
 - **`tempo` — fixed.** Two of the role's defaults referred to things Tempo 3.0 removed. `tempo_metrics_generator` set `traces_storage`, and `tempo_overrides` listed `local-blocks` among the generator's processors; Tempo 3.0 deleted that processor and all its local block plumbing (grafana/tempo#6555), and `traces_storage` was its storage config. Tempo rejected the key outright and refused to start. Both are gone, `tempo` is in the role-test matrix on both families, and the verify step asks Tempo's own `/ready` endpoint rather than trusting systemd — a crash-looping unit can be caught mid-restart in the `running` state.
 
-All three now ship a test, and none of those tests overrides a default that was broken. That distinction is the whole point: a test that passes only by overriding the broken default would have hidden the defect rather than caught it.
+`loki` and `tempo` both ship a test, and neither test overrides a default that was broken. That distinction is the whole point: a test that passes only by overriding the broken default would have hidden the defect rather than caught it. `promtail`'s test went with the role.
 
 ### The dormant Molecule scenarios
 
@@ -454,16 +472,16 @@ Re-derive the number:
 ```
 
 ```text
-total occurrences      : 94
+total occurrences      : 86
 community.grafana.*    : 2  (must remain untouched)
 in excluded changelogs : 12  (not rewritten)
-expected rewrites      : 80
+expected rewrites      : 72
 ```
 
 Read the diff before updating `EXPECTED_REWRITES` in `tools/rename-namespace.sh`.
 The count moving is the symptom; the cause may need the rewrite rule changed rather than the number bumped.
 
-### It has moved deliberately once, and the reasoning is the template
+### It has moved deliberately three times, and the reasoning is the template
 
 83 → 80, when the README's three install commands were hardcoded to `indigo423.grafana`.
 
@@ -477,6 +495,22 @@ The arithmetic reconciled before the number was touched, which is the part worth
 +2  new changelog entries mentioning grafana.grafana (excluded from the rename)
 94  total, minus 2 community.* and 12 in changelogs = 80
 ```
+
+80 → 75, when the `grafana_agent` role was removed, and 75 → 72 when `promtail` was.
+
+Every one of those eight left with the file that held it, and the distribution is the instructive part:
+
+```text
+grafana_agent   1  examples/agent-mode-flow-with-dynamic-conf.yaml
+                4  examples/monitor-multiple-instances-agent.md
+                0  roles/grafana_agent/          21 files, none naming the collection
+promtail        1  examples/promtail-multiple-logs.yml
+                1  roles/promtail/README.md
+                1  roles/promtail/molecule/default/converge.yml
+```
+
+Role task files do not name the collection; the documentation and examples around them do.
+So deleting 46 files moved the count by eight, and a removal that touches only `tasks/` will not move it at all.
 
 Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
 
@@ -620,6 +654,6 @@ make install             # provisions both toolchains
 
 ## Deferred
 
-- **6.3.0 candidates:** the three feature pull requests deferred from 6.2.0 — `#529` (OpenTelemetry Collector extra args), `#462` (Mimir target), `#463` (Mimir multitenancy). None was test-applied, and `#462`/`#463` touch the same Mimir files, so they need sequencing like `#534`/`#538` did.
+- **7.0.0 candidates:** the three feature pull requests deferred from 6.2.0 — `#529` (OpenTelemetry Collector extra args), `#462` (Mimir target), `#463` (Mimir multitenancy). None was test-applied, and `#462`/`#463` touch the same Mimir files, so they need sequencing like `#534`/`#538` did.
 - Cosign signatures on the GitHub release tarball.
   Galaxy does not consume them, so they would cover the GitHub artifact only.

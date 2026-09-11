@@ -14,7 +14,7 @@
 [![GitHub Last Commit](https://img.shields.io/github/last-commit/no42-org/grafana-ansible-collection)](https://github.com/no42-org/grafana-ansible-collection/commits/main)
 [![License](https://img.shields.io/github/license/no42-org/grafana-ansible-collection)](LICENSE)
 
-This collection (`grafana.grafana`) contains modules and roles to assist in automating the management of resources in **Grafana**, **Grafana Agent**, **OpenTelemetry Collector**, **Loki**, **Mimir**, **Alloy**, and **Promtail** with Ansible.
+This collection (`grafana.grafana`) contains modules and roles to assist in automating the management of resources in **Grafana**, **OpenTelemetry Collector**, **Loki**, **Mimir**, and **Alloy** with Ansible.
 
 -   [Ansible collection Documentation](https://docs.ansible.com/ansible/latest/collections/grafana/grafana/)
 -   [Grafana](https://grafana.com)
@@ -35,17 +35,6 @@ Every role installs a **pinned** version. None resolves `latest` at run time, so
 [![tempo](https://img.shields.io/badge/tempo-3.0.3-informational)](https://github.com/grafana/tempo/releases)
 [![alloy](https://img.shields.io/badge/alloy-1.19.2-informational)](https://github.com/grafana/alloy/releases)
 [![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.160.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
-[![promtail](https://img.shields.io/badge/promtail-3.6.0%20%C2%B7%20end%20of%20life-critical)](https://github.com/no42-org/grafana-ansible-collection/issues/4)
-[![grafana_agent](https://img.shields.io/badge/grafana__agent-0.44.3%20%C2%B7%20superseded-yellow)](https://github.com/grafana/agent)
-
-Upstream's newest release, for comparison. Where these differ from the pins above, an update is pending:
-
-[![grafana upstream](https://img.shields.io/github/v/release/grafana/grafana?label=grafana%20upstream&color=lightgrey)](https://github.com/grafana/grafana/releases)
-[![loki upstream](https://img.shields.io/github/v/release/grafana/loki?label=loki%20upstream&color=lightgrey)](https://github.com/grafana/loki/releases)
-[![mimir upstream](https://img.shields.io/github/v/release/grafana/mimir?label=mimir%20upstream&color=lightgrey)](https://github.com/grafana/mimir/releases)
-[![tempo upstream](https://img.shields.io/github/v/release/grafana/tempo?label=tempo%20upstream&color=lightgrey)](https://github.com/grafana/tempo/releases)
-[![alloy upstream](https://img.shields.io/github/v/release/grafana/alloy?label=alloy%20upstream&color=lightgrey)](https://github.com/grafana/alloy/releases)
-[![otel upstream](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-collector-releases?label=otel%20upstream&color=lightgrey)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 
 ### How the pins stay current
 
@@ -53,15 +42,13 @@ A weekly workflow compares each pin against the upstream project's latest releas
 
 That verification is the point, not a formality. A pin nobody moves is how `opentelemetry_collector` came to sit on a December 2023 release for nearly three years, and an unverified bump is how the `tempo` role came to ship a configuration Tempo rejects. Pinning without both would move the risk rather than remove it.
 
-Three roles are excluded from tracking, each for a reason that will not change on its own:
+One role is excluded from tracking, for a reason that will not change on its own:
 
 | Role | Why it is not tracked |
 | --- | --- |
-| `promtail` | End of life on 2026-03-02. Nothing upstream will ever be newer. Use `alloy`. |
-| `grafana_agent` | Ships no test, so a bump could not be verified. Upstream superseded it with Alloy. |
 | `grafana` | Installs from a package repository, so its version is a package version rather than a release tag. Maintained by hand. |
 
-Any of these can be overridden — set `<role>_version` to install a different version, including `latest` if you would rather track it yourself.
+Any pin can be overridden — set `<role>_version` to install a different version, including `latest` if you would rather track it yourself.
 
 ## Installing the collection
 
@@ -90,15 +77,13 @@ collections:
 
 ## Roles included in the collection
 
-This collection includes the following roles to help set up and manage Grafana, Grafana Agent, Alloy, OpenTelemetry Collector, Loki, Mimir and Promtail:
+This collection includes the following roles to help set up and manage Grafana, Alloy, OpenTelemetry Collector, Loki and Mimir:
 
 - **Grafana**: Installs and configures Grafana on your target hosts.
-- **Grafana Agent**: Deploys and configures Grafana Agent, allowing for efficient metrics, logs, and trace data shipping to Grafana Cloud or other endpoints.
 - **Alloy**: The replacement for Grafana Agent and Promtail. Alloy can be used to collect traces, metrics, and logs.
 - **OpenTelemetry Collector**: Sets up and configures the OpenTelemetry Collector, enabling advanced observability features through data collection and transmission.
 - **Loki**: Deploy and manage Loki, the log aggregation system.
 - **Mimir**: Deploy and manage Mimir, the scalable long-term storage for Prometheus.
-- **Promtail**: Deploy and manage Promtail, the agent which ships the contents of local logs to a private Grafana Loki.
 
 ## Using this collection
 

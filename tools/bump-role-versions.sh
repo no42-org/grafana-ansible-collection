@@ -35,8 +35,17 @@ if [[ "${count}" -eq 0 ]]; then
   exit 0
 fi
 
-git config user.name "github-actions[bot]"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+# The bot identity for the commits below, as environment variables rather than
+# `git config`. `git config` writes .git/config, which in CI is a throwaway
+# checkout but locally is the maintainer's own clone -- and epic 3 of this
+# change required running this script locally to prove it opens a real pull
+# request. It did, and it also left every subsequent commit in that clone
+# signed off by github-actions[bot]. These variables last exactly as long as
+# this process.
+export GIT_AUTHOR_NAME="github-actions[bot]"
+export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+export GIT_COMMITTER_NAME="${GIT_AUTHOR_NAME}"
+export GIT_COMMITTER_EMAIL="${GIT_AUTHOR_EMAIL}"
 
 plan="$(mktemp)"
 python3 -c '
@@ -66,11 +75,14 @@ open(path, "w").write(bumped)
 PYEOF
 
   git add "${defaults}"
-  git commit -s \
+  # -s would take the trailer from user.name/user.email, which is deliberately
+  # not set here, so the sign-off is spelled out instead.
+  git commit \
     -m "chore(${role}): bump to ${upstream}" \
     -m "${repo} released ${upstream}; this role pinned ${current}." \
     -m "Opened by .github/workflows/role-versions.yml. Not to be merged until the role tests pass on both package families: verifying the bump is what makes pinning safe rather than a risk moved elsewhere." \
-    -m "Assisted-by: GitHubActions:role-versions"
+    -m "Assisted-by: GitHubActions:role-versions
+Signed-off-by: ${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>"
   # Not silenced. Hiding a push failure here is how the first run of this
   # script produced a confusing "No commits between main and ..." from
   # `gh pr create`: the push had failed and nothing said so.
