@@ -36,5 +36,14 @@
           | map('extract', hostvars, 'role_test_node_name')
           | map('regex_replace', '$', ':7946')
           | list }}
+    # Two top-level keys the template has no named section for. multitenancy
+    # is observable from outside: with it off, a query without X-Scope-OrgID is
+    # answered instead of refused, which verify.yml checks.
+    mimir_config_extra:
+      multitenancy_enabled: false
+      store_gateway:
+        sharding_ring:
+          heartbeat_period: 5s
+
   roles:
     - mimir

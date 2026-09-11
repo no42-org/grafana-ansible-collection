@@ -16,6 +16,19 @@ mimir_ruler_alert_path: "{{ mimir_working_path }}/ruler"
 mimir_http_listen_port: 8080
 mimir_http_listen_address: "0.0.0.0"
 
+# Top-level keys for /etc/mimir/config.yml that the template has no named
+# section for (multitenancy_enabled, store_gateway, compactor, frontend, ...).
+# Rendered verbatim after the named sections. A key that also has a named
+# section (server, limits, ingester, ...) is refused: YAML parsers accept a
+# duplicated top-level key and Mimir would read whichever survived parsing.
+mimir_config_extra: {}
+
+# How long the role waits for /ready after starting the service. The defaults
+# are what the role always did; a clustered node that has to join memberlist
+# before its ingester reports ready may need more.
+mimir_ready_retries: 5
+mimir_ready_delay: 8
+
 arch_mapping:
   x86_64: amd64
   aarch64: arm64

@@ -65,3 +65,7 @@ ingester:
 querier:
   {{ mimir_querier | to_nice_yaml(indent=2, sort_keys=False) | indent(2, False)}}
 {% endif %}
+
+{% if mimir_config_extra is defined and mimir_config_extra | length > 0 %}
+{{ mimir_config_extra | to_nice_yaml(indent=2, sort_keys=False) }}
+{%- endif %}
