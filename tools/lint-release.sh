@@ -28,34 +28,71 @@ set -euo pipefail
 source "$(pwd)/tools/includes/utils.sh"
 source "$(pwd)/tools/includes/logging.sh"
 
+source "./tools/includes/provision.sh"
+source "./tools/includes/shellcheck.sh"
+source "./tools/includes/actionlint.sh"
+
 heading "Grafana Ansible Collection" "Linting the release machinery"
-
-# make sure shellcheck exists
-if [[ "$(command -v shellcheck)" = "" ]]; then
-  echo >&2 "shellcheck command is required, see (https://www.shellcheck.net/) or run: brew install shellcheck";
-  exit 1;
-fi
-
-# yamllint on PATH if the environment provides one, otherwise the pinned copy
-# in the project's uv environment. Preferring PATH keeps this script usable
-# before `make install` has run, which matters because it is the one lint gate
-# that needs no toolchain provisioning.
-yamllintCmd=()
-if [[ "$(command -v yamllint)" != "" ]]; then
-  yamllintCmd=(yamllint)
-elif uv run --frozen --group lint yamllint --version >/dev/null 2>&1; then
-  yamllintCmd=(uv run --frozen --group lint yamllint)
-else
-  echo >&2 "TOOLCHAIN NOT INSTALLED: yamllint is required, see (https://pypi.org/project/yamllint/). Run \"make install\".";
-  exit 1;
-fi
 
 statusCode=0
 
-echo "  ‣ shellcheck tools/*.sh"
-if ! shellcheck -x tools/*.sh; then
-  lintError "shellcheck reported issues in tools/"
+# Checks that could not run, and why.
+#
+# A counter and a string rather than an array: this is bash 3.2 under
+# `set -u`, where expanding an empty array is itself an error.
+skippedCount=0
+skippedList=""
+
+# skipCheck
+# -----------------------------------
+# Record a check that could not run, and fail the run.
+#
+# A tool this script cannot obtain used to `exit 1` on the spot, which met the
+# lint-gates requirement that a gate fail when its linter cannot run, and broke
+# a second thing nobody had written down: it abandoned every check after it. A
+# missing zizmor stopped the run at check six of twelve, and the output named
+# only zizmor. Five checks did not run and nothing said so, which in the output
+# is indistinguishable from five checks that passed.
+# -----------------------------------
+skipCheck() {
+  skippedCount=$((skippedCount + 1))
+  skippedList="${skippedList}    - ${1}"$'\n'
   statusCode=1
+}
+
+# The pinned, checksum-verified shellcheck, not whatever is on PATH.
+haveShellcheck=0
+shellcheckCmd=""
+if shellcheckCmd="$(shellcheckBin)"; then
+  haveShellcheck=1
+else
+  skipCheck "shellcheck tools/*.sh: shellcheck could not be provisioned"
+fi
+
+# yamllint from the project's uv environment, and only from there.
+#
+# This used to prefer a copy on PATH, reasoning that it kept the script usable
+# before `make install` had run, because this was the one gate needing no
+# provisioning. That stopped being true when shellcheck and actionlint became
+# provisioned, and the preference was never free: it is exactly how yamllint
+# came to be pinned to 1.35.1 in pyproject.toml and 1.38.0 in gate.yml. One
+# tool, two call paths, two pins, and a green local run that said nothing about
+# CI. There is one call path now.
+yamllintCmd=(uv run --frozen --group lint yamllint)
+haveYamllint=0
+if "${yamllintCmd[@]}" --version >/dev/null 2>&1; then
+  haveYamllint=1
+else
+  skipCheck "yamllint .github/workflows/: not available, run \"make install\""
+  skipCheck "yamllint --strict .github/workflows/release.yml: not available, run \"make install\""
+fi
+
+if [[ "${haveShellcheck}" == "1" ]]; then
+  echo "  ‣ shellcheck tools/*.sh"
+  if ! "${shellcheckCmd}" -x tools/*.sh; then
+    lintError "shellcheck reported issues in tools/"
+    statusCode=1
+  fi
 fi
 
 # Not --strict here, unlike release.yml below. Three inherited workflows carry
@@ -88,16 +125,18 @@ for lintScript in tools/lint-*.sh; do
   fi
 done
 
-echo "  ‣ yamllint .github/workflows/"
-if ! "${yamllintCmd[@]}" --config-file "$(pwd)/.yamllint" .github/workflows/; then
-  lintError "yamllint reported errors in .github/workflows/"
-  statusCode=1
-fi
+if [[ "${haveYamllint}" == "1" ]]; then
+  echo "  ‣ yamllint .github/workflows/"
+  if ! "${yamllintCmd[@]}" --config-file "$(pwd)/.yamllint" .github/workflows/; then
+    lintError "yamllint reported errors in .github/workflows/"
+    statusCode=1
+  fi
 
-echo "  ‣ yamllint --strict .github/workflows/release.yml"
-if ! "${yamllintCmd[@]}" --strict --config-file "$(pwd)/.yamllint" .github/workflows/release.yml; then
-  lintError "yamllint reported issues in .github/workflows/release.yml"
-  statusCode=1
+  echo "  ‣ yamllint --strict .github/workflows/release.yml"
+  if ! "${yamllintCmd[@]}" --strict --config-file "$(pwd)/.yamllint" .github/workflows/release.yml; then
+    lintError "yamllint reported issues in .github/workflows/release.yml"
+    statusCode=1
+  fi
 fi
 
 # actionlint catches what yamllint cannot: bad expressions, unknown contexts,
@@ -106,14 +145,25 @@ fi
 #
 # Required, not optional. It used to run only if it happened to be installed,
 # which the actions-hygiene proposal correctly called "not enforcement".
-if [[ "$(command -v actionlint)" = "" ]]; then
-  echo >&2 "actionlint command is required, see (https://github.com/rhysd/actionlint) or run: brew install actionlint";
-  exit 1;
-fi
-echo "  ‣ actionlint .github/workflows/"
-if ! actionlint; then
-  lintError "actionlint reported issues in .github/workflows/"
-  statusCode=1
+if actionlintCmd="$(actionlintBin)"; then
+  echo "  ‣ actionlint .github/workflows/"
+  # -shellcheck is given the provisioned binary explicitly. actionlint shells
+  # out to shellcheck for `run:` blocks and would otherwise find an ambient
+  # one, reintroducing through a back door exactly the drift this provisioning
+  # removes. If shellcheck itself could not be provisioned, actionlint still
+  # runs: a partial check is worth more than none, and the skip is recorded.
+  actionlintArgs=()
+  if [[ "${haveShellcheck}" == "1" ]]; then
+    actionlintArgs=(-shellcheck "${shellcheckCmd}")
+  else
+    skipCheck "actionlint's shellcheck integration: shellcheck could not be provisioned"
+  fi
+  if ! "${actionlintCmd}" ${actionlintArgs[@]+"${actionlintArgs[@]}"}; then
+    lintError "actionlint reported issues in .github/workflows/"
+    statusCode=1
+  fi
+else
+  skipCheck "actionlint .github/workflows/: actionlint could not be provisioned"
 fi
 
 # The two pin checks, mechanically. Every third-party `uses:` must be a
@@ -132,14 +182,15 @@ fi
 # attacker-controllable -- and a suggestion to replace the release action with
 # `gh release`. Failing the gate on those would make it noise. Anything at low
 # or above fails.
-if [[ "$(command -v zizmor)" = "" ]]; then
-  echo >&2 "zizmor command is required, see (https://docs.zizmor.sh/) or run: pip install zizmor";
-  exit 1;
-fi
-echo "  ‣ zizmor .github/workflows/"
-if ! zizmor --no-progress --min-severity low .github/workflows/; then
-  lintError "zizmor reported issues in .github/workflows/"
-  statusCode=1
+zizmorCmd=(uv run --frozen --group lint zizmor)
+if "${zizmorCmd[@]}" --version >/dev/null 2>&1; then
+  echo "  ‣ zizmor .github/workflows/"
+  if ! "${zizmorCmd[@]}" --no-progress --min-severity low .github/workflows/; then
+    lintError "zizmor reported issues in .github/workflows/"
+    statusCode=1
+  fi
+else
+  skipCheck "zizmor .github/workflows/: not available, run \"make install\""
 fi
 
 echo "  ‣ every action pinned to a SHA with a full-semver comment"
@@ -202,8 +253,19 @@ print('    namespace=%s name=%s version=%s' % (meta['namespace'], meta['name'], 
   statusCode=1
 fi
 
+# A skipped check is a third state, and it has to be visible. Reporting only
+# pass and fail is what made the old behaviour indistinguishable from success.
+if [[ "${skippedCount}" -gt 0 ]]; then
+  echo ""
+  echo "  ${skippedCount} check(s) did not run:"
+  printf '%s' "${skippedList}"
+  echo ""
+  echo "  A skipped check is not a passing check. This run cannot say whether"
+  echo "  what it skipped would have passed."
+fi
+
 if [[ "${statusCode}" == "0" ]]; then
-  success "no issues found"
+  success "no issues found, and every check ran"
 fi
 
 exit "${statusCode}"

@@ -561,11 +561,41 @@ The findings are fixed. On a clean checkout the enabled linters report zero erro
 
 | Target | Covers | Needs |
 | --- | --- | --- |
-| `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `shellcheck`, `yamllint`, `actionlint`, `zizmor` |
-| `make ci-lint-{shell,yaml,editorconfig,ansible,markdown,text}` | the collection itself | `make install` — `uv` **and** `node_modules` |
+| `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `uv` |
+| `make ci-lint-{shell,yaml,editorconfig,ansible,markdown,text}` | the collection itself | `uv` **and** `node` |
 | `make ci-lint` | all six of the above | as above |
 
-Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no provisioned toolchain, so it runs in seconds locally and catches the release machinery, while the collection lint set needs `uv` and `node_modules`.
+Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no `node_modules`, so it runs in seconds and catches the release machinery, while the collection lint set needs the Node linters too.
+
+Neither needs a linter installed by hand. Both obtain every tool themselves.
+
+### How the tools are provisioned
+
+Two mechanisms, chosen by what the tool is. There is deliberately no third.
+
+| Tool | Mechanism | Version lives in |
+| --- | --- | --- |
+| `ansible-lint`, `yamllint`, `zizmor` | `uv run --frozen --group lint` | `pyproject.toml`, hashes in `uv.lock` |
+| `markdownlint-cli2`, `textlint` | `node_modules/.bin` | `package.json`, hashes in `yarn.lock` |
+| `shellcheck`, `actionlint`, `editorconfig-checker` | `tools/includes/<tool>.sh`, downloaded to `tools/bin/` | that script, with its checksum |
+
+**A tool's version is declared once, and no workflow names it.** That is the rule, and it exists because it was broken. `yamllint` was pinned to `1.35.1` in `pyproject.toml` and `1.38.0` in `gate.yml`, and neither pin was wrong for its own call site: `lint-yaml.sh` resolved yamllint through `uv` while `lint-release.sh` called a bare binary that CI installed separately. One tool, two call paths, two correct-looking pins, and a green local run that said nothing about CI. `shellcheck` had drifted the same way, 0.11.0 locally against 0.9.0 in CI.
+
+**`tools/includes/provision.sh` holds mechanism, never policy.** A shared version table would be tidier and is exactly how the two `yamllint` pins drifted apart, so each tool's version stays in the file that knows how to fetch it.
+
+**Every download is checksum-verified**, and `provisionBinary` refuses to run without an expected hash, so a tool cannot be added that quietly skips the check. The three hashes do not have equal provenance and the difference is recorded rather than smoothed over:
+
+| Tool | Checksum source |
+| --- | --- |
+| `actionlint` | upstream's `actionlint_<version>_checksums.txt` |
+| `editorconfig-checker` | upstream's `checksums.txt` |
+| `shellcheck` | **computed here** — upstream publishes none |
+
+Trust-on-first-use is weaker: a computed hash cannot detect an asset that was already wrong when first fetched. It still detects any later change to a release asset that is immutable by convention, which is the realistic risk. This is not the deferred supply-chain work, which is about signing what this repository *publishes*. Verifying a tool you download and execute is a different problem from attesting an artifact you ship.
+
+**Bumping a pin is manual.** Dependabot covers `uv.lock` and `yarn.lock` but not the three downloaded binaries, so those move by hand, like the role version pins. Change the version and its checksum together: a bump that updates one without the other fails loudly at download time, which is intended. Never refresh a hash to make a download pass without establishing why it moved.
+
+**Pin choice is measured, not preferred.** When `shellcheck`'s two pins were reconciled, both versions were run over the same tree first: 0 findings each. The deciding fact was elsewhere — **0.9.0 publishes no `darwin.aarch64` asset**, so adopting CI's pin would have made `make ci-lint-shell` unrunnable on Apple Silicon, which is the `editorconfig-checker@5.0.1` defect again.
 
 **Markdown and text linting are enabled**, for the first time. Both were commented out in the workflow `gate.yml` replaced, so until now the prose this fork authors had never been linted — which is most of what it owns.
 
@@ -584,7 +614,9 @@ Two rules are turned off, both on the rule's merits rather than its count:
 
 ### Two linter traps
 
-**`editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one.** `tools/lint-editorconfig.sh` therefore propagated a zero meaning "the tool did not run". Use the standalone Go binary to measure locally.
+**`editorconfig-checker@5.0.1` ships no `darwin-arm64` binary and exits 0 when it cannot find one.** `tools/lint-editorconfig.sh` therefore propagated a zero meaning "the tool did not run". It is a pinned, checksum-verified standalone binary now, provisioned by `tools/includes/editorconfig-checker.sh`.
+
+**A comment beginning `# shellcheck` is a shellcheck directive.** `tools/includes/shellcheck.sh` documents a function called `shellcheckBin`, and the obvious banner comment made shellcheck fail that file with `SC1073` before reading a line of it. The banner reads `# Provides: shellcheckBin` for that reason.
 
 **`ansible-lint` installs the dependency collections itself, into the tree.** Locally that is `.ansible/collections/`; in CI, because `ansible.cfg` sets `collections_paths = ./`, it is `ansible_collections/` in the repository root. Both are now ignored. Before that, the first honest CI run failed on **4851 findings, every one of them in `ansible.posix` or `community.general`** and none in this repository. `.ansible/` also took `make dist`'s rename count from 83 to 174, before the count was deliberately lowered to 80.
 
@@ -594,6 +626,12 @@ Neither is skipped for producing too many findings, which is not an acceptable r
 
 - **`var-naming[no-role-prefix]`**, 22 findings, 20 in `roles/opentelemetry_collector/defaults/main.yml`. The rule wants `otel_collector_receivers` renamed to `opentelemetry_collector_receivers`. Those are the role's **public interface**: renaming breaks every playbook that sets them. That is a major version bump with a deprecation path, not a lint fix.
 - **`roles/*/molecule/`**, 2 findings. Byte-identical to upstream by rule — see [The dormant Molecule scenarios](#the-dormant-molecule-scenarios). Editing it to satisfy a linter would break a stated invariant for two cosmetic findings.
+
+### A skipped check is a third state
+
+`make ci-lint-release` used to `exit 1` at the first tool it could not obtain. That satisfied the rule that a gate must fail when its linter cannot run, and broke a second thing nobody had written down: it abandoned every check after it. Measured with `zizmor` absent, **5 of 10 checks ran and the output named only the missing tool**. Five checks did not run and nothing said so, which in the output is indistinguishable from five that passed.
+
+A missing tool now records a skip, fails the run, and lets the rest execute. The run ends by naming every check that did not run, and a clean run says "every check ran" rather than only "no issues", so pass, fail and did-not-run are distinguishable in the output and not only in the exit code. Forcing `actionlint`'s provisioning to fail now gives 11 of 12 checks run, one named skip, exit 1.
 
 `tools/lint-release.sh` also asserts that every `tools/lint-*.sh` exits with its captured status, and names the offender if not. Explicit rather than delegated to `shellcheck`, which has no check for this: the pattern is valid bash doing exactly what it says, and the defect is that what it says is not what the caller needs.
 
