@@ -4,6 +4,36 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v7.1.0
+======
+
+Release Summary
+---------------
+
+The mimir role can now render any top-level key of /etc/mimir/config.yml, not only the twelve its
+template names. mimir_config_extra takes a dict of top-level keys -- multitenancy_enabled,
+store_gateway, compactor, frontend and the rest of Mimir's sections -- and renders it after the
+named sections; a key that also has a named section is refused before the template runs. The /ready
+wait is configurable through mimir_ready_retries and mimir_ready_delay, defaulting to the 5 and 8
+that were literal. No existing behaviour changes. Version numbers are this fork's own and do not
+correspond to any grafana.grafana release; the upstream commit this release is built from is
+recorded in its GitHub release notes.
+
+Minor Changes
+-------------
+
+- The mimir role gains mimir_config_extra, a dict of top-level keys for /etc/mimir/config.yml that
+  have no mimir_<section> variable of their own. It is rendered after the named sections. A key
+  present both there and as a named section fails the run naming the key and the variable to use
+  instead, because YAML parsers accept a duplicated top-level key and Mimir would read whichever
+  survived parsing.
+- The mimir role's wait for /ready is configurable through mimir_ready_retries (default 5) and
+  mimir_ready_delay (default 8 seconds), the values that were previously literal. A clustered node
+  that joins memberlist before its ingester reports ready can need more than the 40 seconds those
+  allow.
+- The mimir role test sets multitenancy_enabled: false through the passthrough and checks it from
+  outside: a labels query with no X-Scope-OrgID header is answered rather than refused.
+
 v7.0.0
 ======
 
