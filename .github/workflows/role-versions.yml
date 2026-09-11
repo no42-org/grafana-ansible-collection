@@ -1,0 +1,62 @@
+---
+name: Role Versions
+
+# Watches the version pins in roles/*/defaults/main.yml.
+#
+# Roles pin the version they install rather than resolving `latest` at run
+# time, so behaviour cannot change without a commit. The cost of that is a pin
+# nobody moves: opentelemetry_collector sat at a December 2023 release until
+# upstream was seventy minor versions ahead, because nothing asked anyone to
+# move it. This asks.
+#
+# It opens one pull request per behind role and merges nothing. The bump is
+# verified by role-test.yml -- which already triggers on roles/** -- on both
+# package families before a human merges it. That verification is the reason
+# pinning is safe rather than a risk moved elsewhere.
+#
+# Dependabot cannot do this: its ecosystems are a fixed list and none reads a
+# key out of an Ansible defaults file. See RELEASING.md.
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: role-versions
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check pinned role versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      # To push bump branches and raise the pull requests. Nothing here checks
+      # out untrusted input, and there is no pull_request_target.
+      contents: write
+      pull-requests: write
+    steps:
+      # persist-credentials stays true here, unlike everywhere else in this
+      # repository: this job genuinely pushes with the token.
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # Fails rather than reporting "no updates" when an upstream project
+      # cannot be reached, so a rate-limited or broken run is visible instead
+      # of indistinguishable from an up-to-date repository.
+      - name: Compare pins against upstream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ROLE_VERSION_REPORT: ${{ runner.temp }}/behind.json
+        run: make role-versions-check
+
+      - name: Open a pull request for each role that is behind
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ROLE_VERSION_REPORT: ${{ runner.temp }}/behind.json
+        run: make role-versions-bump

@@ -162,6 +162,17 @@ ci-lint-editorconfig:
 ci-lint-ansible:
 	@./tools/lint-ansible.sh
 
+# Compares each role's pinned version against the upstream project's latest
+# release. Fails if a pin is unreadable or an upstream lookup does not resolve
+# -- "could not look" must not read as "nothing to do".
+role-versions-check:
+	@python3 tools/check-role-versions.py
+
+# Opens one pull request per behind role, from the report the check writes.
+# Never merges: the bump is verified by the role tests first.
+role-versions-bump:
+	@./tools/bump-role-versions.sh
+
 # Release machinery linting: tools/*.sh, galaxy.yml, dependabot.yml and every
 # workflow's hygiene. It is deliberately NOT the full ci-lint set, and the
 # reason changed with honest-ci-gates.

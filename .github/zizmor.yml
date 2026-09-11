@@ -20,3 +20,17 @@ rules:
     ignore:
       - ci.yml
       - release.yml
+
+  artipacked:
+    # This job is the one place in the repository that genuinely pushes with
+    # the token: it creates a branch per behind role and opens a pull request.
+    # `persist-credentials: false` everywhere else is enforced by
+    # tools/lint-release.sh, and this is the documented exception rather than
+    # an oversight.
+    #
+    # The alternative -- persist-credentials: false plus a token embedded in
+    # the remote URL -- trades a credential in the runner's git config for one
+    # in a URL that can surface in error output. Neither is obviously safer,
+    # and the scoped `contents: write` on this single job is the real control.
+    ignore:
+      - role-versions.yml

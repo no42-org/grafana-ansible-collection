@@ -27,30 +27,41 @@ The upstream collection claims `ansible >= 2.9`; that claim was inherited and is
 
 ## Versions the roles install
 
-Most roles install whatever the upstream project has released most recently. These badges show what that is **today** — they are the upstream projects' own latest releases, which is exactly what `<role>_version: latest` resolves to at run time:
+Every role installs a **pinned** version. None resolves `latest` at run time, so what a role installs cannot change without a commit here — and a passing role test is a statement about a named version rather than about whichever release happened to be current that day.
 
-[![grafana](https://img.shields.io/github/v/release/grafana/grafana?label=grafana&color=informational)](https://github.com/grafana/grafana/releases)
-[![loki](https://img.shields.io/github/v/release/grafana/loki?label=loki&color=informational)](https://github.com/grafana/loki/releases)
-[![mimir](https://img.shields.io/github/v/release/grafana/mimir?label=mimir&color=informational)](https://github.com/grafana/mimir/releases)
-[![tempo](https://img.shields.io/github/v/release/grafana/tempo?label=tempo&color=informational)](https://github.com/grafana/tempo/releases)
-[![alloy](https://img.shields.io/github/v/release/grafana/alloy?label=alloy&color=informational)](https://github.com/grafana/alloy/releases)
-
-Two roles are pinned instead, and the pin is the interesting part:
-
+[![grafana](https://img.shields.io/badge/grafana-13.2.1-informational)](https://github.com/grafana/grafana/releases)
+[![loki](https://img.shields.io/badge/loki-3.7.7-informational)](https://github.com/grafana/loki/releases)
+[![mimir](https://img.shields.io/badge/mimir-3.2.1-informational)](https://github.com/grafana/mimir/releases)
+[![tempo](https://img.shields.io/badge/tempo-3.0.3-informational)](https://github.com/grafana/tempo/releases)
+[![alloy](https://img.shields.io/badge/alloy-1.19.2-informational)](https://github.com/grafana/alloy/releases)
+[![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.160.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 [![promtail](https://img.shields.io/badge/promtail-3.6.0%20%C2%B7%20end%20of%20life-critical)](https://github.com/no42-org/grafana-ansible-collection/issues/4)
-[![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.90.1%20%C2%B7%20pinned-yellow)](https://github.com/no42-org/grafana-ansible-collection/issues/26)
+[![grafana_agent](https://img.shields.io/badge/grafana__agent-0.44.3%20%C2%B7%20superseded-yellow)](https://github.com/grafana/agent)
 
-- **`promtail` installs 3.6.0 and will not move.** Grafana declared Promtail end of life on 2026-03-02 and published no packages after Loki 3.6.0, so this is the last version that exists. Use the `alloy` role instead; that is where Grafana directs users.
-- **`opentelemetry_collector` installs 0.90.1**, which upstream released in December 2023. That pin is inherited and has no stated reason — tracked in [#26](https://github.com/no42-org/grafana-ansible-collection/issues/26).
-- **`grafana_agent` tracks latest**, but upstream superseded it with Alloy and it ships no test here. Prefer `alloy`.
+Upstream's newest release, for comparison. Where these differ from the pins above, an update is pending:
 
-### What these badges do and do not say
+[![grafana upstream](https://img.shields.io/github/v/release/grafana/grafana?label=grafana%20upstream&color=lightgrey)](https://github.com/grafana/grafana/releases)
+[![loki upstream](https://img.shields.io/github/v/release/grafana/loki?label=loki%20upstream&color=lightgrey)](https://github.com/grafana/loki/releases)
+[![mimir upstream](https://img.shields.io/github/v/release/grafana/mimir?label=mimir%20upstream&color=lightgrey)](https://github.com/grafana/mimir/releases)
+[![tempo upstream](https://img.shields.io/github/v/release/grafana/tempo?label=tempo%20upstream&color=lightgrey)](https://github.com/grafana/tempo/releases)
+[![alloy upstream](https://img.shields.io/github/v/release/grafana/alloy?label=alloy%20upstream&color=lightgrey)](https://github.com/grafana/alloy/releases)
+[![otel upstream](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-collector-releases?label=otel%20upstream&color=lightgrey)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 
-They say **what a role installs**. They do not say what has been verified.
+### How the pins stay current
 
-Role tests run when `roles/` or the test harness changes, not when an upstream project cuts a release — so a badge reading `loki v3.7.7` means the role would fetch 3.7.7 today, not that 3.7.7 has been exercised here. What *has* been exercised, on both Debian and RHEL package families, is the coverage table in [RELEASING.md](https://github.com/no42-org/grafana-ansible-collection/blob/main/RELEASING.md).
+A weekly workflow compares each pin against the upstream project's latest release and opens a pull request when one falls behind. The bump then runs that role's tests on **both** package families before anyone merges it.
 
-Any of these can be overridden. Set `<role>_version` to pin a version the role will install instead.
+That verification is the point, not a formality. A pin nobody moves is how `opentelemetry_collector` came to sit on a December 2023 release for nearly three years, and an unverified bump is how the `tempo` role came to ship a configuration Tempo rejects. Pinning without both would move the risk rather than remove it.
+
+Three roles are excluded from tracking, each for a reason that will not change on its own:
+
+| Role | Why it is not tracked |
+| --- | --- |
+| `promtail` | End of life on 2026-03-02. Nothing upstream will ever be newer. Use `alloy`. |
+| `grafana_agent` | Ships no test, so a bump could not be verified. Upstream superseded it with Alloy. |
+| `grafana` | Installs from a package repository, so its version is a package version rather than a release tag. Maintained by hand. |
+
+Any of these can be overridden — set `<role>_version` to install a different version, including `latest` if you would rather track it yourself.
 
 ## Installing the collection
 
