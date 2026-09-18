@@ -39,9 +39,9 @@ make upstream-status   # the board as a table
 make upstream-sync     # refresh it from upstream
 ```
 
-The sync owns four fields. It seeds `Fork decision` to `Untriaged` on creation and never writes it again, and never writes `Epic`, `Change type` or `Target release`. Those four are yours, which is why re-running it cannot destroy triage.
+The sync owns four fields. It seeds `Fork decision` to `Untriaged` on creation and never writes it again, and never writes `Epic`, `Change type` or `Target release`. Those four are yours, which is why re-running it cannot destroy triage. Do not confuse the two tools: `carried-prs` reads git history, `upstream-tracker` reads upstream.
 
-`Epic` is by subsystem, not by theme, and it is single-select. The rule that settles every item: a module under `plugins/` is `grafana-api-modules`, a role's tasks belong to that role's epic. `Change type` is `Bug`, `Enhancement` or `Maintenance`, and is not called `Type` because GitHub reserves that name. Do not confuse the two tools: `carried-prs` reads git history, `upstream-tracker` reads upstream.
+`Epic` is by subsystem, not by theme, and it is single-select. The rule that settles every item: a module under `plugins/` is `grafana-api-modules`, a role's tasks belong to that role's epic. `Change type` is `Bug`, `Enhancement` or `Maintenance`, and is not called `Type` because GitHub reserves that name.
 
 ## 4. `roles/*/molecule/` is dormant, not live
 

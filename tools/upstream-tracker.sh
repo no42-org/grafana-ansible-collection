@@ -62,9 +62,13 @@ readonly UPSTREAM_REPO="grafana/grafana-ansible-collection"
 readonly PROJECT_OWNER="${UPSTREAM_TRACKER_OWNER:-no42-org}"
 readonly PROJECT_TITLE="${UPSTREAM_TRACKER_TITLE:-Upstream tracking}"
 
-# Field definitions, in board order: name|datatype|comma-separated options.
-# --bootstrap creates whatever is missing, so adding a row here and re-running
-# is how the board gains a field.
+# Field definitions: name|datatype|comma-separated options. Adding a row here
+# and running --bootstrap is how the board gains a field.
+#
+# The order is this list's, not the board's: --bootstrap creates only what is
+# missing, so a field added later lands after the ones already there. And the
+# sync refuses to start when a declared field is absent, so a row added without
+# bootstrapping fails the scheduled run rather than being created by it.
 readonly FIELD_SPECS=(
   "Upstream|NUMBER|"
   "Kind|SINGLE_SELECT|Issue,PR"

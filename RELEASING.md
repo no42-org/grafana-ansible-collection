@@ -175,6 +175,7 @@ Eight fields, split by who owns them.
 The sync writes `Upstream` (the match key), `Kind`, `Upstream state` and `Last synced`, all derived from upstream.
 It seeds `Fork decision` to `Untriaged` when it creates an item and never writes it again, and it never writes `Epic`, `Change type` or `Target release` at all.
 Those four are a maintainer's judgement.
+That split is the whole reason a re-run is safe rather than destructive: the board can be resynced at any time without losing triage.
 
 `Epic` groups the work by subsystem: `grafana-dashboards`, `grafana-install`, `grafana-api-modules`, `alloy`, `mimir`, `tempo`, `otel-collector`, `cross-role`, `new-roles`.
 It is single-select, so one rule has to settle every item: work in a module under `plugins/` is `grafana-api-modules`, work in a role's tasks belongs to that role's epic.
@@ -183,7 +184,9 @@ Grouping by theme instead was rejected because the themes worth naming, Grafana 
 `Change type` is `Bug`, `Enhancement` or `Maintenance`.
 It cannot be derived from upstream: 54 of upstream's 57 open issues carry no label at all, and the only labelled pull requests are its dependency bots.
 The field is not called `Type` because GitHub reserves that name for its own issue-type feature and refuses to create it.
-That split is the whole reason a re-run is safe rather than destructive: the board can be resynced at any time without losing triage.
+
+Adding a field is done by adding a row to `FIELD_SPECS` and running `make upstream-bootstrap`, which creates only what is missing.
+Bootstrap it before the next scheduled run: the sync refuses to start when the board lacks a declared field, so a row added and left unbootstrapped fails the Monday job rather than being created by it.
 
 `Fork decision` starts at `Untriaged` and moves to one of `Carry`, `Fix here`, `Not applicable`, `Superseded` or `Done`.
 `Carry` means the upstream pull request gets cherry-picked under **Carrying an upstream contribution** below, after which `make carried-prs` takes over tracking it.
