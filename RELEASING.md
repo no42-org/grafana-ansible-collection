@@ -162,9 +162,10 @@ Either means the fork has stopped being a curated view of upstream's queue and b
 The opposite question, what upstream has open that this fork has not touched, is answered by a GitHub Project: [no42-org/projects/4, "Upstream tracking"](https://github.com/orgs/no42-org/projects/4).
 
 ```bash
-make upstream-status      # the board as a table, asks upstream nothing
-make upstream-sync        # add what upstream opened, refresh what it closed
-make upstream-bootstrap   # create the project and its fields, idempotent
+make upstream-status        # the board as a table, asks upstream nothing
+make upstream-sync          # add what upstream opened, refresh what it closed
+make upstream-bootstrap     # create the project and its fields, idempotent
+make upstream-check-token   # confirm the token can still write the board
 ```
 
 Every open upstream issue and pull request is a draft item on that board.
@@ -184,6 +185,11 @@ That split is the whole reason a re-run is safe rather than destructive: the boa
 It needs a fine-grained PAT with organization `Projects: read and write`, stored as the repository secret `PROJECTS_TOKEN`.
 `GITHUB_TOKEN` cannot be used and cannot be granted the ability: the `project` scope is not among the permissions a workflow token can request.
 The workflow fails with that explanation rather than an opaque `gh` error when the secret is missing.
+
+A secret that exists is not a secret that still works, and the failure that actually happens is an expiry months later.
+So the job's second step asks GitHub whether the token may still write the board, through the project's `viewerCanUpdate`, which tests the write permission without writing anything.
+An expired token and a token downgraded to read-only each name themselves, instead of surfacing as a raw authentication error or as a sync that fails halfway through having already rewritten part of the board.
+`make upstream-check-token` runs the same check locally.
 
 A closed or merged upstream item stays on the board with its state updated.
 Removing it is a triage decision, not the script's: an item upstream closed without fixing may still be a problem this fork wants to fix.

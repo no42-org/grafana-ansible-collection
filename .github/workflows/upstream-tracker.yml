@@ -58,6 +58,15 @@ jobs:
             exit 1
           fi
 
+      # The step above only proves the secret exists, which is true from the day
+      # it is created until long after it stops working. This asks GitHub
+      # whether the token may still write the board, so an expiry names itself
+      # instead of surfacing as a raw authentication error in a weekly job.
+      - name: Check the token still works
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: make upstream-check-token
+
       - name: Sync the board
         env:
           GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}

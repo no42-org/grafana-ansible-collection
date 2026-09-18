@@ -27,14 +27,16 @@
 #   Fork decision   select   seeded to Untriaged on creation, then yours
 #   Target release  text     yours
 #
-# Usage: tools/upstream-tracker.sh [--bootstrap | --report]
+# Usage: tools/upstream-tracker.sh [--bootstrap | --report | --check-token]
 #
-#   --bootstrap  create the project and any missing field, then exit. Idempotent,
-#                so the board is reproducible from this repository rather than
-#                assembled by hand in a browser.
-#   --report     print the board as a table and exit. Queries no upstream state.
-#   (no flag)    sync: add upstream items the board is missing, refresh the
-#                derived fields on the ones it already has.
+#   --bootstrap    create the project and any missing field, then exit. Idempotent,
+#                  so the board is reproducible from this repository rather than
+#                  assembled by hand in a browser.
+#   --report       print the board as a table and exit. Queries no upstream state.
+#   --check-token  confirm the token can still write the board, and exit. Writes
+#                  nothing. This is the scheduled job's pre-flight.
+#   (no flag)      sync: add upstream items the board is missing, refresh the
+#                  derived fields on the ones it already has.
 #
 # Environment:
 #   UPSTREAM_TRACKER_OWNER  project owner, defaults to no42-org
@@ -66,10 +68,11 @@ readonly FIELD_SPECS=(
 
 mode="sync"
 case "${1:-}" in
-  --bootstrap) mode="bootstrap" ;;
-  --report)    mode="report" ;;
-  "")          ;;
-  *)           emergency "unknown argument '${1}'; see the usage comment in $0" ;;
+  --bootstrap)   mode="bootstrap" ;;
+  --report)      mode="report" ;;
+  --check-token) mode="check-token" ;;
+  "")            ;;
+  *)             emergency "unknown argument '${1}'; see the usage comment in $0" ;;
 esac
 
 if [[ "${mode}" != "report" ]]; then
@@ -99,7 +102,7 @@ project_number() {
   local listed
   if ! listed="$(gh project list --owner "${PROJECT_OWNER}" --limit 100 --closed \
     --format json --jq ".projects[] | select(.title == \"${PROJECT_TITLE}\") | .number")"; then
-    emergency "could not list projects for ${PROJECT_OWNER}; check the token has the 'project' scope"
+    emergency "could not list projects for ${PROJECT_OWNER}; the token is expired or lost its Projects permission"
   fi
   if [[ "$(wc -l <<< "${listed}" | tr -d ' ')" -gt 1 ]]; then
     emergency "more than one project titled '${PROJECT_TITLE}' under ${PROJECT_OWNER}: $(tr '\n' ' ' <<< "${listed}")"
@@ -108,6 +111,37 @@ project_number() {
 }
 
 number="$(project_number)"
+
+# A pre-flight that answers the question the scheduled job actually depends on:
+# can this token still write this board. Checking that the secret merely exists
+# catches only the day it is first set up; the failure that happens later is an
+# expiry, and a weekly job that fails with a raw authentication error once a
+# week is one nobody reads.
+#
+# viewerCanUpdate is GitHub's own answer, so the write permission is tested
+# without writing anything. A token downgraded to read-only fails here rather
+# than halfway through a sync, having already rewritten part of the board.
+if [[ "${mode}" == "check-token" ]]; then
+  [[ -z "${number}" ]] && \
+    emergency "no project titled '${PROJECT_TITLE}' under ${PROJECT_OWNER}; run: make upstream-bootstrap"
+
+  # $org and $num are GraphQL variables, bound by the -f and -F flags below.
+  # The shell must not expand them, so the query stays single-quoted.
+  # shellcheck disable=SC2016
+  if ! can_update="$(gh api graphql \
+    -f query='query($org:String!,$num:Int!){organization(login:$org){projectV2(number:$num){viewerCanUpdate}}}' \
+    -f org="${PROJECT_OWNER}" -F num="${number}" \
+    --jq '.data.organization.projectV2.viewerCanUpdate' 2>&1)"; then
+    emergency "PROJECTS_TOKEN is expired or lost its Projects permission: ${can_update}"
+  fi
+
+  if [[ "${can_update}" != "true" ]]; then
+    emergency "PROJECTS_TOKEN can read project #${number} but not write it; it needs organization 'Projects: read and write', not read"
+  fi
+
+  success "PROJECTS_TOKEN can read and write project #${number} '${PROJECT_TITLE}'"
+  exit 0
+fi
 
 if [[ "${mode}" == "bootstrap" ]]; then
   if [[ -z "${number}" ]]; then
