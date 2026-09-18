@@ -6,7 +6,7 @@
 # line is gone.
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs role-test role-test-list dist dist-clean
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status role-test role-test-list dist dist-clean
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -82,6 +82,23 @@ role-test-list:
 # which of them upstream has since merged and can therefore be dropped.
 carried-prs:
 	@./tools/carried-prs.sh
+
+# The candidate set: what upstream has open that this fork has not acted on.
+# carried-prs answers the opposite question -- what is already here -- and the
+# two never overlap. See tools/upstream-tracker.sh.
+#
+# Run once per board, or after adding a field to FIELD_SPECS.
+upstream-bootstrap:
+	@./tools/upstream-tracker.sh --bootstrap
+
+# Add what upstream opened, refresh what it closed or merged. Never writes the
+# Fork decision or Target release fields, so it is safe to re-run at any time.
+upstream-sync:
+	@./tools/upstream-tracker.sh
+
+# The board as a table, without asking upstream anything.
+upstream-status:
+	@./tools/upstream-tracker.sh --report
 
 ####################################################################
 #                          Distribution                            #

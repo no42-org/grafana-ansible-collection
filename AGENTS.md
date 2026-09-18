@@ -32,6 +32,15 @@ make carried-prs    # what is carried, and whether upstream merged it
 
 That reports upstream-origin commits only. It is not the whole divergence.
 
+The opposite question, what upstream has open that this fork has *not* acted on, is a GitHub Project seeded from upstream:
+
+```bash
+make upstream-status   # the board as a table
+make upstream-sync     # refresh it from upstream
+```
+
+The sync owns four fields and never writes `Fork decision` or `Target release`. Those are yours, which is why re-running it cannot destroy triage. Do not confuse the two tools: `carried-prs` reads git history, `upstream-tracker` reads upstream.
+
 ## 4. `roles/*/molecule/` is dormant, not live
 
 Those scenarios ship in the collection and are **never invoked**. Role tests are:
