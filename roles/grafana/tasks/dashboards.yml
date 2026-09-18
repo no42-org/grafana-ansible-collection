@@ -152,7 +152,12 @@
       ansible.builtin.copy:
         src: "{{ item }}"
         dest: "{{ grafana_ini.paths.data }}/dashboards/{{ item | basename }}"
-        owner: root
+        # owner must match what the notified handler enforces. "Set privileges
+        # on provisioned dashboards" recurses this tree setting owner: grafana,
+        # so declaring root here made the copy and the handler reverse each
+        # other on every run and the role could never converge. The same defect
+        # was fixed in the sibling task "Copy dashboard files" by fdae4a8.
+        owner: grafana
         group: grafana
         mode: "0644"
       with_fileglob:
@@ -229,8 +234,15 @@
       loop: "{{ __dashboards_present_list | difference(__dashboards_copied_list) }}"
       become: true
       when:
-        - __dashboards_present_list is defined and __dashboards_present_list
-        - __dashboards_copied_list is defined and __dashboards_copied_list
+        # `X is defined and X` returns X, not a boolean: Jinja's `and` yields an
+        # operand. ansible-core 2.19 made a non-boolean conditional fatal, so
+        # this aborted the play on every version from 2.19 up while the role
+        # still claimed support to 3.0.0. A length test is boolean by
+        # construction. The `is defined` half is dropped rather than kept
+        # because the set_fact above always runs and always defaults to [], so
+        # it guarded a state that cannot occur.
+        - __dashboards_present_list | default([]) | length > 0
+        - __dashboards_copied_list | default([]) | length > 0
         - grafana_provisioning_synced | bool
         - not ansible_check_mode
 
