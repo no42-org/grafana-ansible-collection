@@ -12,6 +12,18 @@
 #
 # A dashboards subdirectory is configured deliberately: without one, #448's
 # folder loop never executes and the fix ships unexercised.
+#
+# The same reasoning extends to the two dashboard routes this scenario used to
+# leave at their defaults, each of which hid a defect behind a green test:
+#
+#   #493  a `when:` returning a list, fatal on ansible-core 2.19 and later.
+#         Gated by grafana_provisioning_synced, which defaults to false.
+#   #244  a copy declaring owner: root against a handler that recurses the
+#         same tree setting owner: grafana, so the two undo each other every
+#         run. Gated by grafana_dashboards, which defaults to [].
+#
+# Both are set below. A route left at its default is a route this repository
+# ships without ever running.
 - name: Converge
   hosts: all
   any_errors_fatal: true
@@ -23,6 +35,21 @@
     # Exercises #448: the loop that turns dashboard subdirectory paths into
     # folder names. With no subdirectories the block is skipped entirely.
     grafana_dashboards_dir: "{{ role_test_fixtures }}/dashboards"
+    # Exercises #493: the synchronising removal tasks, and the non-boolean
+    # conditional guarding them, run only when this is true.
+    grafana_provisioning_synced: true
+    # Exercises #244: the grafana.net route, whose copy task is the one whose
+    # ownership the handler reverses. dashboard_url rather than dashboard_id
+    # keeps the control node off the network -- get_url takes a file:// URL,
+    # and everything after the download is the same code either way.
+    #
+    # datasource is not optional: "Set the correct data source name in the
+    # dashboard" dereferences item.item.datasource with no when: guard, so an
+    # entry without it fails on an undefined variable. It names the datasource
+    # configured below.
+    grafana_dashboards:
+      - dashboard_url: "file://{{ role_test_fixtures }}/grafana-net/1860.json"
+        datasource: role-test
     # Exercises #510: installing a plugin is the only thing that runs
     # grafana-cli, and grafana-cli is what fails on Grafana 13 without chdir.
     # An empty list skips the task and the fix ships unexercised.
@@ -68,6 +95,40 @@
       loop:
         - team-a
         - nested/team-b
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    # The grafana.net route's fixture, served to get_url as a file:// URL so
+    # the route executes without the control node reaching grafana.com.
+    #
+    # The datasource placeholder is deliberate. An exported dashboard carries
+    # '${DS_<NAME>}' where the exporter's datasource was, and the role rewrites
+    # it to the configured name. With no placeholder the rewrite task would run
+    # against nothing and its regex would ship unexercised, which is the same
+    # defect as leaving a route at its default.
+    - name: "Create the grafana.net fixture directory on the control node"
+      ansible.builtin.file:
+        path: "{{ role_test_fixtures }}/grafana-net"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: "Create the grafana.net fixture on the control node"
+      ansible.builtin.copy:
+        content: |
+          {
+            "title": "role-test grafana-net",
+            "uid": "roletest-grafana-net",
+            "panels": [
+              {"datasource": "${DS_PROMETHEUS}", "type": "timeseries"}
+            ],
+            "schemaVersion": 39
+          }
+        dest: "{{ role_test_fixtures }}/grafana-net/1860.json"
+        mode: "0644"
       delegate_to: localhost
       become: false
       run_once: true

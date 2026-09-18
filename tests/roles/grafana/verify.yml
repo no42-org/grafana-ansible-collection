@@ -102,6 +102,62 @@
       loop_control:
         label: "{{ item.item }}"
 
+    # ------------------- #244 the copy and its handler agree about ownership
+    # Idempotence already fails when they disagree, but only as "2 changed
+    # tasks", which says nothing about why. This names the cause, so a
+    # regression reports the defect instead of a symptom.
+    - name: "Stat the dashboard the grafana.net route provisioned"
+      ansible.builtin.stat:
+        path: /var/lib/grafana/dashboards/1860.json
+      register: __netdash
+
+    - name: "Assert it is owned by grafana, not root"
+      ansible.builtin.assert:
+        that:
+          - __netdash.stat.exists
+          - __netdash.stat.pw_name == 'grafana'
+          - __netdash.stat.gr_name == 'grafana'
+        fail_msg: >-
+          /var/lib/grafana/dashboards/1860.json is owned by
+          {{ __netdash.stat.pw_name | default('nothing, it is missing') }};
+          the copy task and the "provisioned dashboards changed" handler
+          disagree about ownership and will reverse each other every run
+
+    - name: "Read the dashboard the grafana.net route provisioned"
+      ansible.builtin.slurp:
+        src: /var/lib/grafana/dashboards/1860.json
+      register: __netdash_content
+
+    # The positive half matches the rewritten key and value together. A bare
+    # 'role-test' would pass on the fixture's own title, and 'DS_PROMETHEUS'
+    # being absent would pass on a regex that deleted rather than replaced.
+    - name: "Assert no DS_ placeholder survived"
+      ansible.builtin.assert:
+        that:
+          - "'\"datasource\": \"role-test\"' in (__netdash_content.content | b64decode)"
+          - "'DS_PROMETHEUS' not in (__netdash_content.content | b64decode)"
+        fail_msg: >-
+          the exported dashboard's '${DS_...}' placeholder was not replaced
+          with the configured datasource name
+
+    # ------------------------- #493 the synchronising removal path ran at all
+    # prepare.yml seeded stale.json, which the deployer does not have. Its
+    # absence here is the only evidence that the removal task evaluated its
+    # conditions rather than skipping past them on an empty loop.
+    - name: "Stat the dashboard prepare seeded and the role should have removed"
+      ansible.builtin.stat:
+        path: /var/lib/grafana/dashboards/stale.json
+      register: __stale
+
+    - name: "Assert the synchronise path removed it"
+      ansible.builtin.assert:
+        that:
+          - not __stale.stat.exists
+        fail_msg: >-
+          /var/lib/grafana/dashboards/stale.json still exists; the synchronise
+          task did not remove it, so either grafana_provisioning_synced is not
+          set or its looped conditions were never evaluated
+
     # ------------------------------------------- #510 grafana-cli ran at all
     - name: "Stat the plugin directory grafana-cli should have created"
       ansible.builtin.stat:
