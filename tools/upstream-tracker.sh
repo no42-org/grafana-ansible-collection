@@ -22,10 +22,18 @@
 #   Upstream state  select   open, merged or closed
 #   Last synced     date     when this script last confirmed the row
 #
-# and never touches the two that are a maintainer's judgement:
+# and never touches the four that are a maintainer's judgement:
 #
 #   Fork decision   select   seeded to Untriaged on creation, then yours
+#   Epic            select   which subsystem the work belongs to
+#   Change type     select   Bug, Enhancement or Maintenance
 #   Target release  text     yours
+#
+# Epic is by subsystem rather than by theme, and the field is single-select, so
+# an item sits in exactly one. The rule that keeps that decidable: work in a
+# module under plugins/ is grafana-api-modules, work in a role's tasks is that
+# role's epic. Upstream's own labels cannot supply any of this -- 54 of its 57
+# open issues carry no label at all.
 #
 # Usage: tools/upstream-tracker.sh [--bootstrap | --report | --check-token]
 #
@@ -54,14 +62,22 @@ readonly UPSTREAM_REPO="grafana/grafana-ansible-collection"
 readonly PROJECT_OWNER="${UPSTREAM_TRACKER_OWNER:-no42-org}"
 readonly PROJECT_TITLE="${UPSTREAM_TRACKER_TITLE:-Upstream tracking}"
 
-# Field definitions, in board order: name|datatype|comma-separated options.
-# --bootstrap creates whatever is missing, so adding a row here and re-running
-# is how the board gains a field.
+# Field definitions: name|datatype|comma-separated options. Adding a row here
+# and running --bootstrap is how the board gains a field.
+#
+# The order is this list's, not the board's: --bootstrap creates only what is
+# missing, so a field added later lands after the ones already there. And the
+# sync refuses to start when a declared field is absent, so a row added without
+# bootstrapping fails the scheduled run rather than being created by it.
 readonly FIELD_SPECS=(
   "Upstream|NUMBER|"
   "Kind|SINGLE_SELECT|Issue,PR"
   "Upstream state|SINGLE_SELECT|open,merged,closed"
   "Fork decision|SINGLE_SELECT|Untriaged,Carry,Fix here,Not applicable,Superseded,Done"
+  "Epic|SINGLE_SELECT|grafana-dashboards,grafana-install,grafana-api-modules,alloy,mimir,tempo,otel-collector,cross-role,new-roles"
+  # "Type" is refused: GitHub reserves the name for its own issue-type
+  # feature, so the field has to be called something else.
+  "Change type|SINGLE_SELECT|Bug,Enhancement,Maintenance"
   "Target release|TEXT|"
   "Last synced|DATE|"
 )
@@ -239,7 +255,7 @@ FIELD_SYNCED="$(field_id "Last synced")"
 # Board contents
 # ---------------------------------------------------------------------------
 
-# The board, as one "<upstream number> <item id> <kind> <state> <decision> <target> <repair>"
+# The board, as one "<upstream number> <item id> <kind> <state> <decision> <target> <epic> <change type> <repair>"
 # line per item.
 #
 # BOARD_LIMIT is checked, not trusted. The board only grows -- closed upstream
@@ -293,6 +309,8 @@ for item in json.loads(sys.argv[1])["items"]:
                       flat(item.get("upstream state", "-")),
                       flat(item.get("fork decision", "-")),
                       flat(item.get("target release", "-")),
+                      flat(item.get("epic", "-")),
+                      flat(item.get("change type", "-")),
                       repair)
 
 for upstream in sorted(rows):
@@ -315,13 +333,13 @@ if [[ "${mode}" == "report" ]]; then
   # "STATE", not "UPSTREAM": the upstream number is the # column, and a field
   # named Upstream over a column of "open" reads as the wrong data rather than
   # the wrong heading.
-  printf "\n  %-6s %-6s %-9s %-15s %s\n" "KIND" "#" "STATE" "DECISION" "TARGET"
+  printf "\n  %-6s %-6s %-8s %-21s %-15s %s\n" "KIND" "#" "STATE" "EPIC" "DECISION" "TARGET"
   printf "  %s\n" "-------------------------------------------------------------------"
   untriaged=0
-  while read -r num _ kind state decision target _; do
+  while read -r num _ kind state decision target epic _ _; do
     [[ "${decision}" == "Untriaged" ]] && untriaged=$(( untriaged + 1 ))
-    printf "  %-6s %-6s %-9s %-15s %s\n" \
-      "${kind}" "#${num}" "${state}" "${decision//_/ }" "${target//_/ }"
+    printf "  %-6s %-6s %-8s %-21s %-15s %s\n" \
+      "${kind}" "#${num}" "${state}" "${epic}" "${decision//_/ }" "${target//_/ }"
   done < <(sort -k3,3 -k1,1n <<< "${board}")
   echo ""
   echo "  untriaged: ${untriaged} of $(wc -l <<< "${board}" | tr -d ' ')"
@@ -378,7 +396,7 @@ while read -r num kind title; do
     # A row matched by its title rather than its number is a half-created item
     # from an interrupted run. Putting the number back is what stops the next
     # run creating a duplicate for it.
-    if [[ "$(board_field "${num}" 7)" == "repair" ]]; then
+    if [[ "$(board_field "${num}" 9)" == "repair" ]]; then
       warning "${kind} #${num} was missing its Upstream number; repairing"
       set_field "${item_id}" "${FIELD_UPSTREAM}" --number "${num}"
       set_field "${item_id}" "${FIELD_KIND}" --single-select-option-id "$(option_id "Kind" "${kind}")"
@@ -415,7 +433,7 @@ done <<< "${upstream_open}"
 # Anything on the board that upstream no longer lists as open has been closed or
 # merged since the last run. Its state is asked for one item at a time, which is
 # only as expensive as the number of items that changed.
-while read -r num item_id kind state _ _ _; do
+while read -r num item_id kind state _ _ _ _ _; do
   [[ -z "${num}" ]] && continue
   [[ "${state}" != "open" ]] && continue
   grep -qE "^${num} " <<< "${upstream_open}" && continue
