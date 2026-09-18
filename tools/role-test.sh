@@ -170,47 +170,63 @@ if [[ ! -f "${roleTestRequirements}" ]]; then
   exit 1;
 fi
 info "resolving harness collections from ${roleTestRequirements}"
-# Galaxy is a remote service and fails on its own schedule: the first CI run
-# of this block failed in one job of twelve at this line, and because the
-# output was discarded the log said only that it could not install. Bounded
-# retries for the transient case; the output is kept and shown when the
-# last attempt fails, so the next such failure names its cause.
+
+# Offline first. When the collections are already on disk and satisfy the
+# requirements, this answers in about a quarter of a second and never opens a
+# socket, so a local run stops paying a Galaxy round trip it does not need and
+# a CI job with a restored cache stops depending on a remote service at all.
 #
-# The retry backs off rather than waiting a fixed 15 seconds, because three
-# attempts 15 seconds apart only survive a 30-second outage and the outages are
-# longer than that. `loki (debian)` failed on main when galaxy.ansible.com reset
-# the connection on all three attempts inside 31 seconds. Doubling from 10
-# spans about two and a half minutes instead.
-#
-# Every job retries independently, and the matrices run roughly two dozen of
-# them per push, so each run makes that many separate calls to a service that
-# fails on its own schedule. That is the reason a rare per-call failure shows up
-# often enough to be worth widening the window for.
-# Success is the exit status, never the output. This used to clear galaxyOutput
-# on success and test it for emptiness afterwards, which reads a silent failure
-# as a success: ansible-galaxy happens to print an ERROR line today, so the bug
-# was invisible, but a failure that printed nothing would have let the harness
-# run the whole suite without its collections and fail later as a missing
-# module, naming anything but the cause.
-readonly galaxyAttempts=5
-galaxyOutput=""
-galaxyBackoff=10
-galaxyInstalled=0
-for attempt in $(seq 1 "${galaxyAttempts}"); do
-  if galaxyOutput="$("${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" </dev/null 2>&1)"; then
-    galaxyInstalled=1
-    break
+# It is a real check, not a shortcut: --offline resolves the same dependency
+# map against local artifacts, so a raised floor in the requirements file or a
+# missing collection fails it and falls through to the install below. Verified
+# in both directions before this was relied on -- present and satisfying exits
+# 0 with "Nothing to do", absent exits 1 with "Failed to resolve the requested
+# dependencies map".
+if "${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" --offline </dev/null >/dev/null 2>&1; then
+  info "collections on disk already satisfy ${roleTestRequirements}; not contacting galaxy"
+else
+  # Galaxy is a remote service and fails on its own schedule: the first CI run
+  # of this block failed in one job of twelve at this line, and because the
+  # output was discarded the log said only that it could not install. Bounded
+  # retries for the transient case; the output is kept and shown when the
+  # last attempt fails, so the next such failure names its cause.
+  #
+  # The retry backs off rather than waiting a fixed 15 seconds, because three
+  # attempts 15 seconds apart only survive a 30-second outage and the outages are
+  # longer than that. `loki (debian)` failed on main when galaxy.ansible.com reset
+  # the connection on all three attempts inside 31 seconds. Doubling from 10
+  # spans about two and a half minutes instead.
+  #
+  # Every job retries independently, and the matrices run roughly two dozen of
+  # them per push, so each run makes that many separate calls to a service that
+  # fails on its own schedule. That is the reason a rare per-call failure shows up
+  # often enough to be worth widening the window for.
+  # Success is the exit status, never the output. This used to clear galaxyOutput
+  # on success and test it for emptiness afterwards, which reads a silent failure
+  # as a success: ansible-galaxy happens to print an ERROR line today, so the bug
+  # was invisible, but a failure that printed nothing would have let the harness
+  # run the whole suite without its collections and fail later as a missing
+  # module, naming anything but the cause.
+  readonly galaxyAttempts=5
+  galaxyOutput=""
+  galaxyBackoff=10
+  galaxyInstalled=0
+  for attempt in $(seq 1 "${galaxyAttempts}"); do
+    if galaxyOutput="$("${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" </dev/null 2>&1)"; then
+      galaxyInstalled=1
+      break
+    fi
+    if [[ "${attempt}" -lt "${galaxyAttempts}" ]]; then
+      info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in ${galaxyBackoff}s"
+      sleep "${galaxyBackoff}"
+      galaxyBackoff=$(( galaxyBackoff * 2 ))
+    fi
+  done
+  if [[ "${galaxyInstalled}" -eq 0 ]]; then
+    [[ -n "${galaxyOutput}" ]] && echo "${galaxyOutput}" >&2
+    echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements} after ${galaxyAttempts} attempts";
+    exit 1;
   fi
-  if [[ "${attempt}" -lt "${galaxyAttempts}" ]]; then
-    info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in ${galaxyBackoff}s"
-    sleep "${galaxyBackoff}"
-    galaxyBackoff=$(( galaxyBackoff * 2 ))
-  fi
-done
-if [[ "${galaxyInstalled}" -eq 0 ]]; then
-  [[ -n "${galaxyOutput}" ]] && echo "${galaxyOutput}" >&2
-  echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements} after ${galaxyAttempts} attempts";
-  exit 1;
 fi
 
 heading "Grafana Ansible Collection" "Role test: ${role} on ${distro}"

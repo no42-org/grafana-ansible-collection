@@ -81,6 +81,31 @@ jobs:
           enable-cache: true
           cache-suffix: role-test
 
+
+      # The rotation component of the cache key. GitHub expressions have no
+      # date function, so it is computed here; every job in a run gets the same
+      # ISO week, so they share one cache entry rather than racing to write
+      # two dozen.
+      - name: Compute the collection cache week
+        run: echo "COLLECTION_WEEK=$(date -u +%G-%V)" >> "${GITHUB_ENV}"
+
+      # Collections, cached so the harness's offline-first check succeeds and
+      # the job never contacts galaxy.ansible.com. That service failing is what
+      # turned `loki (debian)` red on main, and with two matrices there are
+      # roughly two dozen jobs per push each making their own call to it.
+      #
+      # The key carries the ISO week as well as the requirements hash. Hashing
+      # the file alone would be a tighter cache and a worse idea: the file pins
+      # floors, not versions, so a cache keyed on it alone freezes resolution
+      # until someone edits it, which is an unwatched pin -- the thing this
+      # repository deliberately does not have. Rotating weekly means a resolved
+      # set is re-derived on a schedule instead of never.
+      - name: Cache the harness collections
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ansible_collections
+          key: role-test-collections-${{ env.COLLECTION_WEEK }}-${{ hashFiles('tests/roles/requirements.yml') }}
+
       # CI calls the Makefile target, never the script directly, so local and
       # CI cannot drift.
       - name: Role test
@@ -152,6 +177,31 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-suffix: role-test-top
+
+
+      # The rotation component of the cache key. GitHub expressions have no
+      # date function, so it is computed here; every job in a run gets the same
+      # ISO week, so they share one cache entry rather than racing to write
+      # two dozen.
+      - name: Compute the collection cache week
+        run: echo "COLLECTION_WEEK=$(date -u +%G-%V)" >> "${GITHUB_ENV}"
+
+      # Collections, cached so the harness's offline-first check succeeds and
+      # the job never contacts galaxy.ansible.com. That service failing is what
+      # turned `loki (debian)` red on main, and with two matrices there are
+      # roughly two dozen jobs per push each making their own call to it.
+      #
+      # The key carries the ISO week as well as the requirements hash. Hashing
+      # the file alone would be a tighter cache and a worse idea: the file pins
+      # floors, not versions, so a cache keyed on it alone freezes resolution
+      # until someone edits it, which is an unwatched pin -- the thing this
+      # repository deliberately does not have. Rotating weekly means a resolved
+      # set is re-derived on a schedule instead of never.
+      - name: Cache the harness collections
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ansible_collections
+          key: role-test-top-collections-${{ env.COLLECTION_WEEK }}-${{ hashFiles('tests/roles/requirements.yml') }}
 
       - name: Role test
         run: make role-test ROLE=${{ matrix.role }} DISTRO=${{ matrix.distro }} ANSIBLE_GROUP=ansible-top
