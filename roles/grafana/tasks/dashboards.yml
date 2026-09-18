@@ -146,7 +146,7 @@
         file_type: directory
       register: __dashboards_dir_present
       become: true
-      when: grafana_provisioning_synced
+      when: grafana_provisioning_synced | bool
 
     - name: "Import grafana.net dashboards"
       ansible.builtin.copy:
@@ -238,9 +238,10 @@
         # operand. ansible-core 2.19 made a non-boolean conditional fatal, so
         # this aborted the play on every version from 2.19 up while the role
         # still claimed support to 3.0.0. A length test is boolean by
-        # construction. The `is defined` half is dropped rather than kept
-        # because the set_fact above always runs and always defaults to [], so
-        # it guarded a state that cannot occur.
+        # construction. `is defined` is dropped rather than kept because
+        # `| default([])` already covers the one case where the fact is
+        # missing: the set_fact above is itself skipped under --check, and
+        # `not ansible_check_mode` below then skips this task anyway.
         - __dashboards_present_list | default([]) | length > 0
         - __dashboards_copied_list | default([]) | length > 0
         - grafana_provisioning_synced | bool
@@ -252,4 +253,13 @@
         state: absent
       loop: "{{ __folders_present_list | difference(__folders_copied_list) }}"
       become: true
-      when: grafana_provisioning_synced and not ansible_check_mode
+      when:
+        # Same two defects as the dashboards task above. `X and Y` is a Jinja
+        # expression that yields an operand, not a boolean, which ansible-core
+        # 2.19 rejects outright. And the missing `| bool` made this task read a
+        # string extra-var such as `-e grafana_provisioning_synced=false` as
+        # truthy while the dashboards task, which does filter, read it as
+        # false: sync nominally off, yet every provisioned folder absent from
+        # __folders_copied_list deleted recursively.
+        - grafana_provisioning_synced | bool
+        - not ansible_check_mode

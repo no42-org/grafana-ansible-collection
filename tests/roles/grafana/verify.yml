@@ -123,15 +123,18 @@
           the copy task and the "provisioned dashboards changed" handler
           disagree about ownership and will reverse each other every run
 
-    - name: "Assert the datasource placeholder was rewritten"
+    - name: "Read the dashboard the grafana.net route provisioned"
       ansible.builtin.slurp:
         src: /var/lib/grafana/dashboards/1860.json
       register: __netdash_content
 
+    # The positive half matches the rewritten key and value together. A bare
+    # 'role-test' would pass on the fixture's own title, and 'DS_PROMETHEUS'
+    # being absent would pass on a regex that deleted rather than replaced.
     - name: "Assert no DS_ placeholder survived"
       ansible.builtin.assert:
         that:
-          - "'role-test' in (__netdash_content.content | b64decode)"
+          - "'\"datasource\": \"role-test\"' in (__netdash_content.content | b64decode)"
           - "'DS_PROMETHEUS' not in (__netdash_content.content | b64decode)"
         fail_msg: >-
           the exported dashboard's '${DS_...}' placeholder was not replaced
