@@ -52,10 +52,9 @@ jobs:
         run: |
           if [ -z "${PROJECTS_TOKEN}" ]; then
             echo "::error::secrets.PROJECTS_TOKEN is not set."
-            echo "::error::Create a fine-grained PAT with organization permission" \
-                 "'Projects: read and write' for no42-org, then add it as the" \
-                 "repository secret PROJECTS_TOKEN. GITHUB_TOKEN cannot be used:" \
-                 "the 'project' scope is not available to workflow tokens."
+            echo "::error::Create a fine-grained PAT with the organization permission 'Projects: read and write' for no42-org."
+            echo "::error::Add it as the repository secret PROJECTS_TOKEN."
+            echo "::error::GITHUB_TOKEN cannot be used: the 'project' scope is not available to workflow tokens."
             exit 1
           fi
 
