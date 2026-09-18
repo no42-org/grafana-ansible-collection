@@ -15,9 +15,20 @@ if [[ "$(command -v uv)" = "" ]]; then
   exit 1;
 fi
 
-if ! uv run --frozen --group lint ansible-lint --version >/dev/null 2>&1; then
-  echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-lint is not available. Run \"make install\".";
-  echo >&2 "This is not a lint failure. No file has been checked.";
+# The probe is `--version`, which ansible-lint answers only after loading the
+# config it discovers in the working directory. So a config it rejects fails the
+# probe exactly like a missing binary, and reporting that as "not installed"
+# sends the reader to `make install`, which cannot fix it. Both states are real
+# and neither is a lint finding, so they are told apart by what the probe said.
+if ! probe="$(uv run --frozen --group lint ansible-lint --version 2>&1)"; then
+  if grep -qi "invalid configuration" <<< "${probe}"; then
+    echo >&2 "CONFIG INVALID: ansible-lint refused .ansible-lint.";
+    echo >&2 "${probe}";
+    echo >&2 "This is not a lint failure and not a missing toolchain. No file has been checked.";
+  else
+    echo >&2 "TOOLCHAIN NOT INSTALLED: ansible-lint is not available. Run \"make install\".";
+    echo >&2 "This is not a lint failure. No file has been checked.";
+  fi
   exit 1;
 fi
 

@@ -1,0 +1,85 @@
+---
+name: Upstream Tracker
+
+# Keeps the "Upstream tracking" project current with what upstream has open.
+#
+# The fork's triage used to be whatever was noticed that week. The board is the
+# candidate set instead: every open upstream issue and pull request appears on
+# it as a draft item, carrying a Fork decision that a maintainer sets and this
+# job never overwrites. See tools/upstream-tracker.sh, which owns that split.
+#
+# This is not tools/carried-prs.sh. That reads git history for what the fork
+# already carries; this reads upstream for what it has not acted on yet.
+#
+# Nothing here writes to the repository: no branch, no pull request, no commit.
+# The only side effect is on the project board.
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-tracker
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync the upstream tracking board
+    runs-on: ubuntu-24.04
+    # The seed run writes five fields for each of ~90 items, one API call each,
+    # and took ten minutes. Steady-state runs are shorter, but the budget has to
+    # cover a board rebuilt from empty.
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # GITHUB_TOKEN cannot do this and cannot be granted the ability: project
+      # writes need the `project` scope, which is not among the permissions a
+      # workflow token can request. A fine-grained PAT with organization
+      # projects read and write is the only way, so the failure is explained
+      # here rather than surfacing as an opaque gh error forty lines down.
+      - name: Check for the project token
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: |
+          if [ -z "${PROJECTS_TOKEN}" ]; then
+            echo "::error::secrets.PROJECTS_TOKEN is not set."
+            echo "::error::Create a fine-grained PAT with the organization permission 'Projects: read and write' for no42-org."
+            echo "::error::Add it as the repository secret PROJECTS_TOKEN."
+            echo "::error::GITHUB_TOKEN cannot be used: the 'project' scope is not available to workflow tokens."
+            exit 1
+          fi
+
+      # The step above only proves the secret exists, which is true from the day
+      # it is created until long after it stops working. This asks GitHub
+      # whether the token may still write the board, so an expiry names itself
+      # instead of surfacing as a raw authentication error in a weekly job.
+      - name: Check the token still works
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: make upstream-check-token
+
+      - name: Sync the board
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: make upstream-sync
+
+      # Fenced: the report is a space-padded ASCII table, and the step summary
+      # is rendered as GFM. Without the fence its columns collapse.
+      - name: Report the board
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: |
+          {
+            echo '```text'
+            make upstream-status
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
