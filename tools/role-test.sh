@@ -8,8 +8,9 @@
 # depends only on uv and docker; ansible-core comes from the dependency group
 # pyproject.toml declares, so a local run and a CI run execute the same engine.
 #
-# Three phases, in order:
+# Three phases, in order, with an optional fourth ahead of them:
 #
+#   prepare       optional; seed state the role is expected to reconcile away
 #   converge      apply the role to a fresh container
 #   idempotence   apply it again; fail if any task reports changed
 #   verify        assert the expected end state
@@ -17,6 +18,13 @@
 # Idempotence is the phase that matters most. Converge proves a role runs;
 # idempotence proves it is a correct Ansible role, and it is the one thing
 # converge cannot see.
+#
+# prepare exists because that same property blocks one kind of coverage.
+# Converge runs twice, so anything converge creates, it recreates -- and state
+# a role is supposed to *remove* would therefore come back between the runs and
+# be removed again, which the harness reads, correctly, as a role that flaps.
+# Such state has to be seeded once, before the first converge. A role without
+# that problem does not need the file and does not get the phase.
 #
 # Usage: tools/role-test.sh <role> <distro>
 #        tools/role-test.sh --list
@@ -88,6 +96,11 @@ fi
 
 converge="${TEST_ROOT}/${role}/converge.yml"
 verify="${TEST_ROOT}/${role}/verify.yml"
+# Optional, and optional on purpose: a role needs it only when some state has
+# to exist before the role runs and must not be recreated between the two
+# converges. Anything a scenario can set up inside converge belongs there,
+# because converge runs twice and that is what proves it idempotent.
+prepare="${TEST_ROOT}/${role}/prepare.yml"
 
 if [[ ! -f "${converge}" ]]; then
   echo >&2 "no converge playbook at ${converge}"
@@ -320,6 +333,26 @@ runPlaybook() {
     "${playbook}" 2>&1 | tee "${logFile}"
   return "${PIPESTATUS[0]}"
 }
+
+# ----------------------------------------------------------------- prepare
+# Runs once, before the first converge, and never again. That is the whole
+# point of it: state a role is supposed to reconcile away cannot be created by
+# converge, because converge runs a second time and would recreate what the
+# first run removed, which reads as a role that flaps.
+#
+# The grafana role needs this to reach its synchronising removal path at all.
+# That path only executes when a dashboard is present on the host and absent
+# from the deployer, and its `when:` sits on a looped task, so with nothing to
+# remove the condition is never evaluated and the tasks under it ship untested.
+if [[ -f "${prepare}" ]]; then
+  info "phase 0/3: prepare — seeding state the role must reconcile"
+  if ! runPlaybook "${prepare}" "${workDir}/prepare.log"; then
+    emergency "prepare failed; converge, idempotence and verify were not run"
+  fi
+  success "prepare passed"
+else
+  debug "no prepare playbook at ${prepare}; skipping"
+fi
 
 # ---------------------------------------------------------------- converge
 info "phase 1/3: converge"
