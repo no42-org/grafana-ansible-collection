@@ -87,12 +87,27 @@ fi
 # Resolve the project by title. Titles are not unique to GitHub, but they are
 # the only handle a checked-in script can carry: a project number is assigned at
 # creation and would have to be pasted in here after the fact.
+#
+# Three outcomes, and conflating any two of them creates a second board that
+# silently competes with the first. A failed lookup -- a revoked token, a
+# transient error, a board someone closed, since `gh project list` hides closed
+# projects -- must not read as "no project exists", or --bootstrap creates a
+# duplicate and every later sync picks whichever one sorts first, seeding 88
+# fresh drafts onto the empty one while the triaged board is never read again.
+# Two matches are equally unrecoverable and are refused rather than guessed at.
 project_number() {
-  gh project list --owner "${PROJECT_OWNER}" --limit 100 --format json \
-    --jq ".projects[] | select(.title == \"${PROJECT_TITLE}\") | .number" | head -1
+  local listed
+  if ! listed="$(gh project list --owner "${PROJECT_OWNER}" --limit 100 --closed \
+    --format json --jq ".projects[] | select(.title == \"${PROJECT_TITLE}\") | .number")"; then
+    emergency "could not list projects for ${PROJECT_OWNER}; check the token has the 'project' scope"
+  fi
+  if [[ "$(wc -l <<< "${listed}" | tr -d ' ')" -gt 1 ]]; then
+    emergency "more than one project titled '${PROJECT_TITLE}' under ${PROJECT_OWNER}: $(tr '\n' ' ' <<< "${listed}")"
+  fi
+  echo "${listed}"
 }
 
-number="$(project_number || true)"
+number="$(project_number)"
 
 if [[ "${mode}" == "bootstrap" ]]; then
   if [[ -z "${number}" ]]; then
@@ -152,14 +167,24 @@ print(next((f["id"] for f in fields if f["name"] == sys.argv[2]), ""))
 }
 
 # option_id <field name> <option name> -- a single-select option id.
+#
+# Fails rather than returning empty. --bootstrap creates missing fields but
+# never reconciles the options on a field that already exists, so adding an
+# option to FIELD_SPECS, or renaming one in the browser, leaves the board and
+# this script disagreeing. Passing the empty string on to `gh project item-edit
+# --single-select-option-id` fails mid-loop with an opaque API error and a
+# half-updated board; this names the cause instead.
 option_id() {
-  python3 -c '
+  local id
+  id="$(python3 -c '
 import json, sys
 fields = json.loads(sys.argv[1])["fields"]
 field = next((f for f in fields if f["name"] == sys.argv[2]), None)
 opts = (field or {}).get("options", [])
 print(next((o["id"] for o in opts if o["name"] == sys.argv[3]), ""))
-' "${fields_json}" "${1}" "${2}"
+' "${fields_json}" "${1}" "${2}")"
+  [[ -z "${id}" ]] && emergency "field '${1}' on project #${number} has no option '${2}'; the board and FIELD_SPECS disagree"
+  echo "${id}"
 }
 
 for spec in "${FIELD_SPECS[@]}"; do
@@ -180,27 +205,65 @@ FIELD_SYNCED="$(field_id "Last synced")"
 # Board contents
 # ---------------------------------------------------------------------------
 
-# The board, as one "<upstream number> <item id> <kind> <state> <decision> <target>"
-# line per item. Items with no Upstream number are somebody's hand-added row and
-# are left strictly alone.
-board="$(gh project item-list "${number}" --owner "${PROJECT_OWNER}" \
-  --limit 1000 --format json | python3 -c '
-import json, sys
+# The board, as one "<upstream number> <item id> <kind> <state> <decision> <target> <repair>"
+# line per item.
+#
+# BOARD_LIMIT is checked, not trusted. The board only grows -- closed upstream
+# items stay on it by design -- and a silently truncated listing would fail
+# every on_board test, recreating the truncated items as duplicates on every
+# run thereafter.
+readonly BOARD_LIMIT=1000
+board_json="$(gh project item-list "${number}" --owner "${PROJECT_OWNER}" \
+  --limit "${BOARD_LIMIT}" --format json)"
+
+board_total="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["totalCount"])' "${board_json}")"
+if [[ "${board_total}" -gt "${BOARD_LIMIT}" ]]; then
+  emergency "board has ${board_total} items but only ${BOARD_LIMIT} were listed; raise BOARD_LIMIT"
+fi
+
+board="$(python3 -c '
+import json, re, sys
 
 def flat(value):
     return str(value).replace(" ", "_") or "-"
 
-for item in json.load(sys.stdin)["items"]:
-    upstream = item.get("upstream")
+# Creating an item is not one operation: the draft is created, then Upstream is
+# written. A run killed between the two -- the job timing out mid-seed, a
+# transient 5xx under set -e -- leaves a draft with no Upstream number. Matching
+# on the number alone would not recognise it, so the next run would create a
+# second draft for the same upstream item, and so would every run after that.
+# The title this script writes is the fallback key, and such a row is flagged
+# for repair so the sync can put the missing number back.
+TITLE = re.compile(r"^\[(Issue|PR) #(\d+)\] ")
+
+rows = {}
+for item in json.loads(sys.argv[1])["items"]:
+    upstream, repair = item.get("upstream"), "ok"
     if upstream is None:
+        # No number and no title this script would have written: a row somebody
+        # added by hand. Left strictly alone.
+        match = TITLE.match(item.get("title", ""))
+        if not match:
+            continue
+        upstream, repair = match.group(2), "repair"
+    upstream = int(upstream)
+    # One row per upstream number, preferring the one that already carries the
+    # number. A board that a previous version duplicated still syncs correctly
+    # rather than emitting two item ids for one number, which would make every
+    # later lookup return two lines and corrupt the field writes.
+    if upstream in rows and rows[upstream][-1] == "ok":
         continue
     # gh keys custom fields by the field name lowercased, spaces and all.
-    print(int(upstream), item["id"],
-          flat(item.get("kind", "-")),
-          flat(item.get("upstream state", "-")),
-          flat(item.get("fork decision", "-")),
-          flat(item.get("target release", "-")))
-')"
+    rows[upstream] = (item["id"],
+                      flat(item.get("kind", "-")),
+                      flat(item.get("upstream state", "-")),
+                      flat(item.get("fork decision", "-")),
+                      flat(item.get("target release", "-")),
+                      repair)
+
+for upstream in sorted(rows):
+    print(upstream, *rows[upstream])
+' "${board_json}")"
 
 on_board() {
   grep -qE "^${1} " <<< "${board}"
@@ -215,10 +278,13 @@ if [[ "${mode}" == "report" ]]; then
     echo "The board is empty. Run: make upstream-sync"
     exit 0
   fi
-  printf "\n  %-6s %-6s %-9s %-15s %s\n" "KIND" "#" "UPSTREAM" "DECISION" "TARGET"
+  # "STATE", not "UPSTREAM": the upstream number is the # column, and a field
+  # named Upstream over a column of "open" reads as the wrong data rather than
+  # the wrong heading.
+  printf "\n  %-6s %-6s %-9s %-15s %s\n" "KIND" "#" "STATE" "DECISION" "TARGET"
   printf "  %s\n" "-------------------------------------------------------------------"
   untriaged=0
-  while read -r num _ kind state decision target; do
+  while read -r num _ kind state decision target _; do
     [[ "${decision}" == "Untriaged" ]] && untriaged=$(( untriaged + 1 ))
     printf "  %-6s %-6s %-9s %-15s %s\n" \
       "${kind}" "#${num}" "${state}" "${decision//_/ }" "${target//_/ }"
@@ -247,14 +313,22 @@ info "reading open issues and pull requests from ${UPSTREAM_REPO}"
 # One line per open upstream item: "<number> <kind> <title>". Pull requests are
 # listed separately because the issues endpoint reports them as issues, which
 # would give every pull request the wrong Kind.
-upstream_open="$(
-  {
-    gh issue list --repo "${UPSTREAM_REPO}" --state open --limit 500 \
-      --json number,title --jq '.[] | "\(.number) Issue \(.title)"'
-    gh pr list --repo "${UPSTREAM_REPO}" --state open --limit 500 \
-      --json number,title --jq '.[] | "\(.number) PR \(.title)"'
-  } | sort -n
-)"
+#
+# A list truncated at the limit is worse than an error: the items past it look
+# closed to the reconciliation pass below, which would mark them closed on the
+# board while upstream still has them open. The limit is therefore checked.
+readonly UPSTREAM_LIMIT=500
+upstream_issues="$(gh issue list --repo "${UPSTREAM_REPO}" --state open \
+  --limit "${UPSTREAM_LIMIT}" --json number,title --jq '.[] | "\(.number) Issue \(.title)"')"
+upstream_prs="$(gh pr list --repo "${UPSTREAM_REPO}" --state open \
+  --limit "${UPSTREAM_LIMIT}" --json number,title --jq '.[] | "\(.number) PR \(.title)"')"
+
+for listed in "${upstream_issues}" "${upstream_prs}"; do
+  [[ "$(wc -l <<< "${listed}" | tr -d ' ')" -ge "${UPSTREAM_LIMIT}" ]] && \
+    emergency "an upstream listing hit the ${UPSTREAM_LIMIT}-item limit and may be truncated; raise UPSTREAM_LIMIT"
+done
+
+upstream_open="$(sort -n <<< "${upstream_issues}"$'\n'"${upstream_prs}" | sed '/^$/d')"
 
 [[ -z "${upstream_open}" ]] && emergency "upstream returned no open items; refusing to treat that as 'all closed'"
 
@@ -267,6 +341,19 @@ closed_now=0
 while read -r num kind title; do
   if on_board "${num}"; then
     item_id="$(board_field "${num}" 2)"
+    # A row matched by its title rather than its number is a half-created item
+    # from an interrupted run. Putting the number back is what stops the next
+    # run creating a duplicate for it.
+    if [[ "$(board_field "${num}" 7)" == "repair" ]]; then
+      warning "${kind} #${num} was missing its Upstream number; repairing"
+      set_field "${item_id}" "${FIELD_UPSTREAM}" --number "${num}"
+      set_field "${item_id}" "${FIELD_KIND}" --single-select-option-id "$(option_id "Kind" "${kind}")"
+      # Seeded only if still unset. Somebody may have triaged the orphan while
+      # it was invisible to this script, and Fork decision is never overwritten.
+      if [[ "$(board_field "${num}" 5)" == "-" ]]; then
+        set_field "${item_id}" "${FIELD_DECISION}" --single-select-option-id "$(option_id "Fork decision" "Untriaged")"
+      fi
+    fi
     # Already open on the board: the only derived field that can have changed is
     # the state, if a previous run had marked it closed and upstream reopened it.
     if [[ "$(board_field "${num}" 4)" != "open" ]]; then
@@ -294,7 +381,7 @@ done <<< "${upstream_open}"
 # Anything on the board that upstream no longer lists as open has been closed or
 # merged since the last run. Its state is asked for one item at a time, which is
 # only as expensive as the number of items that changed.
-while read -r num item_id kind state _ _; do
+while read -r num item_id kind state _ _ _; do
   [[ -z "${num}" ]] && continue
   [[ "${state}" != "open" ]] && continue
   grep -qE "^${num} " <<< "${upstream_open}" && continue

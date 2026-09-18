@@ -64,7 +64,14 @@ jobs:
           GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
         run: make upstream-sync
 
+      # Fenced: the report is a space-padded ASCII table, and the step summary
+      # is rendered as GFM. Without the fence its columns collapse.
       - name: Report the board
         env:
           GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
-        run: make upstream-status >> "${GITHUB_STEP_SUMMARY}"
+        run: |
+          {
+            echo '```text'
+            make upstream-status
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"

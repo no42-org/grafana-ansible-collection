@@ -172,7 +172,8 @@ Draft, not a mirrored issue, so triage costs this repository's own tracker nothi
 
 Six fields, split by who owns them.
 The sync writes `Upstream` (the match key), `Kind`, `Upstream state` and `Last synced`, all derived from upstream.
-It never writes `Fork decision` or `Target release`, which are a maintainer's judgement.
+It seeds `Fork decision` to `Untriaged` when it creates an item and never writes it again, and it never writes `Target release` at all.
+Both are a maintainer's judgement after that.
 That split is the whole reason a re-run is safe rather than destructive: the board can be resynced at any time without losing triage.
 
 `Fork decision` starts at `Untriaged` and moves to one of `Carry`, `Fix here`, `Not applicable`, `Superseded` or `Done`.
