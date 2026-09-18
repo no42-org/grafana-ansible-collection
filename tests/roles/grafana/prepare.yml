@@ -1,0 +1,44 @@
+---
+# Runs once, before the first converge. See tools/role-test.sh.
+#
+# Seeds a dashboard the deployer does not have, which is the only way to reach
+# the role's synchronising removal path.
+#
+# That path is guarded by
+#
+#   loop: "{{ __dashboards_present_list | difference(__dashboards_copied_list) }}"
+#
+# and Ansible evaluates a task's `when:` once per loop item. With nothing to
+# remove the loop is empty, the conditions are never evaluated, and the task
+# reports "skipping" — which is how #493, a `when:` returning a list rather
+# than a boolean, survived a green role test on ansible-core 2.21.
+#
+# This cannot live in converge.yml. Converge runs a second time to prove
+# idempotence; it would recreate the file the first run removed, and the
+# removal would be reported as a change on every run forever.
+- name: Prepare
+  hosts: all
+  any_errors_fatal: true
+  tasks:
+    # The role's own default for grafana_ini.paths.data. Written literally
+    # because this playbook runs before the role and does not load its
+    # defaults; if that default ever moves, this path has to move with it.
+    - name: "Create the provisioned dashboards directory ahead of the role"
+      ansible.builtin.file:
+        path: /var/lib/grafana/dashboards
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: "Seed a dashboard the deployer does not have"
+      ansible.builtin.copy:
+        content: |
+          {
+            "title": "role-test stale",
+            "uid": "roletest-stale",
+            "panels": [],
+            "schemaVersion": 39
+          }
+        dest: /var/lib/grafana/dashboards/stale.json
+        mode: "0644"
+      become: true
