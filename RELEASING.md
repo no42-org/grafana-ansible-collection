@@ -171,10 +171,18 @@ make upstream-check-token   # confirm the token can still write the board
 Every open upstream issue and pull request is a draft item on that board.
 Draft, not a mirrored issue, so triage costs this repository's own tracker nothing.
 
-Six fields, split by who owns them.
+Eight fields, split by who owns them.
 The sync writes `Upstream` (the match key), `Kind`, `Upstream state` and `Last synced`, all derived from upstream.
-It seeds `Fork decision` to `Untriaged` when it creates an item and never writes it again, and it never writes `Target release` at all.
-Both are a maintainer's judgement after that.
+It seeds `Fork decision` to `Untriaged` when it creates an item and never writes it again, and it never writes `Epic`, `Change type` or `Target release` at all.
+Those four are a maintainer's judgement.
+
+`Epic` groups the work by subsystem: `grafana-dashboards`, `grafana-install`, `grafana-api-modules`, `alloy`, `mimir`, `tempo`, `otel-collector`, `cross-role`, `new-roles`.
+It is single-select, so one rule has to settle every item: work in a module under `plugins/` is `grafana-api-modules`, work in a role's tasks belongs to that role's epic.
+Grouping by theme instead was rejected because the themes worth naming, Grafana 13 compatibility above all, each span three or four roles, so an epic would not have been one branch or one role-test run.
+
+`Change type` is `Bug`, `Enhancement` or `Maintenance`.
+It cannot be derived from upstream: 54 of upstream's 57 open issues carry no label at all, and the only labelled pull requests are its dependency bots.
+The field is not called `Type` because GitHub reserves that name for its own issue-type feature and refuses to create it.
 That split is the whole reason a re-run is safe rather than destructive: the board can be resynced at any time without losing triage.
 
 `Fork decision` starts at `Untriaged` and moves to one of `Carry`, `Fix here`, `Not applicable`, `Superseded` or `Done`.
@@ -190,6 +198,9 @@ A secret that exists is not a secret that still works, and the failure that actu
 So the job's second step asks GitHub whether the token may still write the board, through the project's `viewerCanUpdate`, which tests the write permission without writing anything.
 An expired token and a token downgraded to read-only each name themselves, instead of surfacing as a raw authentication error or as a sync that fails halfway through having already rewritten part of the board.
 `make upstream-check-token` runs the same check locally.
+
+A fair share of what upstream has open does not transfer here at all, and saying so is triage, not dismissal.
+Of the first 88, 23 were marked `Not applicable` on sight: 15 Dependabot and Renovate pull requests against upstream's own toolchain, which this fork replaces with its own; Renovate's dependency-dashboard issue; three items in `grafana_agent` and `promtail`, the roles this fork removed; and four pieces of upstream project administration, including its Galaxy upload workflow and its own 6.0.0 release.
 
 A closed or merged upstream item stays on the board with its state updated.
 Removing it is a triage decision, not the script's: an item upstream closed without fixing may still be a problem this fork wants to fix.
