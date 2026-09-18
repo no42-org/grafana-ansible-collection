@@ -175,20 +175,40 @@ info "resolving harness collections from ${roleTestRequirements}"
 # output was discarded the log said only that it could not install. Bounded
 # retries for the transient case; the output is kept and shown when the
 # last attempt fails, so the next such failure names its cause.
-readonly galaxyAttempts=3
+#
+# The retry backs off rather than waiting a fixed 15 seconds, because three
+# attempts 15 seconds apart only survive a 30-second outage and the outages are
+# longer than that. `loki (debian)` failed on main when galaxy.ansible.com reset
+# the connection on all three attempts inside 31 seconds. Doubling from 10
+# spans about two and a half minutes instead.
+#
+# Every job retries independently, and the matrices run roughly two dozen of
+# them per push, so each run makes that many separate calls to a service that
+# fails on its own schedule. That is the reason a rare per-call failure shows up
+# often enough to be worth widening the window for.
+# Success is the exit status, never the output. This used to clear galaxyOutput
+# on success and test it for emptiness afterwards, which reads a silent failure
+# as a success: ansible-galaxy happens to print an ERROR line today, so the bug
+# was invisible, but a failure that printed nothing would have let the harness
+# run the whole suite without its collections and fail later as a missing
+# module, naming anything but the cause.
+readonly galaxyAttempts=5
 galaxyOutput=""
+galaxyBackoff=10
+galaxyInstalled=0
 for attempt in $(seq 1 "${galaxyAttempts}"); do
   if galaxyOutput="$("${ansibleGalaxy[@]}" collection install -r "${roleTestRequirements}" </dev/null 2>&1)"; then
-    galaxyOutput=""
+    galaxyInstalled=1
     break
   fi
   if [[ "${attempt}" -lt "${galaxyAttempts}" ]]; then
-    info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in 15s"
-    sleep 15
+    info "collection install failed, attempt ${attempt} of ${galaxyAttempts}; retrying in ${galaxyBackoff}s"
+    sleep "${galaxyBackoff}"
+    galaxyBackoff=$(( galaxyBackoff * 2 ))
   fi
 done
-if [[ -n "${galaxyOutput}" ]]; then
-  echo "${galaxyOutput}" >&2
+if [[ "${galaxyInstalled}" -eq 0 ]]; then
+  [[ -n "${galaxyOutput}" ]] && echo "${galaxyOutput}" >&2
   echo >&2 "TOOLCHAIN NOT INSTALLED: could not install the collections in ${roleTestRequirements} after ${galaxyAttempts} attempts";
   exit 1;
 fi
