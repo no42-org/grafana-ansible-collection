@@ -1,18 +1,43 @@
 ---
-- name: "Check which plugins are installed"
-  ansible.builtin.find:
-    file_type: directory
-    recurse: false
-    paths: "{{ grafana_ini.paths.data }}/plugins"
-  register: __installed_plugins
-
-- name: "Install plugins"
+# Grafana 10.0 deprecated the standalone "grafana-cli" in favour of the "grafana
+# cli" subcommand of a single binary, and Grafana 13.0 removed it. This role
+# supports Grafana >= 5.1, so neither form alone covers the range. The form is
+# probed rather than derived from grafana_version, because that variable accepts
+# "latest" and the package task uses state=present, so it does not necessarily
+# describe the Grafana actually installed on the host.
+- name: "Check for the grafana cli subcommand"
   become: true
   ansible.builtin.command:
-    cmd: "grafana-cli --pluginsDir {{ grafana_ini.paths.data }}/plugins plugins install {{ item }}"
+    cmd: "grafana cli --help"
     chdir: /usr/share/grafana
-    creates: "{{ grafana_ini.paths.data }}/plugins/{{ item }}"
-  loop: "{{ grafana_plugins | difference(__installed_plugins.files) }}"
+  register: __grafana_cli_subcommand
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: "Select the plugin CLI form"
+  ansible.builtin.set_fact:
+    __grafana_plugin_cli: "{{ 'grafana cli' if __grafana_cli_subcommand.rc == 0 else 'grafana-cli' }}"
+
+# --pluginsDir is required and cannot be replaced by --config: the CLI ignores
+# paths.plugins in the configuration file and falls back to its own built-in
+# default, even when handed the same grafana.ini the server reads. Verified on
+# Grafana 13.2.1 -- with paths.plugins set to a non-default directory the server
+# populated it while the CLI still installed into /var/lib/grafana/plugins.
+#
+# What fixes #331 is therefore not dropping the flag but sourcing it from the
+# one variable the template also renders into grafana.ini, so the value the CLI
+# is given and the value the server reads cannot drift apart.
+#
+# chdir supplies the homepath, which Grafana 13 requires the CLI to know.
+- name: "Install plugins"
+  become: true
+  become_user: grafana
+  ansible.builtin.command:
+    cmd: "{{ __grafana_plugin_cli }} --pluginsDir {{ grafana_ini.paths.plugins }} plugins install {{ item }}"
+    chdir: /usr/share/grafana
+    creates: "{{ grafana_ini.paths.plugins }}/{{ item }}"
+  loop: "{{ grafana_plugins }}"
   register: __plugin_install
   until: "__plugin_install is succeeded"
   retries: 5

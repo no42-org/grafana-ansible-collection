@@ -32,6 +32,15 @@
       security:
         admin_user: admin
         admin_password: password
+      # Exercises #331. A non-default plugins path is the only configuration
+      # that can tell the fix from the bug: at the default, the directory the
+      # role passes to the CLI and the CLI's own built-in default are the same
+      # string, so a role that computes the wrong value still passes. Moved
+      # here, the server populates this directory with its bundled plugins and
+      # the CLI must be told to install into it too, or the two disagree and
+      # `creates:` never matches -- which is exactly how the bug presents.
+      paths:
+        plugins: /srv/grafana-plugins
     # Exercises #448: the loop that turns dashboard subdirectory paths into
     # folder names. With no subdirectories the block is skipped entirely.
     grafana_dashboards_dir: "{{ role_test_fixtures }}/dashboards"
