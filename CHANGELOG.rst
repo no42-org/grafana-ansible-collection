@@ -4,6 +4,52 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v7.2.1
+======
+
+Release Summary
+---------------
+
+A correctness release for the grafana role's dashboard provisioning. Two defects, each in a
+provisioning route the role tests never entered. The synchronising removal guarded itself with a
+conditional that returns a list rather than a boolean, which ansible-core 2.19 made fatal, so that
+path aborted the play on every version from 2.19 up while requires_ansible claims support to 3.0.0.
+And the grafana.net dashboard copy declared owner root against a handler that recurses the same
+tree setting owner grafana, so the two reversed each other and the role never converged. No
+variable, default or interface changes; a consumer upgrading gets the fixes without action. Version
+numbers are this fork's own and do not correspond to any grafana.grafana release; the upstream
+commit this release is built from is recorded in its GitHub release notes.
+
+Bugfixes
+--------
+
+- The grafana role's "Remove dashboards not present on deployer machine (synchronize)" task no
+  longer aborts the play on ansible-core 2.19 and later. Its conditions used `X is defined and X`,
+  and Jinja's `and` yields an operand rather than a boolean, so the condition evaluated to a list;
+  ansible-core 2.19 rejects a non-boolean conditional outright. They are length comparisons now.
+  Addresses grafana/grafana-ansible-collection#493.
+- The grafana role's "Import grafana.net dashboards" task copies with owner grafana rather than
+  owner root. The handler it notifies recurses the provisioned dashboards tree setting owner
+  grafana, so the copy and the handler reversed each other on every run and the role could never
+  report no change. Addresses grafana/grafana-ansible-collection#244.
+- The grafana role's folder synchronise task gains the same two corrections: its condition is a
+  list of boolean tests rather than a Jinja `and`, and grafana_provisioning_synced is filtered
+  through `| bool`. Without the filter a string extra-var such as `-e
+  grafana_provisioning_synced=false` read as truthy there while the dashboards task, which does
+  filter, read it as false, so synchronisation was nominally off while folders were removed.
+
+Minor Changes
+-------------
+
+- The role test harness gains an optional prepare phase, run once before the first converge, for
+  state a role is expected to reconcile away. Converge runs twice to prove idempotence, so it
+  cannot create state a role is meant to remove without that removal reporting a change forever. A
+  role without a prepare.yml does not get the phase.
+- The grafana role test enters the dashboard provisioning routes it previously left at their
+  defaults: grafana_provisioning_synced and a grafana_dashboards entry are set, and verify asserts
+  the ownership of provisioned files, that the datasource placeholder was rewritten, and that a
+  dashboard absent from the deployer is removed.
+
 v7.2.0
 ======
 
