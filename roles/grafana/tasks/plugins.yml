@@ -32,7 +32,6 @@
 # chdir supplies the homepath, which Grafana 13 requires the CLI to know.
 - name: "Install plugins"
   become: true
-  become_user: grafana
   ansible.builtin.command:
     cmd: "{{ __grafana_plugin_cli }} --pluginsDir {{ grafana_ini.paths.plugins }} plugins install {{ item }}"
     chdir: /usr/share/grafana
@@ -44,3 +43,21 @@
   delay: 2
   notify:
     - restart_grafana
+
+# The CLI runs as root, so it extracts the plugin root-owned and the Grafana
+# server cannot replace it when the plugin is updated from the UI (#508).
+# Installing as the grafana user directly is not an option: become from one
+# unprivileged user to another needs acl, pipelining or world-readable
+# tmpfiles on the target, and fails outright without them -- a failure the
+# role tests cannot see, because they connect as root. Correcting ownership
+# afterwards works from any connection user, and recursing over the directory
+# also repairs plugins an earlier version of this role installed as root,
+# which the `creates:` guard would otherwise leave root-owned forever.
+- name: "Ensure the plugins are owned by the grafana user"
+  become: true
+  ansible.builtin.file:
+    path: "{{ grafana_ini.paths.plugins }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    recurse: true
