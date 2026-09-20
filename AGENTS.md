@@ -26,6 +26,21 @@ Upstream fixes are cherry-picked with `-x -s`: the contributor stays the author,
 
 Nothing is submitted upstream (maintainership is dormant), so changes must stay **adoptable by construction**: one purpose per commit, no reformatting of inherited files, `roles/*/molecule/` byte-identical.
 
+### `grafana/grafana-ansible-collection` is read-only, always
+
+**Never write anything to upstream.** No issue, no pull request, no comment, no review, no label, no reaction, and no state change. Read it as much as you like; change nothing.
+
+This is not a style preference, and "it is only a no-op" is not an exception. On 2026-09-20 a tool probing whether a token had write permission sent a `PATCH` to `grafana/grafana-ansible-collection#540` expecting a refusal, and **reopened the issue**. It succeeded because the account authored that issue, and an author may reopen their own issue with no repository permission at all. The intent was a permission check; the effect was an unrequested change in someone else's tracker, visible in their timeline and impossible to erase.
+
+So the rule is about the *request*, not the intent behind it:
+
+- Read-only verbs against upstream are fine: `gh issue view`, `gh pr view`, `gh issue list`, `gh api` with `GET`.
+- Anything that mutates is forbidden: `gh issue create|close|reopen|comment|edit`, `gh pr create|review|comment|merge`, and `gh api` with `-X POST|PATCH|PUT|DELETE`.
+- Being *able* to do it is not permission to. Author rights and admin rights both make forbidden writes succeed quietly.
+- If a task seems to need an upstream write, stop and ask. There is no case where an agent performs one unprompted.
+
+Triage lives on this fork's board and in this fork's issues. `tools/upstream-tracker.sh` refuses to run if its `FORK_REPO` is pointed at the upstream repository, so the one tool that touches both cannot be misaimed by an environment override.
+
 ```bash
 make carried-prs    # what is carried, and whether upstream merged it
 ```
