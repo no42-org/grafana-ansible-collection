@@ -5,6 +5,18 @@
   no_log: "{{ 'false' if lookup('env', 'CI') else 'true' }}"
   tags:
     - always
+# Derived after the merge, not declared in grafana_ini_default: the default has
+# to follow an overridden paths.data, and a template referencing the merged
+# grafana_ini from inside the dict it is merged from is a recursive loop.
+# Both the Grafana server and the plugin CLI read this one value, so they
+# cannot disagree about where plugins live.
+- name: Default the plugins path to the data path
+  ansible.builtin.set_fact:
+    grafana_ini: "{{ grafana_ini | ansible.builtin.combine({'paths': {'plugins': grafana_ini.paths.data ~ '/plugins'}}, recursive=true) }}"
+  when: grafana_ini.paths.plugins is not defined
+  no_log: "{{ 'false' if lookup('env', 'CI') else 'true' }}"
+  tags:
+    - always
 - name: "Gather variables for each operating system"
   ansible.builtin.include_vars: "{{ distrovars }}"
   vars:

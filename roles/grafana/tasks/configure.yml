@@ -22,7 +22,7 @@
       owner: grafana
     - path: "{{ grafana_ini.paths.data }}/dashboards"
       owner: grafana
-    - path: "{{ grafana_ini.paths.data }}/plugins"
+    - path: "{{ grafana_ini.paths.plugins }}"
       owner: grafana
 
 - name: "Create grafana main configuration file"

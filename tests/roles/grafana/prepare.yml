@@ -25,7 +25,7 @@
     # defaults; if that default ever moves, this path has to move with it.
     - name: "Create the provisioned dashboards directory ahead of the role"
       ansible.builtin.file:
-        path: /var/lib/grafana/dashboards
+        path: /srv/grafana-data/dashboards
         state: directory
         mode: "0755"
       become: true
@@ -39,6 +39,6 @@
             "panels": [],
             "schemaVersion": 39
           }
-        dest: /var/lib/grafana/dashboards/stale.json
+        dest: /srv/grafana-data/dashboards/stale.json
         mode: "0644"
       become: true
