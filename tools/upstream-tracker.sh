@@ -11,8 +11,17 @@
 #
 # The candidate set lives in a GitHub Project rather than in a file, because a
 # file would have to be regenerated to stay true and would conflict on every
-# upstream merge. The board is seeded with draft items: no issue is opened in
-# this repository, so triage costs the fork's own tracker nothing.
+# upstream merge.
+#
+# The board is seeded with real issues in this repository, one per open
+# upstream item. It used to seed drafts, on the reasoning that triage should
+# cost the fork's own tracker nothing. Drafts cost something else: they cannot
+# be closed, referenced from a commit, assigned or searched, and GitHub's own
+# project automation ignores them, so the board's state had to be maintained
+# entirely by hand. The 40 items already settled when this changed were left as
+# drafts -- converting them would have opened, and immediately closed, 40
+# issues recording decisions already made -- so both kinds appear on the board
+# and this script handles both.
 #
 # Field ownership is the reason a re-run is safe. The sync writes only the
 # fields it derives from upstream:
@@ -22,6 +31,11 @@
 #   Upstream state  select   open, merged or closed
 #   Last synced     date     when this script last confirmed the row
 #   Status          select   GitHub's built-in field, derived from Fork decision
+#
+# and it opens or closes the tracking issue to match Fork decision: closed once
+# the decision reaches Done, Not applicable or Superseded, reopened if it moves
+# back. That keeps this repository's issue list a list of open work rather than
+# a mirror of everything upstream has ever had open.
 #
 # Status is the odd one. It is created by GitHub with every project, it cannot
 # be deleted -- the API answers "Only custom fields can be deleted" -- and a
@@ -68,6 +82,11 @@ source "$(pwd)/tools/includes/utils.sh"
 source "$(pwd)/tools/includes/logging.sh"
 
 readonly UPSTREAM_REPO="grafana/grafana-ansible-collection"
+# Where the tracking issues are opened. Not derived from the git remote: the
+# sync runs in Actions, where the checkout's remote is whatever the workflow
+# cloned, and opening 88 issues in the wrong repository is not a mistake worth
+# leaving reachable.
+readonly FORK_REPO="${UPSTREAM_TRACKER_FORK_REPO:-no42-org/grafana-ansible-collection}"
 readonly PROJECT_OWNER="${UPSTREAM_TRACKER_OWNER:-no42-org}"
 readonly PROJECT_TITLE="${UPSTREAM_TRACKER_TITLE:-Upstream tracking}"
 
@@ -184,6 +203,27 @@ if [[ "${mode}" == "check-token" ]]; then
   fi
 
   success "PROJECTS_TOKEN can read and write project #${number} '${PROJECT_TITLE}'"
+
+  # Projects write is no longer sufficient. The sync opens a tracking issue for
+  # every new upstream item and closes it when the decision settles, so the
+  # same token needs repository Issues: read and write. Asked separately
+  # because the two permissions are granted separately, and a token carrying
+  # only the first fails at the first new upstream item -- which is a week when
+  # upstream opened something, not the week the permission lapsed.
+  # shellcheck disable=SC2016
+  if ! can_push="$(gh api graphql \
+    -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){viewerPermission}}' \
+    -f owner="${FORK_REPO%%/*}" -f name="${FORK_REPO##*/}" \
+    --jq '.data.repository.viewerPermission' 2>&1)"; then
+    emergency "PROJECTS_TOKEN cannot read ${FORK_REPO}: ${can_push}"
+  fi
+
+  case "${can_push}" in
+    ADMIN|MAINTAIN|WRITE|TRIAGE) ;;
+    *) emergency "PROJECTS_TOKEN has ${can_push} on ${FORK_REPO} and cannot open or close the tracking issues; it needs repository 'Issues: read and write'" ;;
+  esac
+
+  success "PROJECTS_TOKEN has ${can_push} on ${FORK_REPO} and can manage the tracking issues"
   exit 0
 fi
 
@@ -285,7 +325,7 @@ FIELD_STATUS="$(field_id "Status")"
 # ---------------------------------------------------------------------------
 
 # The board, as one
-# "<upstream number> <item id> <kind> <state> <decision> <target> <epic> <change type> <repair> <status>"
+# "<upstream number> <item id> <kind> <state> <decision> <target> <epic> <change type> <repair> <status> <item kind> <fork issue>"
 # line per item, in ${board}.
 #
 # A function because the sync reads the board twice: once to decide what to
@@ -355,7 +395,13 @@ for item in json.loads(sys.argv[1])["items"]:
                       flat(item.get("epic", "-")),
                       flat(item.get("change type", "-")),
                       repair,
-                      flat(item.get("status", "-")))
+                      flat(item.get("status", "-")),
+                      # Issue or DraftIssue, and the issue number in this
+                      # repository. A draft has neither a number nor a state,
+                      # so every consumer of these two has to check the kind
+                      # before it reaches for the number.
+                      flat(item.get("content", {}).get("type", "-")),
+                      flat(item.get("content", {}).get("number", "-")))
 
 for upstream in sorted(rows):
     print(upstream, *rows[upstream])
@@ -463,10 +509,18 @@ while read -r num kind title; do
     continue
   fi
 
-  item_id="$(gh project item-create "${number}" --owner "${PROJECT_OWNER}" \
+  # Two operations, and the order matters. The issue is created first and added
+  # second, so an interruption between them leaves an issue that is not on the
+  # board -- visible, and recoverable by adding it -- rather than a board item
+  # pointing at nothing. The reverse order is not expressible anyway: an item
+  # cannot be added before its issue exists.
+  issue_url="$(gh issue create --repo "${FORK_REPO}" \
     --title "[${kind} #${num}] ${title}" \
     --body "https://github.com/${UPSTREAM_REPO}/$( [[ "${kind}" == "PR" ]] && echo pull || echo issues )/${num}" \
-    --format json --jq '.id' </dev/null)"
+    </dev/null)"
+
+  item_id="$(gh project item-add "${number}" --owner "${PROJECT_OWNER}" \
+    --url "${issue_url}" --format json --jq '.id' </dev/null)"
 
   set_field "${item_id}" "${FIELD_UPSTREAM}" --number "${num}"
   set_field "${item_id}" "${FIELD_KIND}" --single-select-option-id "$(option_id "Kind" "${kind}")"
@@ -510,10 +564,41 @@ done <<< "${board}"
 # values that already hold.
 read_board
 
+# Issue state is derived from the same decision, so it is settled in the same
+# pass. The open set is listed once rather than asked per item: 88 items is 88
+# API calls to learn something one listing answers, and the listing is the same
+# call whether nothing changed or everything did.
+fork_open="$(gh issue list --repo "${FORK_REPO}" --state open \
+  --limit "${BOARD_LIMIT}" --json number --jq '.[].number' </dev/null)"
+
 mirrored=0
 unmapped=0
-while read -r num item_id _ _ decision _ _ _ _ current; do
+opened=0
+closed=0
+while read -r num item_id _ _ decision _ _ _ _ current item_kind fork_issue; do
   [[ -z "${num}" ]] && continue
+
+  # Settled items that predate the move to real issues are still drafts. A
+  # draft has no issue to open or close, so only the Status mirror applies.
+  if [[ "${item_kind}" == "Issue" && "${fork_issue}" != "-" ]]; then
+    if grep -qx "${fork_issue}" <<< "${fork_open}"; then is_open=1; else is_open=0; fi
+    case "${decision}" in
+      Done|Not_applicable|Superseded)
+        if [[ "${is_open}" -eq 1 ]]; then
+          gh issue close "${fork_issue}" --repo "${FORK_REPO}" \
+            --comment "Fork decision is ${decision//_/ }. Tracked on the upstream board; reopened automatically if that changes." \
+            >/dev/null </dev/null
+          closed=$(( closed + 1 ))
+        fi
+        ;;
+      *)
+        if [[ "${is_open}" -eq 0 ]]; then
+          gh issue reopen "${fork_issue}" --repo "${FORK_REPO}" >/dev/null </dev/null
+          opened=$(( opened + 1 ))
+        fi
+        ;;
+    esac
+  fi
 
   desired="$(status_for "${decision}")"
   if [[ -z "${desired}" ]]; then
@@ -535,6 +620,7 @@ echo ""
 info "added: ${created}"
 info "refreshed: ${refreshed}"
 info "status mirrored: ${mirrored}"
+info "tracking issues closed: ${closed}, reopened: ${opened}"
 [[ "${unmapped}" -gt 0 ]] && warning "unmapped Fork decision on ${unmapped} item(s); extend status_for in $0"
 [[ "${closed_now}" -gt 0 ]] && warning "newly closed or merged upstream: ${closed_now} (re-check their Fork decision)"
 info "board: https://github.com/orgs/${PROJECT_OWNER}/projects/${number}"

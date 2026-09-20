@@ -168,8 +168,15 @@ make upstream-bootstrap     # create the project and its fields, idempotent
 make upstream-check-token   # confirm the token can still write the board
 ```
 
-Every open upstream issue and pull request is a draft item on that board.
-Draft, not a mirrored issue, so triage costs this repository's own tracker nothing.
+Every open upstream issue and pull request is an item on that board, backed by a tracking issue in this repository titled `[Issue #NNN]` or `[PR #NNN]` with the upstream link as its body.
+
+It used to be a draft item, on the reasoning that triage should cost this repository's own tracker nothing.
+Drafts cost something else. A draft cannot be closed, referenced from a commit, assigned or searched, and GitHub's own project automation ignores it, so every signal of state had to be maintained by hand — which is how the board came to show 88 items in `Todo` with an empty `Done`.
+A tracking issue closes when the work is decided, and `Fork decision` drives that automatically.
+
+The 40 items already settled when this changed were left as drafts.
+Converting them would have opened, and immediately closed, 40 issues recording decisions already made.
+So both kinds are on the board, the sync handles both, and anything created from now on is an issue.
 
 Eight fields, split by who owns them, plus GitHub's built-in `Status`.
 The sync writes `Upstream` (the match key), `Kind`, `Upstream state` and `Last synced`, all derived from upstream.
@@ -190,6 +197,9 @@ So the sync derives it from `Fork decision`, on every run:
 | `Done`, `Not applicable`, `Superseded` | `Done` |
 
 `Todo` is therefore the outstanding triage queue, and `Done` means the item needs no further decision here, whether it was fixed, carried, ruled out or superseded.
+
+The same three decisions close the tracking issue, and any other decision reopens it, so this repository's open issues are its open work rather than a mirror of everything upstream has ever had open.
+A draft has no issue to open or close, so for the 40 legacy drafts only the `Status` mirror applies.
 
 Derived rather than maintained by hand, because a mirror nobody owns drifts the moment a `Fork decision` changes, and then `make upstream-status` and the Kanban disagree with no way to tell which is right. Deriving it makes `Fork decision` the single authority and `Status` a view of it. The sync writes only the items whose `Status` disagrees, so a board already in agreement costs no API calls.
 
