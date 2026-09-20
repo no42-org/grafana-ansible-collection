@@ -210,20 +210,34 @@ if [[ "${mode}" == "check-token" ]]; then
   # because the two permissions are granted separately, and a token carrying
   # only the first fails at the first new upstream item -- which is a week when
   # upstream opened something, not the week the permission lapsed.
-  # shellcheck disable=SC2016
-  if ! can_push="$(gh api graphql \
-    -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){viewerPermission}}' \
-    -f owner="${FORK_REPO%%/*}" -f name="${FORK_REPO##*/}" \
-    --jq '.data.repository.viewerPermission' 2>&1)"; then
-    emergency "PROJECTS_TOKEN cannot read ${FORK_REPO}: ${can_push}"
+  #
+  # Read access is checked. Issues: write is NOT, and saying so is the point.
+  #
+  # Two probes were tried here and both reported a pass against a token that
+  # could not do the job:
+  #
+  #   GraphQL viewerPermission reports the *user's* permission, not the
+  #   token's. A PAT restricted to "Public repositories" -- read-only, cannot
+  #   open an issue -- still answers ADMIN when an admin is behind it.
+  #
+  #   An empty PATCH of an issue returns 200 without Issues: write, so it
+  #   proves nothing. Adding a field makes the request enforce something, but
+  #   the issue's *author* may close and reopen their own issue with no
+  #   repository permission at all, and every issue here is authored by the
+  #   token's own user. It passed against an upstream repository this token
+  #   cannot write.
+  #
+  # The only request that truly requires Issues: write is creating an issue,
+  # and a weekly pre-flight must not leave one behind. GitHub offers no
+  # introspection for a fine-grained token's repository permissions. So this
+  # reports what it knows and names what it does not, rather than inventing a
+  # third probe that passes for the wrong reason.
+  if ! repo_err="$(gh api "repos/${FORK_REPO}" --jq '.full_name' 2>&1 >/dev/null)"; then
+    emergency "PROJECTS_TOKEN cannot read ${FORK_REPO}: ${repo_err}"
   fi
-
-  case "${can_push}" in
-    ADMIN|MAINTAIN|WRITE|TRIAGE) ;;
-    *) emergency "PROJECTS_TOKEN has ${can_push} on ${FORK_REPO} and cannot open or close the tracking issues; it needs repository 'Issues: read and write'" ;;
-  esac
-
-  success "PROJECTS_TOKEN has ${can_push} on ${FORK_REPO} and can manage the tracking issues"
+  success "PROJECTS_TOKEN can read ${FORK_REPO}"
+  warning "Issues: write is NOT verified here; no request proves it without creating an issue"
+  warning "the sync needs repository 'Issues: read and write' on ${FORK_REPO}, and fails by name if it is missing"
   exit 0
 fi
 
@@ -514,10 +528,13 @@ while read -r num kind title; do
   # board -- visible, and recoverable by adding it -- rather than a board item
   # pointing at nothing. The reverse order is not expressible anyway: an item
   # cannot be added before its issue exists.
-  issue_url="$(gh issue create --repo "${FORK_REPO}" \
+  if ! issue_url="$(gh issue create --repo "${FORK_REPO}" \
     --title "[${kind} #${num}] ${title}" \
     --body "https://github.com/${UPSTREAM_REPO}/$( [[ "${kind}" == "PR" ]] && echo pull || echo issues )/${num}" \
-    </dev/null)"
+    </dev/null 2>&1)"; then
+    error "could not open a tracking issue in ${FORK_REPO}: ${issue_url}"
+    emergency "PROJECTS_TOKEN needs repository 'Issues: read and write'; run: make upstream-check-token"
+  fi
 
   item_id="$(gh project item-add "${number}" --owner "${PROJECT_OWNER}" \
     --url "${issue_url}" --format json --jq '.id' </dev/null)"
@@ -585,15 +602,21 @@ while read -r num item_id _ _ decision _ _ _ _ current item_kind fork_issue; do
     case "${decision}" in
       Done|Not_applicable|Superseded)
         if [[ "${is_open}" -eq 1 ]]; then
-          gh issue close "${fork_issue}" --repo "${FORK_REPO}" \
+          if ! close_err="$(gh issue close "${fork_issue}" --repo "${FORK_REPO}" \
             --comment "Fork decision is ${decision//_/ }. Tracked on the upstream board; reopened automatically if that changes." \
-            >/dev/null </dev/null
+            2>&1 >/dev/null </dev/null)"; then
+            error "could not close ${FORK_REPO}#${fork_issue}: ${close_err}"
+            emergency "PROJECTS_TOKEN needs repository 'Issues: read and write'"
+          fi
           closed=$(( closed + 1 ))
         fi
         ;;
       *)
         if [[ "${is_open}" -eq 0 ]]; then
-          gh issue reopen "${fork_issue}" --repo "${FORK_REPO}" >/dev/null </dev/null
+          if ! open_err="$(gh issue reopen "${fork_issue}" --repo "${FORK_REPO}" 2>&1 >/dev/null </dev/null)"; then
+            error "could not reopen ${FORK_REPO}#${fork_issue}: ${open_err}"
+            emergency "PROJECTS_TOKEN needs repository 'Issues: read and write'"
+          fi
           opened=$(( opened + 1 ))
         fi
         ;;
