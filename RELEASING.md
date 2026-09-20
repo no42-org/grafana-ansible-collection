@@ -171,11 +171,29 @@ make upstream-check-token   # confirm the token can still write the board
 Every open upstream issue and pull request is a draft item on that board.
 Draft, not a mirrored issue, so triage costs this repository's own tracker nothing.
 
-Eight fields, split by who owns them.
+Eight fields, split by who owns them, plus GitHub's built-in `Status`.
 The sync writes `Upstream` (the match key), `Kind`, `Upstream state` and `Last synced`, all derived from upstream.
 It seeds `Fork decision` to `Untriaged` when it creates an item and never writes it again, and it never writes `Epic`, `Change type` or `Target release` at all.
 Those four are a maintainer's judgement.
 That split is the whole reason a re-run is safe rather than destructive: the board can be resynced at any time without losing triage.
+
+### `Status` is GitHub's, and is derived
+
+`Status` is not one of the eight. GitHub creates it with every project and **it cannot be deleted** — the API answers `Only custom fields can be deleted`. A board-layout view groups by it unless told otherwise, so it is not ignorable either: left unwritten it reads `Todo` for every item forever, and the Kanban view showed 88 drafts in `Todo` with an empty `Done` while most of them were long settled.
+
+So the sync derives it from `Fork decision`, on every run:
+
+| `Fork decision` | `Status` |
+| --- | --- |
+| `Untriaged` | `Todo` |
+| `Carry`, `Fix here` | `In Progress` |
+| `Done`, `Not applicable`, `Superseded` | `Done` |
+
+`Todo` is therefore the outstanding triage queue, and `Done` means the item needs no further decision here, whether it was fixed, carried, ruled out or superseded.
+
+Derived rather than maintained by hand, because a mirror nobody owns drifts the moment a `Fork decision` changes, and then `make upstream-status` and the Kanban disagree with no way to tell which is right. Deriving it makes `Fork decision` the single authority and `Status` a view of it. The sync writes only the items whose `Status` disagrees, so a board already in agreement costs no API calls.
+
+Two consequences worth knowing. Adding an option to `Fork decision` means adding it to `status_for` in `tools/upstream-tracker.sh`; the sync warns by item number and leaves the item alone rather than guessing. And renaming `Todo`, `In Progress` or `Done` in the browser breaks the mirror, which is why `Status` carries a `FIELD_SPECS` row despite never being created by `--bootstrap`: the row is what turns a rename into a named failure instead of an opaque API error mid-run.
 
 `Epic` groups the work by subsystem: `grafana-dashboards`, `grafana-install`, `grafana-api-modules`, `alloy`, `mimir`, `tempo`, `otel-collector`, `cross-role`, `new-roles`.
 It is single-select, so one rule has to settle every item: work in a module under `plugins/` is `grafana-api-modules`, work in a role's tasks belongs to that role's epic.
