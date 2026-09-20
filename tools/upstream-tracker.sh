@@ -21,6 +21,15 @@
 #   Kind            select   Issue or PR
 #   Upstream state  select   open, merged or closed
 #   Last synced     date     when this script last confirmed the row
+#   Status          select   GitHub's built-in field, derived from Fork decision
+#
+# Status is the odd one. It is created by GitHub with every project, it cannot
+# be deleted -- the API answers "Only custom fields can be deleted" -- and a
+# board-layout view groups by it unless told otherwise. Left unwritten it reads
+# "Todo" for every item forever, so a Kanban of this board showed 88 drafts in
+# Todo and an empty Done while most of them were long since settled. It is
+# derived here rather than maintained by hand for the usual reason: a mirror
+# nobody owns drifts the moment a Fork decision changes.
 #
 # and never touches the four that are a maintainer's judgement:
 #
@@ -80,7 +89,26 @@ readonly FIELD_SPECS=(
   "Change type|SINGLE_SELECT|Bug,Enhancement,Maintenance"
   "Target release|TEXT|"
   "Last synced|DATE|"
+  # Built-in. GitHub creates it with the project, so --bootstrap never creates
+  # it and this row exists for the two checks the others get: that the field is
+  # present before a sync starts, and that its options still read Todo,
+  # In Progress and Done. Renaming one in the browser breaks the mirror below,
+  # and this is what turns that into a named failure rather than an opaque one.
+  "Status|SINGLE_SELECT|Todo,In Progress,Done"
 )
+
+# Fork decision -> Status. The mapping the board is read with: Todo is the
+# outstanding triage queue, Done means the item needs no further decision here,
+# whether it was fixed, carried, ruled out or superseded.
+status_for() {
+  # Board values arrive space-flattened, so "Fix here" reads as "Fix_here".
+  case "${1}" in
+    Untriaged)                      echo "Todo" ;;
+    Carry|Fix_here)                 echo "In Progress" ;;
+    Done|Not_applicable|Superseded) echo "Done" ;;
+    *)                              echo "" ;;
+  esac
+}
 
 mode="sync"
 case "${1:-}" in
@@ -250,19 +278,29 @@ FIELD_KIND="$(field_id "Kind")"
 FIELD_STATE="$(field_id "Upstream state")"
 FIELD_DECISION="$(field_id "Fork decision")"
 FIELD_SYNCED="$(field_id "Last synced")"
+FIELD_STATUS="$(field_id "Status")"
 
 # ---------------------------------------------------------------------------
 # Board contents
 # ---------------------------------------------------------------------------
 
-# The board, as one "<upstream number> <item id> <kind> <state> <decision> <target> <epic> <change type> <repair>"
-# line per item.
+# The board, as one
+# "<upstream number> <item id> <kind> <state> <decision> <target> <epic> <change type> <repair> <status>"
+# line per item, in ${board}.
+#
+# A function because the sync reads the board twice: once to decide what to
+# create and refresh, and once afterwards so the Status mirror sees the items
+# that pass created. New columns go on the end -- every reader here consumes
+# the row positionally with a trailing _, so appending is invisible to them and
+# inserting is not.
 #
 # BOARD_LIMIT is checked, not trusted. The board only grows -- closed upstream
 # items stay on it by design -- and a silently truncated listing would fail
 # every on_board test, recreating the truncated items as duplicates on every
 # run thereafter.
 readonly BOARD_LIMIT=1000
+
+read_board() {
 board_json="$(gh project item-list "${number}" --owner "${PROJECT_OWNER}" \
   --limit "${BOARD_LIMIT}" --format json)"
 
@@ -301,7 +339,12 @@ for item in json.loads(sys.argv[1])["items"]:
     # number. A board that a previous version duplicated still syncs correctly
     # rather than emitting two item ids for one number, which would make every
     # later lookup return two lines and corrupt the field writes.
-    if upstream in rows and rows[upstream][-1] == "ok":
+    #
+    # REPAIR is indexed, not rows[upstream][-1]: the repair flag stopped being
+    # the last element when Status was appended, and a [-1] here would compare
+    # against a status value and keep the wrong row.
+    REPAIR = 7
+    if upstream in rows and rows[upstream][REPAIR] == "ok":
         continue
     # gh keys custom fields by the field name lowercased, spaces and all.
     rows[upstream] = (item["id"],
@@ -311,11 +354,15 @@ for item in json.loads(sys.argv[1])["items"]:
                       flat(item.get("target release", "-")),
                       flat(item.get("epic", "-")),
                       flat(item.get("change type", "-")),
-                      repair)
+                      repair,
+                      flat(item.get("status", "-")))
 
 for upstream in sorted(rows):
     print(upstream, *rows[upstream])
 ' "${board_json}")"
+}
+
+read_board
 
 on_board() {
   grep -qE "^${1} " <<< "${board}"
@@ -451,9 +498,44 @@ while read -r num item_id kind state _ _ _ _ _; do
   closed_now=$(( closed_now + 1 ))
 done <<< "${board}"
 
+# ---------------------------------------------------------------------------
+# Status mirror
+# ---------------------------------------------------------------------------
+#
+# Re-read first: the items created above are not in the board this run started
+# from, and they are exactly the ones whose Status has never been set.
+#
+# Only differences are written. The mirror runs over every item on every sync,
+# so writing unconditionally would be a few hundred API calls a week to set
+# values that already hold.
+read_board
+
+mirrored=0
+unmapped=0
+while read -r num item_id _ _ decision _ _ _ _ current; do
+  [[ -z "${num}" ]] && continue
+
+  desired="$(status_for "${decision}")"
+  if [[ -z "${desired}" ]]; then
+    # A Fork decision this script has no column for. Adding an option to
+    # FIELD_SPECS without adding it to status_for lands here rather than
+    # silently leaving the item wherever it was.
+    warning "#${num} has Fork decision '${decision//_/ }', which maps to no Status; left alone"
+    unmapped=$(( unmapped + 1 ))
+    continue
+  fi
+
+  [[ "${current}" == "${desired// /_}" ]] && continue
+
+  set_field "${item_id}" "${FIELD_STATUS}" --single-select-option-id "$(option_id "Status" "${desired}")"
+  mirrored=$(( mirrored + 1 ))
+done <<< "${board}"
+
 echo ""
 info "added: ${created}"
 info "refreshed: ${refreshed}"
+info "status mirrored: ${mirrored}"
+[[ "${unmapped}" -gt 0 ]] && warning "unmapped Fork decision on ${unmapped} item(s); extend status_for in $0"
 [[ "${closed_now}" -gt 0 ]] && warning "newly closed or merged upstream: ${closed_now} (re-check their Fork decision)"
 info "board: https://github.com/orgs/${PROJECT_OWNER}/projects/${number}"
 success "sync complete"
