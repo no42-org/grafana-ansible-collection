@@ -32,9 +32,9 @@
       loop:
         - /etc/grafana
         - /var/log/grafana
-        - /var/lib/grafana
-        - /var/lib/grafana/dashboards
-        - /var/lib/grafana/plugins
+        - /srv/grafana-data
+        - /srv/grafana-data/dashboards
+        - /srv/grafana-data/plugins
 
     - name: "Assert each is a directory"
       ansible.builtin.assert:
@@ -83,7 +83,7 @@
     # ------------------------------------- #448 dashboard folders were created
     - name: "Stat the dashboard folders the role should have created"
       ansible.builtin.stat:
-        path: "/var/lib/grafana/dashboards/{{ item }}"
+        path: "/srv/grafana-data/dashboards/{{ item }}"
       register: __folders
       loop:
         - team-a
@@ -108,7 +108,7 @@
     # regression reports the defect instead of a symptom.
     - name: "Stat the dashboard the grafana.net route provisioned"
       ansible.builtin.stat:
-        path: /var/lib/grafana/dashboards/1860.json
+        path: /srv/grafana-data/dashboards/1860.json
       register: __netdash
 
     - name: "Assert it is owned by grafana, not root"
@@ -118,14 +118,14 @@
           - __netdash.stat.pw_name == 'grafana'
           - __netdash.stat.gr_name == 'grafana'
         fail_msg: >-
-          /var/lib/grafana/dashboards/1860.json is owned by
+          /srv/grafana-data/dashboards/1860.json is owned by
           {{ __netdash.stat.pw_name | default('nothing, it is missing') }};
           the copy task and the "provisioned dashboards changed" handler
           disagree about ownership and will reverse each other every run
 
     - name: "Read the dashboard the grafana.net route provisioned"
       ansible.builtin.slurp:
-        src: /var/lib/grafana/dashboards/1860.json
+        src: /srv/grafana-data/dashboards/1860.json
       register: __netdash_content
 
     # The positive half matches the rewritten key and value together. A bare
@@ -146,7 +146,7 @@
     # conditions rather than skipping past them on an empty loop.
     - name: "Stat the dashboard prepare seeded and the role should have removed"
       ansible.builtin.stat:
-        path: /var/lib/grafana/dashboards/stale.json
+        path: /srv/grafana-data/dashboards/stale.json
       register: __stale
 
     - name: "Assert the synchronise path removed it"
@@ -154,14 +154,14 @@
         that:
           - not __stale.stat.exists
         fail_msg: >-
-          /var/lib/grafana/dashboards/stale.json still exists; the synchronise
+          /srv/grafana-data/dashboards/stale.json still exists; the synchronise
           task did not remove it, so either grafana_provisioning_synced is not
           set or its looped conditions were never evaluated
 
-    # ------------------------------------------- #510 grafana-cli ran at all
-    - name: "Stat the plugin directory grafana-cli should have created"
+    # --------------------------------------- #510 the plugin CLI ran at all
+    - name: "Stat the plugin directory the plugin CLI should have created"
       ansible.builtin.stat:
-        path: /var/lib/grafana/plugins/grafana-clock-panel
+        path: /srv/grafana-data/plugins/grafana-clock-panel
       register: __plugin
 
     - name: "Assert the plugin was installed"
@@ -170,10 +170,63 @@
           - __plugin.stat.exists
           - __plugin.stat.isdir
         fail_msg: >-
-          grafana-clock-panel was not installed. On Grafana 13 grafana-cli
+          grafana-clock-panel was not installed. On Grafana 13 the plugin CLI
           fails unless it runs from its homepath, which is what the chdir in
           plugins.yml provides:
           "Grafana-server Init Failed: Could not find config defaults"
+
+    # -------------------- #508 the plugin is owned by the service account
+    # Installed as root, the directory is still there and the assertion above
+    # still passes, but Grafana cannot replace it when the plugin is updated
+    # from the UI. Ownership is the only thing that distinguishes the two.
+    - name: "Assert the plugin is owned by grafana, not root"
+      ansible.builtin.assert:
+        that:
+          - __plugin.stat.pw_name == 'grafana'
+          - __plugin.stat.gr_name == 'grafana'
+        fail_msg: >-
+          /srv/grafana-data/plugins/grafana-clock-panel is owned by
+          {{ __plugin.stat.pw_name }}:{{ __plugin.stat.gr_name }}, not
+          grafana:grafana; the Grafana server cannot update this plugin from
+          the UI because it cannot replace files it does not own
+
+    # ------------------- #331 server and CLI resolve one plugin directory
+    # The role used to compute --pluginsDir from paths.data while leaving
+    # paths.plugins out of grafana.ini entirely, so the server fell back to its
+    # own default and the two disagreed. Both now come from one variable.
+    #
+    # The CLI cannot be made to read paths.plugins from the configuration file;
+    # handed --config and nothing else it installs into its own built-in
+    # default. So the flag stays, and this asserts the flag carried the
+    # configured value rather than the default it would otherwise have used.
+    - name: "Stat the plugin directory the CLI defaults to when misconfigured"
+      ansible.builtin.stat:
+        path: /var/lib/grafana/plugins/grafana-clock-panel
+      register: __plugin_default_dir
+
+    - name: "Assert the plugin did not land in the CLI's built-in default"
+      ansible.builtin.assert:
+        that:
+          - not __plugin_default_dir.stat.exists
+        fail_msg: >-
+          grafana-clock-panel was installed into /var/lib/grafana/plugins while
+          grafana.ini sets paths.plugins to /srv/grafana-data/plugins; the plugin CLI
+          was not told the configured directory, so the Grafana server will not
+          load what the role installed
+
+    - name: "Read the rendered configuration file"
+      ansible.builtin.slurp:
+        src: /etc/grafana/grafana.ini
+      register: __ini_content
+
+    - name: "Assert grafana.ini names the plugin directory"
+      ansible.builtin.assert:
+        that:
+          - "'plugins = /srv/grafana-data/plugins' in (__ini_content.content | b64decode)"
+        fail_msg: >-
+          grafana.ini does not set paths.plugins, so the Grafana server falls
+          back to its own default while the plugin CLI resolves the directory
+          separately; the two disagree whenever paths.data is overridden
 
     # --------------------------------- RHEL-family only: #538 module_hotfixes
     - name: "RHEL family assertions"

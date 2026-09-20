@@ -36,6 +36,7 @@ All variables which can be overridden are stored in [defaults/main.yml](defaults
 | `grafana_ini.instance_name` | {{ ansible_facts['fqdn'] \| default(ansible_host) \| default(inventory_hostname) }} | Grafana instance name |
 | `grafana_ini.paths.logs` | /var/log/grafana | Path to logs directory |
 | `grafana_ini.paths.data` | /var/lib/grafana | Path to database directory |
+| `grafana_ini.paths.plugins` | `{{ grafana_ini.paths.data }}/plugins` | Path to plugins directory. Read by both the Grafana server and the plugin CLI, so they always agree. Follows `paths.data` unless set explicitly. |
 | `grafana_ini.server.http_addr` | 0.0.0.0 | Address on which Grafana listens |
 | `grafana_ini.server.http_port` | 3000 | port on which Grafana listens |
 | `grafana_cap_net_bind_service` | false | Enables the use of ports below 1024 without root privileges by leveraging the 'capabilities' of the linux kernel. read: http://man7.org/linux/man-pages/man7/capabilities.7.html |
