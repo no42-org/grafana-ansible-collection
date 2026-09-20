@@ -15,8 +15,13 @@ name: Upstream Tracker
 # issues. Each board item is backed by a tracking issue here, opened when
 # upstream opens something and closed when the Fork decision settles, so
 # PROJECTS_TOKEN needs repository "Issues: read and write" alongside the
-# organization "Projects: read and write". make upstream-check-token, the step
-# below, asks for both.
+# organization "Projects: read and write".
+#
+# Only the second is verifiable before the fact. make upstream-check-token
+# proves the projects permission and says plainly that it cannot prove the
+# issues one: no request demonstrates Issues: write without creating an issue,
+# and the two probes that looked like they did both passed against tokens that
+# could not write. The sync fails by name instead.
 
 # yamllint disable-line rule:truthy
 on:
