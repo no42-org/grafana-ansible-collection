@@ -87,6 +87,16 @@ readonly UPSTREAM_REPO="grafana/grafana-ansible-collection"
 # cloned, and opening 88 issues in the wrong repository is not a mistake worth
 # leaving reachable.
 readonly FORK_REPO="${UPSTREAM_TRACKER_FORK_REPO:-no42-org/grafana-ansible-collection}"
+
+# Upstream is read-only, and this is the one script that addresses both
+# repositories, so it is the one place the two can be confused. The override
+# exists for testing against a scratch repository; aimed at upstream it would
+# open a tracking issue per upstream item in upstream's own tracker. Refused
+# before anything else runs, because by the time a write fails the issue is
+# already filed.
+if [[ "${FORK_REPO}" == "${UPSTREAM_REPO}" ]]; then
+  emergency "UPSTREAM_TRACKER_FORK_REPO is ${UPSTREAM_REPO}; this script opens and closes tracking issues, and upstream is read-only (see AGENTS.md)"
+fi
 readonly PROJECT_OWNER="${UPSTREAM_TRACKER_OWNER:-no42-org}"
 readonly PROJECT_TITLE="${UPSTREAM_TRACKER_TITLE:-Upstream tracking}"
 
