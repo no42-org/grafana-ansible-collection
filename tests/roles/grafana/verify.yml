@@ -228,6 +228,43 @@
           back to its own default while the plugin CLI resolves the directory
           separately; the two disagree whenever paths.data is overridden
 
+    # ----------------------------- #417 booleans render in the documented form
+    # Whole lines, not substrings: the macro carries whitespace control, and
+    # getting that wrong is the one way to break this template and still lint
+    # clean. An idempotence run cannot catch it -- a template that emits extra
+    # newlines emits the same ones twice.
+    - name: "Assert the nested boolean rendered lowercase"
+      vars:
+        __ini_lines: "{{ (__ini_content.content | b64decode).splitlines() }}"
+      ansible.builtin.assert:
+        that:
+          - "'[auth.basic]' in __ini_lines"
+          - "'enabled = true' in __ini_lines"
+        fail_msg: >-
+          grafana.ini has no '[auth.basic]' section containing
+          'enabled = true'. Ansible resolves a YAML true to a Python bool,
+          which Jinja stringifies as 'True'; the ini_value macro in
+          grafana.ini.j2 is what converts it.
+
+    # The positive assertion above only visits one of the template's three
+    # render paths. This one visits the whole file, so a call site that lost
+    # the macro is reported wherever it is.
+    #
+    # It matches on the rendered line, so it cannot tell a template defect from
+    # a deliberately capitalized string in converge.yml. Nothing here sets one;
+    # anything added that does belongs in the positive assertion instead.
+    - name: "Assert no capitalized boolean survived anywhere"
+      vars:
+        __capitalized: >-
+          {{ (__ini_content.content | b64decode).splitlines() | select('search', '=\s*(True|False)\s*$') | list }}
+      ansible.builtin.assert:
+        that:
+          - __capitalized | length == 0
+        fail_msg: >-
+          grafana.ini contains capitalized booleans: {{ __capitalized }}.
+          A value-emitting site in grafana.ini.j2 is not calling the
+          ini_value macro.
+
     # --------------------------------- RHEL-family only: #538 module_hotfixes
     - name: "RHEL family assertions"
       when: ansible_facts['os_family'] == 'RedHat'
