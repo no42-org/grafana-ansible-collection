@@ -5,14 +5,18 @@ name: Upstream Tracker
 #
 # The fork's triage used to be whatever was noticed that week. The board is the
 # candidate set instead: every open upstream issue and pull request appears on
-# it as a draft item, carrying a Fork decision that a maintainer sets and this
-# job never overwrites. See tools/upstream-tracker.sh, which owns that split.
+# it, carrying a Fork decision that a maintainer sets and this job never
+# overwrites. See tools/upstream-tracker.sh, which owns that split.
 #
 # This is not tools/carried-prs.sh. That reads git history for what the fork
 # already carries; this reads upstream for what it has not acted on yet.
 #
-# Nothing here writes to the repository: no branch, no pull request, no commit.
-# The only side effect is on the project board.
+# This job writes no code: no branch, no pull request, no commit. It does write
+# issues. Each board item is backed by a tracking issue here, opened when
+# upstream opens something and closed when the Fork decision settles, so
+# PROJECTS_TOKEN needs repository "Issues: read and write" alongside the
+# organization "Projects: read and write". make upstream-check-token, the step
+# below, asks for both.
 
 # yamllint disable-line rule:truthy
 on:
