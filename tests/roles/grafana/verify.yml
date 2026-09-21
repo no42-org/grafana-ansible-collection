@@ -80,6 +80,32 @@
         host: 127.0.0.1
         timeout: 60
 
+    # --------------------- #528 the database survived the handler restart
+    # This asserts the guarantee, not the race. The defect is a restart
+    # landing inside a migration window measured in seconds on a fresh
+    # database, and losing that window is not deterministic, so a converge
+    # cannot reproduce it on demand. What this does catch is the wait task
+    # never running, being skipped by its `when:`, or polling a URL that is
+    # not the server's -- each of which removes the protection while leaving
+    # the converge green.
+    - name: "Read the Grafana health endpoint"
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/health
+        follow_redirects: none
+      register: __health
+
+    - name: "Assert the database migrations completed"
+      ansible.builtin.assert:
+        that:
+          - __health.json.database | default('') == 'ok'
+        fail_msg: >-
+          /api/health reports database
+          '{{ __health.json.database | default('nothing at all') }}'.
+          The "Wait for DB migrations to complete" task in configure.yml is
+          what holds the play until this is ok; without it the restart
+          handler can terminate Grafana mid-migration and no later start
+          recovers.
+
     # ------------------------------------- #448 dashboard folders were created
     - name: "Stat the dashboard folders the role should have created"
       ansible.builtin.stat:
