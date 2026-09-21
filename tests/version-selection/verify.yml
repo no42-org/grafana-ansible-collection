@@ -1,0 +1,194 @@
+---
+# Cover the `<role>_version: latest` resolution without touching the network.
+#
+# This path is unreachable from the role tests: every role pins its version, so
+# `when: <role>_version == "latest"` never fires there. Pointing a test at the
+# real GitHub API would make it depend on what the upstream project published
+# this hour, which is exactly the input the fix exists to defend against.
+#
+# So the expression under test is fed recorded payloads. The patterns are read
+# from each role's vars/main.yml rather than restated here: a test carrying its
+# own copy of the pattern proves only that the copy works.
+#
+# Upstream issue #530: `regex_replace` is a substitution, not a filter. A tag
+# that does not match the pattern was returned unchanged and became the
+# version, so 'syntax/v0.1.1' produced a download URL of
+# .../download/vsyntax/v0.1.1/alloy-syntax/v0.1.1-1.arm64.deb and a 404.
+- name: Version selection
+  hosts: localhost
+  gather_facts: false
+  vars:
+    fixtures: "{{ playbook_dir }}/fixtures"
+
+    # The same expression the roles use, with the payload and the pattern as
+    # parameters. Kept identical to the roles' copy on purpose: if this drifts,
+    # the test stops describing the thing it covers.
+    selected: >-
+      {{ (payload if payload is sequence and payload is not mapping else [payload])
+      | rejectattr('draft') | rejectattr('prerelease')
+      | map(attribute='tag_name')
+      | select('match', pattern)
+      | map('regex_replace', pattern, '\1')
+      | list }}
+
+    cases:
+      - name: alloy, recorded list with a non-version tag second
+        fixture: alloy-releases.json
+        pattern: "{{ __alloy_version_tag_regex }}"
+        expect: "1.19.2"
+        because: >-
+          untagged-ce745838f1ebd9f128d4 is a non-draft, non-prerelease release
+          sitting in the live list. One publish away from being the newest.
+
+      - name: alloy, the reported case
+        fixture: alloy-530-submodule-tag-at-head.json
+        pattern: "{{ __alloy_version_tag_regex }}"
+        expect: "1.9.2"
+        because: >-
+          syntax/v0.1.1 at the head is what issue #530 hit. The old expression
+          adopted it; this one skips to the newest real release.
+
+      - name: alloy, drafts and prereleases excluded on their flags
+        fixture: flagged-draft-and-prerelease.json
+        pattern: "{{ __alloy_version_tag_regex }}"
+        expect: "1.9.8"
+        because: >-
+          v2.0.0 and v1.9.9 both have version-shaped tags. Only the API's own
+          draft and prerelease flags exclude them, which is why the filter does
+          not work from the tag alone.
+
+      - name: otel collector, submodule releases interleaved
+        fixture: otel-releases.json
+        pattern: "{{ __otel_collector_version_tag_regex }}"
+        expect: "0.161.0"
+        because: >-
+          cmd/builder/... and cmd/opampsupervisor/... sit between every pair of
+          real releases in the live list.
+
+      - name: mimir, the carried #461 prefix still works
+        fixture: mimir-releases.json
+        pattern: "{{ __mimir_version_tag_regex }}"
+        expect: "3.2.1"
+        because: >-
+          mimir tags releases mimir-X.Y.Z. Upstream PR #461 added that shape and
+          this change must not narrow it.
+
+      - name: an overridden releases/latest endpoint still resolves
+        fixture: single-object.json
+        pattern: "{{ __alloy_version_tag_regex }}"
+        expect: "1.19.2"
+        because: >-
+          A consumer who set the endpoint variable to a releases/latest URL gets
+          one object rather than a list. It is wrapped, not rejected.
+
+  tasks:
+    - name: "Load each role's tag pattern from its own vars"
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../../roles/alloy/vars/main.yml"
+        - "{{ playbook_dir }}/../../roles/loki/vars/main.yml"
+        - "{{ playbook_dir }}/../../roles/mimir/vars/main.yml"
+        - "{{ playbook_dir }}/../../roles/tempo/vars/main.yml"
+        - "{{ playbook_dir }}/../../roles/opentelemetry_collector/vars/main.yml"
+
+    - name: "Assert the patterns were loaded"
+      ansible.builtin.assert:
+        that:
+          - __alloy_version_tag_regex is defined
+          - __loki_version_tag_regex is defined
+          - __mimir_version_tag_regex is defined
+          - __tempo_version_tag_regex is defined
+          - __otel_collector_version_tag_regex is defined
+        fail_msg: >-
+          A role's vars/main.yml no longer defines its version tag pattern.
+          The roles and this test must name the same variable.
+
+    - name: "Select a version from each fixture"
+      ansible.builtin.assert:
+        that:
+          - selected | length > 0
+          - selected | first == item.expect
+        fail_msg: >-
+          {{ item.name }}: expected '{{ item.expect }}', selected
+          '{{ selected | first | default("nothing") }}' from
+          {{ (payload if payload is sequence and payload is not mapping else [payload])
+          | map(attribute='tag_name') | list }}.
+          {{ item.because }}
+        success_msg: "{{ item.name }}: {{ item.expect }}"
+      vars:
+        payload: "{{ lookup('file', fixtures ~ '/' ~ item.fixture) | from_json }}"
+        pattern: "{{ item.pattern }}"
+      loop: "{{ cases }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # The failure path. A fixture with no version tag must produce an empty
+    # candidate list, which is what the roles' `Fail when no release tag is a
+    # version` task keys on. Asserting emptiness here rather than running the
+    # fail task keeps a passing test green: a role failing correctly is the
+    # expected outcome, not a red run.
+    - name: "Assert a list with no version tag yields no candidate"
+      ansible.builtin.assert:
+        that:
+          - selected | length == 0
+        fail_msg: >-
+          {{ item }}: a payload whose tags are all non-versions produced
+          {{ selected }}. The role would install that as a version.
+        success_msg: "{{ item }}: no candidate, the role fails and names the tags"
+      vars:
+        payload: "{{ lookup('file', fixtures ~ '/' ~ item) | from_json }}"
+        pattern: "{{ __alloy_version_tag_regex }}"
+      loop:
+        - no-version-tags.json
+        - single-object-not-a-version.json
+
+    # Everything above evaluates a COPY of the roles' expression. That covers
+    # the semantics and the patterns, and it would not notice the roles and this
+    # file drifting apart -- the same class of defect as a filter disagreeing
+    # with its extractor.
+    #
+    # So the copy is proven to be a copy. Each role's task file must contain the
+    # pipeline verbatim, under that role's own names. This also holds the five
+    # roles to one shape, so a reader does not have to check which variant they
+    # are looking at.
+    - name: "Assert each role's task file contains the expression under test"
+      ansible.builtin.assert:
+        that:
+          - expected in (lookup('file', playbook_dir ~ '/../../' ~ item.file))
+        fail_msg: >-
+          {{ item.file }} does not contain the selection pipeline this suite
+          evaluates. Either the role changed and these tests now cover nothing,
+          or the roles have drifted apart. Expected to find:
+          {{ expected }}
+        success_msg: "{{ item.file }}: matches"
+      vars:
+        expected: |-
+          {{ '{{' }} __{{ item.prefix }}_releases
+                    | rejectattr('draft') | rejectattr('prerelease')
+                    | map(attribute='tag_name')
+                    | select('match', __{{ item.prefix }}_version_tag_regex)
+                    | map('regex_replace', __{{ item.prefix }}_version_tag_regex, '\1')
+                    | list {{ '}}' }}
+      loop:
+        - {file: roles/alloy/tasks/deploy.yml, prefix: alloy}
+        - {file: roles/loki/tasks/deploy.yml, prefix: loki}
+        - {file: roles/mimir/tasks/deploy.yml, prefix: mimir}
+        - {file: roles/tempo/tasks/deploy.yml, prefix: tempo}
+        - {file: roles/opentelemetry_collector/tasks/install.yml, prefix: otel_collector}
+      loop_control:
+        label: "{{ item.file }}"
+
+    # The defect itself, stated as a test. regex_replace returns the subject
+    # untouched where the pattern does not match, so the old expression could
+    # not distinguish a version from anything else.
+    - name: "Assert the old expression would have adopted the bad tag"
+      ansible.builtin.assert:
+        that:
+          - "'syntax/v0.1.1' | regex_replace(__alloy_version_tag_regex, '\\1') == 'syntax/v0.1.1'"
+        fail_msg: >-
+          regex_replace no longer passes a non-matching subject through
+          unchanged. If that is true, this whole change may rest on a
+          behaviour that has since changed; re-read issue #530 before
+          trusting this suite.
+        success_msg: "regex_replace passes a non-matching tag through, as #530 showed"

@@ -157,6 +157,14 @@ jobs:
         run: make ci-lint-text
         if: success() || failure()
 
+      # Not a linter, and it lives here because it needs neither a container
+      # nor the network: it runs the `<role>_version: latest` selection against
+      # recorded GitHub payloads. The role tests cannot cover that path -- they
+      # all pin their version, so the `latest` branch never executes there.
+      - name: Version selection
+        run: make version-select-test
+        if: success() || failure()
+
   sanity:
     name: Sanity (Ⓐ${{ matrix.ansible }})
     runs-on: ubuntu-24.04
