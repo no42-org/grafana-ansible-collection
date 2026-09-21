@@ -1,6 +1,14 @@
 ---
 name: Role Test
 
+# The filter is the gate's trigger, so anything the harness reads belongs in
+# it. It named `tools/role-test.sh` and nothing else it depends on: the script
+# sources `tools/includes/`, CI invokes it only through the `Makefile`, and
+# `ansible.cfg` decides where collections resolve from. A pull request editing
+# one of those breaks the harness, schedules no job, and merges green with the
+# gate silently absent -- which is the failure this repository already has a
+# name for: a gate that cannot run is not a gate that passed.
+
 # yamllint disable-line rule:truthy
 on:
   push:
@@ -9,6 +17,9 @@ on:
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'ansible.cfg'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/role-test.yml'
@@ -18,6 +29,9 @@ on:
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'ansible.cfg'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/role-test.yml'

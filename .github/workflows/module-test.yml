@@ -11,6 +11,13 @@ name: Module Test
 # Not called through gate.yml. gate.yml is what must pass to release and
 # provisions no containers; this needs docker, like the role tests, and is
 # filtered to the paths it covers.
+#
+# Filtered to everything it reads, not just its own script: it sources
+# tools/includes/, CI invokes it through the Makefile, it reads the namespace
+# out of galaxy.yml to build the collection symlink, ansible.cfg decides where
+# collections resolve from, and roles/grafana/defaults/main.yml is the version
+# under test. A path the harness depends on and the filter omits is a gate that
+# disappears exactly when someone changes the thing that could break it.
 
 # yamllint disable-line rule:truthy
 on:
@@ -20,6 +27,10 @@ on:
       - 'plugins/**'
       - 'tests/modules/**'
       - 'tools/module-test.sh'
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'galaxy.yml'
+      - 'ansible.cfg'
       - 'roles/grafana/defaults/main.yml'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -30,6 +41,10 @@ on:
       - 'plugins/**'
       - 'tests/modules/**'
       - 'tools/module-test.sh'
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'galaxy.yml'
+      - 'ansible.cfg'
       - 'roles/grafana/defaults/main.yml'
       - 'pyproject.toml'
       - 'uv.lock'
