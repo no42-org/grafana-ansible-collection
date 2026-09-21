@@ -89,6 +89,17 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 - **A linter that cannot run is not a linter that found nothing.** `make install` used to need Python 3.10 exactly, and without it every Python linter bailed at its guard and *looked* like failing lint — three wrong conclusions before it was pinned down. `uv` provisions its own interpreter now, and the guards print `TOOLCHAIN NOT INSTALLED`. Keep that distinction when adding a gate.
 - **A tool that cannot run may still exit 0.** `editorconfig-checker@5.0.1` shipped no `darwin-arm64` binary and exited 0 when it could not find one, so that gate passed without reading a file. Every gating tool is now provisioned and checksum-verified from `tools/includes/`, or from `uv.lock`, and **no workflow names a tool version**. It is one definition per tool because it was two: `yamllint` was pinned to 1.35.1 in `pyproject.toml` and 1.38.0 in `gate.yml`, `shellcheck` ran 0.11.0 locally and 0.9.0 in CI, and neither side could have noticed.
 - **A gate that stops early is not a gate that passed.** `make ci-lint-release` used to exit at the first missing tool, abandoning the checks after it in silence: 5 of 10 ran and the output named only the missing tool. A missing tool now skips its own check, the run continues, and the summary names what did not run.
+- **Every indent in a YAML folded scalar must be a multiple of two, including the ones that look like alignment.** `.editorconfig` sets `indent_size = 2` for `*.yml`, and `editorconfig-checker` reads that as a hard rule about left padding. Inside a `>-` block the natural thing is to align a continuation under the `{{` or the filter above it, which lands on an odd column and fails. `yamllint` and `ansible-lint` both pass on it, and only `ci-lint-editorconfig` objects — late in `make ci-lint`, after everything else has gone green, which is why it reads as a surprise every time. Three separate commits hit it in one day. Keep every continuation at the same column as the first line of the scalar:
+
+  ```yaml
+  msg: >-
+    {{ releases
+    | map(attribute='tag_name')
+    | list }}
+  ```
+
+  Indenting those `|` lines three further spaces to sit under the `{{`, which is what reads well and what an editor will offer, puts them on an odd column and fails. There is no counter-example in this file because the check does not know what a fenced code block is: a demonstration of the failing form fails the gate that documents it.
+
 - **A file in the tree is not automatically addressed to a consumer.** `requirements.txt` shipped this repository's linters for years while the one library every module imports was declared nowhere. `tools/check-shipped-manifests.py` derives the answer from `plugins/` and fails in both directions; the second is the one that catches it.
 - **Tools install into the working tree, and every one needs excluding four times.** `.ansible/`, `ansible_collections/`, `.venv/`, `tools/bin/`. The same defect was fixed four times before the list moved to `tools/includes/lint-paths.sh`; `.yamllint`, `.ansible-lint` and `tools/rename-namespace.sh` keep their own copies and all four must agree. Un-ignored, they produce findings in other people's code — 4851 once — and take `make dist`'s rename count from 72 to well over double.
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
