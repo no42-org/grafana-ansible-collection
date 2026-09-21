@@ -6,7 +6,7 @@
 # recorded which. tools/check-role-versions.py watches this pin and opens a
 # pull request when grafana/loki releases something newer; the bump is then verified
 # by the role tests on both package families before it can merge.
-loki_version: "3.7.7"
+loki_version: "3.7.8"
 loki_uninstall: false
 loki_http_listen_port: 3100
 loki_http_listen_address: "0.0.0.0"
