@@ -41,22 +41,84 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # A pull request opened with GITHUB_TOKEN is authored by
+      # github-actions[bot], an identity with no merged pull requests here.
+      # On a public repository GitHub holds workflow runs for a first-time
+      # contributor, so every bump sat in `action_required` until a human
+      # pressed a button: measured at 86 minutes on 2026-09-21, and it would
+      # have been however long nobody was looking. The runs were queued four
+      # seconds after the pull requests, so the trigger was never the problem.
+      #
+      # That defeats most of the point. RELEASING.md says the role tests
+      # verify a bump before it merges and that this verification is why
+      # pinning is safe; tests that only start once someone arrives are not
+      # what that sentence promises.
+      #
+      # An app is not a first-time contributor, so its pull requests run
+      # immediately. The token is scoped to this repository and expires with
+      # the job, which a personal access token is not and does not.
+      #
+      # Optional on purpose. With no app configured the step is skipped, the
+      # fallbacks below select GITHUB_TOKEN, and the job behaves exactly as it
+      # did before -- opening correct pull requests that wait for approval.
+      # Setting ROLE_BUMP_APP_ID and ROLE_BUMP_PRIVATE_KEY is what switches it
+      # on; nothing here needs changing at that point.
+      - name: Mint a GitHub App token
+        id: app-token
+        if: ${{ vars.ROLE_BUMP_APP_ID != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ vars.ROLE_BUMP_APP_ID }}
+          private-key: ${{ secrets.ROLE_BUMP_PRIVATE_KEY }}
+          # Without these the token carries every permission the app's
+          # installation was granted, whatever that grows into later. These
+          # two are what the job does: push a branch, open a pull request.
+          # The job's own `permissions:` block cannot constrain an app token,
+          # so this is the only place the narrowing can happen.
+          permission-contents: write
+          permission-pull-requests: write
+
       # persist-credentials stays true here, unlike everywhere else in this
-      # repository: this job genuinely pushes with the token.
+      # repository: this job genuinely pushes with the token. It has to be the
+      # same token that opens the pull request, or the push and the pull
+      # request come from two different identities.
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+      # The numeric id, not just the slug. GitHub links a commit to an account
+      # through the <id>+<login>@users.noreply.github.com form, and an email
+      # without the id leaves the commit attributed to nobody. Skipped, along
+      # with everything it feeds, when no app is configured.
+      - name: Resolve the app's commit identity
+        id: identity
+        if: ${{ steps.app-token.outputs.token != '' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          id="$(gh api "users/${APP_SLUG}%5Bbot%5D" --jq .id)"
+          echo "name=${APP_SLUG}[bot]" >> "${GITHUB_OUTPUT}"
+          echo "email=${id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "${GITHUB_OUTPUT}"
 
       # Fails rather than reporting "no updates" when an upstream project
       # cannot be reached, so a rate-limited or broken run is visible instead
       # of indistinguishable from an up-to-date repository.
       - name: Compare pins against upstream
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           ROLE_VERSION_REPORT: ${{ runner.temp }}/behind.json
         run: make role-versions-check
 
+      # ROLE_BUMP_GIT_NAME and ROLE_BUMP_GIT_EMAIL are empty when no app is
+      # configured, and tools/bump-role-versions.sh then falls back to the
+      # github-actions[bot] identity it used to hardcode. The sign-off trailer
+      # is built from these, so they must name whoever the token belongs to.
       - name: Open a pull request for each role that is behind
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          ROLE_BUMP_GIT_NAME: ${{ steps.identity.outputs.name }}
+          ROLE_BUMP_GIT_EMAIL: ${{ steps.identity.outputs.email }}
           ROLE_VERSION_REPORT: ${{ runner.temp }}/behind.json
         run: make role-versions-bump
