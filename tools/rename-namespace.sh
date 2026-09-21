@@ -101,12 +101,12 @@ readonly EXCLUDE_FILES=(
 #
 # Derivation, over collection content only (EXCLUDE_DIRS/EXCLUDE_FILES applied):
 #
-#   total                       grep -rIo "grafana\.grafana" .            = 86
-#   minus community-prefixed    grep -rIo "community\.grafana\.grafana" . =  2
+#   total                       grep -rIo "grafana\.grafana" .            = 104
+#   minus community-prefixed    grep -rIo "community\.grafana\.grafana" . =   2
 #   minus excluded changelogs   grep -Io "grafana\.grafana" \
-#                                 CHANGELOG.rst changelogs/changelog.yaml = 12
-#                                                                          ----
-#   expected rewrites                                                        72
+#                                 CHANGELOG.rst changelogs/changelog.yaml =  24
+#                                                                           ----
+#   expected rewrites                                                         78
 #
 # It has dropped three times, each deliberately, and RELEASING.md reconciles
 # the arithmetic of all three:
@@ -121,6 +121,18 @@ readonly EXCLUDE_FILES=(
 # In all three the occurrences left the rename's scope, which is why the number
 # dropped rather than the rewrite breaking.
 #
+# And risen once:
+#
+#   72 -> 78  tests/modules/datasource/verify.yml, the module test scenario,
+#             which calls grafana.grafana.datasource six times. galaxy.yml
+#             keeps it out of the tarball, as it does tests/roles, but this
+#             list is the separate mechanism described above: the file is in
+#             the copy the rewrite runs over, so it is in the count.
+#
+#             The total above moved by 18 rather than 6: the other 12 are
+#             changelog entries from 7.2.1 and 7.3.0, which are excluded and
+#             so do not reach the rewrite count.
+#
 # After merging upstream, re-derive with:
 #
 #   ./tools/rename-namespace.sh --expected-count
@@ -129,7 +141,7 @@ readonly EXCLUDE_FILES=(
 # before updating this constant: a new "community.grafana.*" reference or a new
 # way of spelling the collection name may need MATCH_REGEX adjusted, not just
 # the count bumped.
-readonly EXPECTED_REWRITES=72
+readonly EXPECTED_REWRITES=78
 
 # Files whose "grafana.grafana" references record what upstream released rather
 # than referring to this collection. Rewriting them would attribute upstream's

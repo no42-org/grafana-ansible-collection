@@ -83,6 +83,15 @@ make role-test-list
 
 `ANSIBLE_GROUP=ansible-top` runs the same test on the newest ansible-core inside `requires_ansible`'s range instead of the 2.18 everything else runs on. Both versions are declared once, in `pyproject.toml`, and the harness refuses anything from `PATH`: a local pass and a CI pass are statements about the same engine and the same collections, which they were not before. The log names the engine it ran on. Do not trust a role-test log that does not.
 
+`tests/integration/targets/` is dormant in exactly the same way, and for `plugins/` the live harness is:
+
+```bash
+make module-test MODULE=datasource     # against a real Grafana, on the role's pinned version
+make module-test-list
+```
+
+A module's whole behaviour is which HTTP route it builds, so only a running Grafana can judge it. Upstream #537 is what the gap produced: Grafana 13.0 removed `PUT /api/datasources/:id`, the `datasource` module addressed exactly that route, and every update failed with a bare 404 until a user reported it. `MODULE_TEST_GRAFANA_VERSION` runs the same scenario against another Grafana, which is how a route's removal gets dated; unset, the version is `roles/grafana/defaults/main.yml`'s pin.
+
 ## Commands
 
 ```bash
@@ -91,10 +100,11 @@ make ci-lint           # the collection: shell, yaml, editorconfig, ansible, mar
 make install           # uv + corepack yarn; works without a system Python
 make dist              # rename + build the collection tarball
 make role-test ROLE=<role> DISTRO=debian|rhel
+make module-test MODULE=<module>
 make sanity            # ansible-test sanity, staged the way CI stages it
 ```
 
-All of the above gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `release.yml` both call. One definition of what must pass.
+The lint, sanity and dist targets gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `release.yml` both call. One definition of what must pass. The two container harnesses are not in `gate.yml`: `role-test.yml` and `module-test.yml` are path-filtered workflows of their own, because they need docker and because a change to `plugins/` should not fire fifteen role jobs.
 
 ## Traps worth knowing
 

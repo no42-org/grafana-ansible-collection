@@ -614,6 +614,50 @@ A workflow that cannot pass is not a fallback. Keeping them cost seven OpenSSF S
 
 Molecule was replaced rather than pinned because pinning would have cost four scenario-file edits — `network` and `network_mode` in `mimir`, `cgroup_parent` in four `opentelemetry_collector` scenarios, and content for two `grafana` scenario files that are empty documents — in exactly the files this fork keeps identical to upstream. The two failures that prompted it were unrelated to each other: Mimir pinned `ansible-core==2.16` against `python-version: '3.x'`, which resolved to Python 3.14 and died at import before reading any config, and the scenario files use platform keys current Molecule rejects.
 
+## Module tests
+
+The roles had a harness; `plugins/` had nothing.
+A module's entire behaviour is which HTTP request it builds, and nothing here had ever sent one at a Grafana.
+
+```bash
+make module-test MODULE=datasource
+make module-test-list
+```
+
+The harness starts a Grafana container, mints an Admin service account token against it, and runs `tests/modules/<module>/verify.yml` on the control node.
+There is nothing to provision inside the container: a module runs on the control node against an HTTP endpoint, which is why this is a separate harness rather than a phase of the role one.
+
+Two versions are read rather than declared.
+`grafana_version` comes from `roles/grafana/defaults/main.yml`, so the Grafana under test is the Grafana the role installs and the weekly pin bump moves this test with it.
+`ansible-core` and `requests` come from `pyproject.toml`'s `module-test` group through `uv run --frozen`; `requests` is there because every module imports it behind a `HAS_REQUESTS` guard, and without it the harness fails at the import having tested nothing.
+
+**A scenario asserts the effect in Grafana, not the module's return value.**
+A module returns the response body it received, so an assertion on `output.message` proves only that the module read its own reply.
+Each update is read back through `ansible.builtin.uri` and the changed field compared.
+
+**Idempotence is not asserted, deliberately.**
+The modules document `Does not support C(Idempotency)` and report `changed` on every run.
+A scenario asserting no-change would be asserting a behaviour the module does not claim.
+
+`MODULE_TEST_GRAFANA_VERSION` runs the same scenario against another Grafana.
+That is how upstream #537's boundary was dated: `PUT /api/datasources/:id` answers on 10.4.19, 11.6.7 and 12.3.0, and 404s on 13.0.1, 13.1.0 and 13.2.1, while `PUT /api/datasources/uid/:uid` answers on all six.
+Unset, which is how CI and every ordinary run leave it, the role's pin decides.
+
+### What is covered
+
+| Module | Covered | Note |
+| --- | --- | --- |
+| `datasource` | ✅ | create, update by name, uid conflict, delete; carries the fix for `#537` |
+| `dashboard`, `folder`, `user`, the two alert modules | ❌ | already address by `uid`, but unexecuted |
+| `cloud_api_key`, `cloud_plugin`, `cloud_stack` | ❌ | Grafana Cloud; not reachable from a container |
+
+`.github/workflows/module-test.yml` runs it on push and pull request, path-filtered to `plugins/**`, `tests/modules/**`, the harness, the role's pin and the lock.
+Its own workflow rather than a job in `role-test.yml`, because path filters are per workflow: `plugins/**` there would fire fifteen role jobs on a change that cannot affect a role.
+Like the role tests it is **not** part of `gate.yml`, which provisions no containers.
+
+`tests/integration/targets/` is inherited, written for `ansible-test integration` against a Grafana Cloud stack this fork has no credentials for, and has never run.
+It stays byte-identical, dormant in the same way `roles/*/molecule/` is dormant.
+
 ## When the rewrite count changes
 
 The rename asserts an exact count, so an upstream change to the FQCN references fails the build rather than silently half-renaming.
@@ -632,16 +676,16 @@ Re-derive the number:
 ```
 
 ```text
-total occurrences      : 86
+total occurrences      : 104
 community.grafana.*    : 2  (must remain untouched)
-in excluded changelogs : 12  (not rewritten)
-expected rewrites      : 72
+in excluded changelogs : 24  (not rewritten)
+expected rewrites      : 78
 ```
 
 Read the diff before updating `EXPECTED_REWRITES` in `tools/rename-namespace.sh`.
 The count moving is the symptom; the cause may need the rewrite rule changed rather than the number bumped.
 
-### It has moved deliberately three times, and the reasoning is the template
+### It has moved deliberately four times, and the reasoning is the template
 
 83 → 80, when the README's three install commands were hardcoded to `indigo423.grafana`.
 
@@ -671,6 +715,17 @@ promtail        1  examples/promtail-multiple-logs.yml
 
 Role task files do not name the collection; the documentation and examples around them do.
 So deleting 46 files moved the count by eight, and a removal that touches only `tasks/` will not move it at all.
+
+72 → 78, when `tests/modules/datasource/verify.yml` arrived. It calls `grafana.grafana.datasource` six times. `galaxy.yml` keeps it out of the tarball, as it does `tests/roles`, but that is packaging: the rename's scope is the staged copy, which contains it, so the six are counted. This is the first move in the other direction.
+
+The arithmetic again, because the total moved by more than six:
+
+```text
+86  occurrences at the last derivation
++6  the module test scenario's module calls
++12 changelog entries from 7.2.1 and 7.3.0 (excluded from the rename)
+104 total, minus 2 community.* and 24 in changelogs = 78
+```
 
 Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
 

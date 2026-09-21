@@ -6,7 +6,7 @@
 # line is gone.
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list sanity version-select-test dist dist-clean
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity version-select-test dist dist-clean
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -73,6 +73,37 @@ role-test:
 
 role-test-list:
 	@./tools/role-test.sh --list
+
+####################################################################
+#                         Module tests                             #
+####################################################################
+
+# Run a plugin module against a Grafana container: mint a token, run the
+# scenario, assert the result in Grafana.
+#
+#   make module-test MODULE=datasource
+#
+# The role tests cover roles/. This covers plugins/, whose behaviour is which
+# HTTP route the module builds -- the thing upstream #537 got wrong when
+# Grafana 13.0 removed `PUT /api/datasources/:id`. Only a real Grafana can
+# report which routes it serves, so the harness starts one, on the version
+# roles/grafana/defaults/main.yml pins.
+#
+# Distinct from tests/integration/targets/, which is inherited, written for
+# `ansible-test integration` against a Grafana Cloud stack, and dormant.
+MODULE ?=
+
+module-test:
+	@if [ -z "$(MODULE)" ]; then \
+		echo "usage: make module-test MODULE=<module>"; \
+		echo "       make module-test-list"; \
+		./tools/module-test.sh --list; \
+		exit 1; \
+	fi
+	@./tools/module-test.sh $(MODULE)
+
+module-test-list:
+	@./tools/module-test.sh --list
 
 # ansible-test sanity, against a tree staged the way CI shapes it.
 #
