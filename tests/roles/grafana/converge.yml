@@ -47,6 +47,20 @@
       # the plugins somewhere that is not the CLI's default.
       paths:
         data: /srv/grafana-data
+      # Exercises #417: a boolean two levels deep, which is the only render
+      # path in grafana.ini.j2 the rest of this scenario never reaches -- the
+      # role's default `auth: {}` has no subsections, so nothing else produces
+      # a [section.subsection] header.
+      #
+      # basic rather than the reported ldap, deliberately. Setting
+      # auth.ldap.enabled would enable LDAP against an ldap.toml this scenario
+      # does not provide, and the reported symptom is a missing button in a
+      # browser, which the harness cannot see. Basic auth is on by default, so
+      # this changes nothing about the running server and still renders the
+      # line whose case is the defect.
+      auth:
+        basic:
+          enabled: true
     # Exercises #448: the loop that turns dashboard subdirectory paths into
     # folder names. With no subdirectories the block is skipped entirely.
     grafana_dashboards_dir: "{{ role_test_fixtures }}/dashboards"

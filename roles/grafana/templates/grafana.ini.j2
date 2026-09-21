@@ -2,10 +2,25 @@
 # More informations:
 # http://docs.grafana.org/installation/configuration
 # https://github.com/grafana/grafana/blob/master/conf/sample.ini
+{#
+  Ansible resolves a YAML `true` to a Python bool, which Jinja stringifies as
+  `True`. Grafana documents `true`, and the difference is not always harmless:
+  `[auth.ldap] enabled = True` enables LDAP in the server but never reaches the
+  login page's authentication list. See grafana/grafana-ansible-collection#417
+  and grafana/grafana#82427.
+
+  `is boolean` tests the type. `value in [True, False]` would test equality,
+  and Python has 1 == True, so it would rewrite the integers 1 and 0 as well.
+  A string is left exactly as written, so quoting a value stays a valid escape
+  hatch.
+-#}
+{% macro ini_value(value) -%}
+{% if value is boolean %}{{ value | string | lower }}{% else %}{{ value }}{% endif %}
+{%- endmacro %}
 
 {% for k, v in grafana_ini.items() %}
 {% if v is not mapping %}
-{{ k }} = {{ v }}
+{{ k }} = {{ ini_value(v) }}
 {% endif %}
 {% endfor %}
 
@@ -17,10 +32,10 @@
 
 [{{ section }}.{{ sub_key }}]
 {% for k, v in sub_value.items() %}
-{{ k }} = {{ v }}
+{{ k }} = {{ ini_value(v) }}
 {% endfor %}
 {% else %}
-{{ sub_key }} = {{ sub_value }}
+{{ sub_key }} = {{ ini_value(sub_value) }}
 {% endif %}
 {% endfor %}
 {% endif %}
