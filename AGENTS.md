@@ -91,7 +91,7 @@ make ci-lint           # the collection: shell, yaml, editorconfig, ansible, mar
 make install           # uv + corepack yarn; works without a system Python
 make dist              # rename + build the collection tarball
 make role-test ROLE=<role> DISTRO=debian|rhel
-ansible-test sanity --docker
+make sanity            # ansible-test sanity, staged the way CI stages it
 ```
 
 All of the above gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `release.yml` both call. One definition of what must pass.
