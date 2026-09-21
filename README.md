@@ -76,7 +76,7 @@ A specific version of the collection can be installed by using the version keywo
 ---
 collections:
   - name: indigo423.grafana
-    version: 7.2.1
+    version: 7.3.0
 ```
 
 ## Roles included in the collection
