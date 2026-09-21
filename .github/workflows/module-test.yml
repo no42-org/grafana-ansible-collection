@@ -11,29 +11,40 @@ name: Module Test
 # Not called through gate.yml. gate.yml is what must pass to release and
 # provisions no containers; this needs docker, like the role tests, and is
 # filtered to the paths it covers.
+#
+# Filtered to everything it reads, not just its own script: it sources
+# tools/includes/utils.sh and logging.sh, CI invokes it through the Makefile,
+# it reads the namespace out of galaxy.yml to build the collection symlink, and
+# roles/grafana/defaults/main.yml is the version under test. A path the harness depends on and the filter omits is a gate that
+# disappears exactly when someone changes the thing that could break it.
 
 # yamllint disable-line rule:truthy
 on:
   push:
     branches: ["main"]
-    paths:
+    # One list, anchored, as codeql.yml already does: two copies of a filter
+    # drift, and a drifted filter fires on one event and not the other.
+    paths: &module_test_paths
       - 'plugins/**'
       - 'tests/modules/**'
       - 'tools/module-test.sh'
+      # Coarse on purpose; see the same entry in role-test.yml.
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'galaxy.yml'
+      # Not load-bearing for this harness -- module-test.sh exports
+      # ANSIBLE_COLLECTIONS_PATH, which overrides ansible.cfg's
+      # collections_path -- and kept anyway, because the day that export is
+      # removed this file decides where the collection resolves from, and a
+      # filter that over-fires costs one job.
+      - 'ansible.cfg'
       - 'roles/grafana/defaults/main.yml'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/module-test.yml'
   pull_request:
     branches: ["main"]
-    paths:
-      - 'plugins/**'
-      - 'tests/modules/**'
-      - 'tools/module-test.sh'
-      - 'roles/grafana/defaults/main.yml'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/module-test.yml'
+    paths: *module_test_paths
 
 permissions:
   contents: read
