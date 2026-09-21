@@ -63,8 +63,8 @@ import re
 import sys
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+from xml.etree import ElementTree
 
 USER_AGENT = "role-version-check"
 TIMEOUT = 30
