@@ -58,6 +58,18 @@ The sync owns four fields. It seeds `Fork decision` to `Untriaged` on creation a
 
 `Epic` is by subsystem, not by theme, and it is single-select. The rule that settles every item: a module under `plugins/` is `grafana-api-modules`, a role's tasks belong to that role's epic. `Change type` is `Bug`, `Enhancement` or `Maintenance`, and is not called `Type` because GitHub reserves that name.
 
+### A tracking issue's state is derived, so closing one by hand does not stick
+
+`Fork decision` owns whether the tracking issue is open. The sync closes it once the decision reaches `Done`, `Not applicable` or `Superseded`, and **reopens it** for any other value. So a tracking issue closed by hand, or closed by a `Closes #NN` line in a merged pull request, comes back at the next run with the decision still saying there is work to do.
+
+That is the mechanism working. It happened three times on 2026-09-21, twice within an hour, and the second time only because the first correction was also wrong.
+
+- To close a tracking issue, set `Fork decision` to `Done` and run `make upstream-sync`. Nothing else closes one durably.
+- `Closes #NN` in a pull request is still worth writing — it records why the issue closed, and the comment survives the reopen. It is not what closes it.
+- Use the **fork's** issue number, never upstream's. Commit `64239f4` wrote `Closes #509`, `#508` and `#331`, which are upstream numbers; fork issues do not run that high, so it closed nothing and three issues sat open for a day.
+
+The same rule explains an issue reopening itself after you thought you had finished with it: the fix shipped, the decision never moved off `Untriaged` or `Fix here`.
+
 ## 4. `roles/*/molecule/` is dormant, not live
 
 Those scenarios ship in the collection and are **never invoked**. Role tests are:
