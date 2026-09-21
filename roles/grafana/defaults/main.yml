@@ -9,9 +9,11 @@
 # repositories carry their own revisions and drop old versions on their own
 # schedule.
 #
-# So it is excluded from tools/check-role-versions.py, which compares against
-# GitHub releases, and maintained by hand. `make role-test ROLE=grafana` on
-# both package families is what proves a pin here is installable.
+# So tools/check-role-versions.py reads the apt and rpm package indexes for
+# this role rather than GitHub releases, and only counts a version present in
+# both -- the role tests run on both families, and a version only one of them
+# serves is one this repository cannot verify a bump against. `make role-test
+# ROLE=grafana` on both families is what proves a pin here is installable.
 grafana_version: "13.2.1"
 grafana_manage_repo: true
 

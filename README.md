@@ -44,13 +44,14 @@ A weekly workflow compares each pin against the upstream project's latest releas
 
 That verification is the point, not a formality. A pin nobody moves is how `opentelemetry_collector` came to sit on a December 2023 release for nearly three years, and an unverified bump is how the `tempo` role came to ship a configuration Tempo rejects. Pinning without both would move the risk rather than remove it.
 
-Three roles are excluded from tracking, each for a reason that will not change on its own:
+Every role except `promtail` and `grafana_agent` is tracked, and each is compared against the source it actually installs from: the GitHub release assets for `loki`, `mimir`, `tempo`, `alloy` and `opentelemetry_collector`, and the `apt.grafana.com` and `rpm.grafana.com` package indexes for `grafana`. A version only counts when the artifact the role downloads is really there.
+
+Two roles are excluded from tracking, each for a reason that will not change on its own:
 
 | Role | Why it is not tracked |
 | --- | --- |
 | `promtail` | End of life on 2026-03-02. Nothing upstream will ever be newer. Use `alloy`. |
 | `grafana_agent` | Ships no test, so a bump could not be verified. Upstream superseded it with Alloy. |
-| `grafana` | Installs from a package repository, so its version is a package version rather than a release tag. Maintained by hand. |
 
 Any of these can be overridden — set `<role>_version` to install a different version, including `latest` if you would rather track it yourself.
 
