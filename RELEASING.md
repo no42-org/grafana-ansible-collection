@@ -326,6 +326,14 @@ The posture is therefore *keep it adoptable, do not push it*. Every change stays
 
 **This policy has a premise, and the premise is checkable.** If `make carried-prs` ever reports something as merged upstream, maintainership has resumed and the decision not to submit should be re-examined rather than inherited. That is the one event that would change the answer.
 
+#### A carried contribution can need a fix, and the fix is a separate commit
+
+`#528` is the first case. Its diagnosis is right and its placement is right, and the code it ships cannot execute: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, so `until` is evaluated with nothing registered and the play stops on an undefined variable, and the URL is built without `://`. Three further corrections were needed before it worked on a real host: a `| default('')` guard so the retry loop survives an attempt against a port that is not listening yet, `0.0.0.0` resolved to `127.0.0.1` because a bind address is not a destination, and certificate validation off for a probe that addresses the loopback interface.
+
+It was carried anyway, because the race it closes is real and the defects are mechanical. This is why rule 2 exists in the form it does: the contribution is one commit authored by Dmitriy Rabotyagov, and the corrections are a second commit authored here. In the divergence accounting the first is category 1 and the second category 2, so the same file is attributable to two different categories, which is expected rather than a problem.
+
+**Such a pair must land as a merge commit.** A squash collapses both into one maintainer-authored commit and drops the `cherry picked from` line, and `make carried-prs` derives the entire carried set from that line. The detector is the carried count falling.
+
 ### Candidates that were rejected
 
 Recorded so the reasoning is not repeated:
@@ -335,7 +343,6 @@ Recorded so the reasoning is not repeated:
 | `#525` | "Fixes" the dashboards loop by listing a string into its characters. Newest of four competing fixes and the worst. |
 | `#504`, `#439` | Correct enough but superseded by `#448`, which fixes the regular expression explicitly. |
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
-| `#528` | Good idea, broken code: `register`, `retries` and `delay` are indented inside the `uri:` module arguments, and the URL is missing `://`. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
 | `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **7.0.0 candidates** — see Deferred. |
 
