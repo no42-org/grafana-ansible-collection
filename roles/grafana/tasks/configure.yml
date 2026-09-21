@@ -107,13 +107,35 @@
     state: started
     daemon_reload: true
 
+# The wait belongs here, between starting the service and main.yml's
+# flush_handlers. The role's other wait, "Wait for grafana to start", is a TCP
+# wait_for that runs after the flush: the socket opens long before the
+# migrations finish, and by then the restart has already landed.
+#
+# 0.0.0.0 is the role's own default for http_addr. It is a bind address, and
+# so are '' and '::'; none of them is somewhere to send a request. The probe
+# never leaves the host, so its destination is the loopback address and
+# validate_certs is off -- a certificate issued for this server's name cannot
+# match 127.0.0.1, which would fail the check on every correctly configured
+# https deployment.
+#
+# The default() in `until` is what makes the retry loop a retry loop. The
+# first attempt usually reaches a port that is not listening yet, the module
+# fails with no `json` in its result, and an unguarded grafana_health.json
+# raises on undefined instead of retrying.
 - name: Wait for DB migrations to complete
   ansible.builtin.uri:
-    url: "{{ grafana_ini.server.protocol | default('http') }}/{{ grafana_ini.server.http_addr }}:{{ grafana_ini.server.http_port }}/api/health"
+    url: "{{ grafana_ini.server.protocol | default('http') }}://{{ __grafana_health_host }}:{{ grafana_ini.server.http_port }}/api/health"
     follow_redirects: none
-    register: grafana_health
-    retries: 10
-    delay: 5
-  until: grafana_health.json.database == 'ok'
+    validate_certs: false
+  vars:
+    __grafana_health_host: >-
+      {{ '127.0.0.1'
+        if grafana_ini.server.http_addr | default('') in ['', '0.0.0.0', '::']
+        else grafana_ini.server.http_addr }}
+  register: grafana_health
+  retries: 10
+  delay: 5
+  until: grafana_health.json.database | default('') == 'ok'
   when:
     - grafana_ini.server.protocol is undefined or grafana_ini.server.protocol in ['http', 'https']
