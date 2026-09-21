@@ -2,7 +2,7 @@
 PATH := ./node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list module-test module-test-list
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list module-test module-test-list sanity
 
 default: all
 
@@ -52,6 +52,16 @@ role-test:
 
 role-test-list:
 	@./tools/role-test.sh --list
+
+# ansible-test sanity, against a tree staged the way CI shapes it.
+#
+# The staging is the point. ansible-test refuses to run outside
+# ansible_collections/<namespace>/<name>, so a local run has to copy the tree
+# somewhere first, and copying the wrong subset produces a green run against
+# files CI does not have. That happened once, with the dist exclude list; see
+# the header of tools/sanity.sh.
+sanity:
+	@./tools/sanity.sh $(args)
 
 ####################################################################
 #                         Module tests                             #
