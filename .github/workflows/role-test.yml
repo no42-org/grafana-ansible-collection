@@ -1,26 +1,40 @@
 ---
 name: Role Test
 
+# The filter is the gate's trigger, so anything the harness reads belongs in
+# it. It named `tools/role-test.sh` and nothing else it depends on: the script
+# sources `tools/includes/`, CI invokes it only through the `Makefile`, and
+# `ansible.cfg` decides where collections resolve from. A pull request editing
+# one of those breaks the harness, schedules no job, and merges green with the
+# gate silently absent -- which is the failure this repository already has a
+# name for: a gate that cannot run is not a gate that passed.
+
 # yamllint disable-line rule:truthy
 on:
   push:
     branches: ["main"]
-    paths:
+    # One list, anchored, as codeql.yml already does. Two copies is how a
+    # filter comes to fire on pull requests and not on push, or the reverse,
+    # and nothing compares them: the same silent-absent-gate this filter was
+    # widened to close, arriving through the edit that widens it.
+    paths: &role_test_paths
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      # Coarser than what the harness reads -- it sources three of the eight
+      # files here -- and deliberately so. A gate's filter errs towards firing:
+      # a checksum bump in actionlint.sh costing one unnecessary matrix is the
+      # cheap direction of that trade, and enumerating three files is a fourth
+      # place to keep in step with the script's `source` lines.
+      - 'tools/includes/**'
+      - 'Makefile'
+      - 'ansible.cfg'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/role-test.yml'
   pull_request:
     branches: ["main"]
-    paths:
-      - 'roles/**'
-      - 'tests/roles/**'
-      - 'tools/role-test.sh'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/role-test.yml'
+    paths: *role_test_paths
 
 permissions:
   contents: read
