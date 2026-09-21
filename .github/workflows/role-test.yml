@@ -13,10 +13,19 @@ name: Role Test
 on:
   push:
     branches: ["main"]
-    paths:
+    # One list, anchored, as codeql.yml already does. Two copies is how a
+    # filter comes to fire on pull requests and not on push, or the reverse,
+    # and nothing compares them: the same silent-absent-gate this filter was
+    # widened to close, arriving through the edit that widens it.
+    paths: &role_test_paths
       - 'roles/**'
       - 'tests/roles/**'
       - 'tools/role-test.sh'
+      # Coarser than what the harness reads -- it sources three of the eight
+      # files here -- and deliberately so. A gate's filter errs towards firing:
+      # a checksum bump in actionlint.sh costing one unnecessary matrix is the
+      # cheap direction of that trade, and enumerating three files is a fourth
+      # place to keep in step with the script's `source` lines.
       - 'tools/includes/**'
       - 'Makefile'
       - 'ansible.cfg'
@@ -25,16 +34,7 @@ on:
       - '.github/workflows/role-test.yml'
   pull_request:
     branches: ["main"]
-    paths:
-      - 'roles/**'
-      - 'tests/roles/**'
-      - 'tools/role-test.sh'
-      - 'tools/includes/**'
-      - 'Makefile'
-      - 'ansible.cfg'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/role-test.yml'
+    paths: *role_test_paths
 
 permissions:
   contents: read
