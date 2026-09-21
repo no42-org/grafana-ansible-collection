@@ -142,12 +142,46 @@ def present_datasource(module):
     if result.status_code == 200:
         return False, True, result.json()
     elif result.status_code == 409:
-        get_id_url = requests.get(module.params['grafana_url'] + '/api/datasources/id/' + module.params['dataSource']['name'],
-                                  headers=headers)
+        # The data source exists, so this is an update.
+        #
+        # Addressed by uid, not by the numeric id. Grafana 13.0 removed
+        # PUT /api/datasources/<id>, and it answers 404 with the message
+        # "Not found", which names neither the route nor the reason. Measured
+        # on 10.4, 11.6, 12.3, 13.0, 13.1 and 13.2: the numeric route works up
+        # to 12 and is gone from 13, and PUT /api/datasources/uid/<uid> works
+        # on every one of them.
+        #
+        # The uid is resolved from the listing rather than read out of
+        # module.params['dataSource']: uid is optional in Grafana's create
+        # payload and in this module's interface, so a consumer may not have
+        # supplied one. The listing is also the only route to it that Grafana
+        # does not mark deprecated -- both the by-name lookup and the
+        # id-by-name lookup this replaces carry the same deprecation notice as
+        # the route that just disappeared.
+        name = module.params['dataSource']['name']
+        conflict = result.json().get('message')
 
-        api_url = module.params['grafana_url'] + '/api/datasources/' + str(get_id_url.json()['id'])
+        listing = requests.get(api_url, headers=headers)
+        if listing.status_code != 200:
+            return True, False, {"status": listing.status_code,
+                                 'response': "could not list data sources to resolve the uid of '%s': %s"
+                                             % (name, listing.text)}
 
-        result = requests.put(api_url, json=module.params['dataSource'], headers=headers)
+        uid = next((existing.get('uid') for existing in listing.json() if existing.get('name') == name), None)
+
+        # A 409 does not have to mean the name is taken: Grafana returns it for
+        # a uid already held by a differently named data source too. There is
+        # nothing to update in that case, and saying so is the whole job here.
+        # The code this replaces indexed into the failed lookup's body and
+        # raised KeyError: 'id' at the consumer instead.
+        if uid is None:
+            return True, False, {"status": result.status_code,
+                                 'response': "grafana reported a conflict for data source '%s' (%s), but no data "
+                                             "source with that name exists; check whether the uid is already in use"
+                                             % (name, conflict)}
+
+        result = requests.put(module.params['grafana_url'] + '/api/datasources/uid/' + str(uid),
+                              json=module.params['dataSource'], headers=headers)
 
         if result.status_code == 200:
             return False, True, result.json()
