@@ -1,0 +1,199 @@
+---
+# Exercise the datasource module against a running Grafana.
+#
+# Upstream issue #537: the update path addressed a data source by its numeric
+# id, and Grafana 13.0 removed `PUT /api/datasources/:id`. Measured, one
+# container per version, create then update:
+#
+#   10.4.19, 11.6.7, 12.3.0   PUT /api/datasources/:id       -> 200
+#   13.0.1, 13.1.0, 13.2.1    PUT /api/datasources/:id       -> 404 Not found
+#   all of the above          PUT /api/datasources/uid/:uid  -> 200
+#
+# The role pins grafana_version 13.2.1, so the collection's own module could
+# not update a data source on the Grafana its own role installs.
+#
+# Every update here reads the object back out of Grafana and asserts the field
+# it changed. Asserting on the module's return value would prove only that the
+# module read its own reply: the update returns 200 and the changed body even
+# when it has written to the wrong place, and a 404 arrives as a failure the
+# module reports rather than as a wrong value.
+#
+# Idempotence is deliberately not asserted. The module documents
+# `Does not support C(Idempotency)` and reports changed on every run, because
+# it rewrites the data source unconditionally. That is a separate defect with
+# its own interface questions; a scenario asserting no-change here would be
+# asserting a behaviour the module does not claim.
+- name: Datasource module
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # The interpreter running this playbook, which is the one the harness
+    # provisioned and the only one that is guaranteed to have requests. Left to
+    # discovery, Ansible picks a python by path and warns that the meaning of
+    # that path may change, which for a module whose only dependency is an
+    # import is the difference between testing the module and testing a venv.
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+    # Both supplied by tools/module-test.sh: the published port of the Grafana
+    # container, and a service account token minted against it.
+    grafana_url: "{{ undef('grafana_url is required; run make module-test') }}"
+    grafana_api_key: "{{ undef('grafana_api_key is required; run make module-test') }}"
+
+    api_headers:
+      Authorization: "Bearer {{ grafana_api_key }}"
+
+    # The name-only data source. No uid anywhere: uid is optional in Grafana's
+    # create payload and in this module's interface, and a fix that reads
+    # dataSource['uid'] raises KeyError for this shape instead of updating it.
+    implicit_uid_datasource:
+      name: module-test-implicit
+      type: prometheus
+      access: proxy
+      url: http://127.0.0.1:9090
+
+    # The shape that declares its own uid, which must keep working and must
+    # keep its uid across an update.
+    explicit_uid_datasource:
+      name: module-test-explicit
+      type: prometheus
+      access: proxy
+      uid: moduletestexpl
+      url: http://127.0.0.1:9090
+
+  tasks:
+    - name: "Create a data source that declares no uid"
+      grafana.grafana.datasource:
+        dataSource: "{{ implicit_uid_datasource }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: present
+      register: implicit_create
+
+    - name: "Check the create reported a change and carried Grafana's reply"
+      ansible.builtin.assert:
+        that:
+          - implicit_create.changed
+          - implicit_create.output.datasource.name == implicit_uid_datasource.name
+          - implicit_create.output.datasource.uid | length > 0
+        fail_msg: >-
+          creating a data source without a uid failed:
+          {{ implicit_create.output | default('no output') }}
+
+    - name: "Remember the uid Grafana generated"
+      ansible.builtin.set_fact:
+        implicit_uid: "{{ implicit_create.output.datasource.uid }}"
+
+    # The update. This is the task that fails on Grafana 13 before the fix,
+    # with 404 Not found and nothing naming the route that went away.
+    - name: "Update the same data source by name, changing its url"
+      grafana.grafana.datasource:
+        dataSource: "{{ implicit_uid_datasource | combine({'url': 'http://127.0.0.1:9091'}) }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: present
+      register: implicit_update
+
+    - name: "Read the data source back out of Grafana"
+      ansible.builtin.uri:
+        url: "{{ grafana_url }}/api/datasources/uid/{{ implicit_uid }}"
+        headers: "{{ api_headers }}"
+      register: implicit_readback
+
+    - name: "Check the update landed, and landed on the same object"
+      ansible.builtin.assert:
+        that:
+          - implicit_update.changed
+          - implicit_readback.json.url == 'http://127.0.0.1:9091'
+          - implicit_readback.json.uid == implicit_uid
+          - implicit_readback.json.name == implicit_uid_datasource.name
+        fail_msg: >-
+          the update reported success but Grafana still holds
+          {{ implicit_readback.json.url }}
+
+    - name: "Create a data source that declares its own uid"
+      grafana.grafana.datasource:
+        dataSource: "{{ explicit_uid_datasource }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: present
+      register: explicit_create
+
+    - name: "Check the declared uid is the one Grafana stored"
+      ansible.builtin.assert:
+        that:
+          - explicit_create.changed
+          - explicit_create.output.datasource.uid == explicit_uid_datasource.uid
+
+    - name: "Update the data source that declares its own uid"
+      grafana.grafana.datasource:
+        dataSource: "{{ explicit_uid_datasource | combine({'url': 'http://127.0.0.1:9092'}) }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: present
+      register: explicit_update
+
+    - name: "Read that data source back out of Grafana"
+      ansible.builtin.uri:
+        url: "{{ grafana_url }}/api/datasources/uid/{{ explicit_uid_datasource.uid }}"
+        headers: "{{ api_headers }}"
+      register: explicit_readback
+
+    - name: "Check the update landed and the uid is unchanged"
+      ansible.builtin.assert:
+        that:
+          - explicit_update.changed
+          - explicit_readback.json.url == 'http://127.0.0.1:9092'
+          - explicit_readback.json.uid == explicit_uid_datasource.uid
+
+    # A 409 does not always mean "this name exists". Grafana returns the same
+    # status for a uid already held by a differently named data source, with
+    # the message "data source with the same uid already exists". The module
+    # cannot resolve a name that is not there, and has to say so: the code this
+    # replaces indexed into the failed lookup's body and raised KeyError: 'id'
+    # at the consumer.
+    - name: "Provoke a conflict on the uid rather than the name"
+      grafana.grafana.datasource:
+        dataSource: "{{ explicit_uid_datasource | combine({'name': 'module-test-uid-clash'}) }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: present
+      register: clash
+      # ignore_errors, not failed_when: false. The second one rewrites the
+      # result's own `failed` to false, which is the thing being asserted.
+      ignore_errors: true
+
+    - name: "Check the module reported the conflict instead of raising"
+      ansible.builtin.assert:
+        that:
+          - clash.failed
+          - clash.msg.status == 409
+          - "'module-test-uid-clash' in clash.msg.response"
+          - "'uid' in clash.msg.response"
+          - "'Traceback' not in clash.msg.response"
+        fail_msg: >-
+          a conflict the module cannot act on must fail with a message naming
+          the data source, not a traceback: {{ clash.msg | default('no msg') }}
+
+    - name: "Delete both data sources"
+      grafana.grafana.datasource:
+        dataSource: "{{ item }}"
+        grafana_url: "{{ grafana_url }}"
+        grafana_api_key: "{{ grafana_api_key }}"
+        state: absent
+      loop:
+        - "{{ implicit_uid_datasource }}"
+        - "{{ explicit_uid_datasource }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "List what Grafana holds now"
+      ansible.builtin.uri:
+        url: "{{ grafana_url }}/api/datasources"
+        headers: "{{ api_headers }}"
+      register: final_listing
+
+    - name: "Check both data sources are gone"
+      ansible.builtin.assert:
+        that:
+          - implicit_uid_datasource.name not in (final_listing.json | map(attribute='name') | list)
+          - explicit_uid_datasource.name not in (final_listing.json | map(attribute='name') | list)

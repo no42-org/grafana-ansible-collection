@@ -1,0 +1,98 @@
+---
+name: Module Test
+
+# The plugin modules, against a running Grafana.
+#
+# Its own workflow rather than a job in role-test.yml, because path filters are
+# per workflow: adding 'plugins/**' there would fire fifteen role jobs on a
+# change that cannot affect a role, and the whole reason both workflows are
+# filtered is that they are the slow ones.
+#
+# Not called through gate.yml. gate.yml is what must pass to release and
+# provisions no containers; this needs docker, like the role tests, and is
+# filtered to the paths it covers.
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'plugins/**'
+      - 'tests/modules/**'
+      - 'tools/module-test.sh'
+      - 'roles/grafana/defaults/main.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/module-test.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'plugins/**'
+      - 'tests/modules/**'
+      - 'tools/module-test.sh'
+      - 'roles/grafana/defaults/main.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/module-test.yml'
+
+permissions:
+  contents: read
+
+# uv's own version. This workflow is not called through gate.yml and cannot
+# inherit its `env:`, so this is the third place the value appears.
+# tools/lint-release.sh fails `make ci-lint-release` if the workflows disagree.
+env:
+  UV_VERSION: '0.12.7'
+
+concurrency:
+  group: module-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  module-test:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - datasource
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No setup-python and no `pip install ansible-core`, for the reason
+      # role-test.yml gives at length: the harness runs ansible-playbook
+      # through `uv run --group module-test`, which is the one declaration of
+      # both the ansible-core version and the requests the modules import.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: module-test
+
+      # No collection cache, unlike the role tests: this harness installs
+      # nothing from galaxy. The scenario reaches Grafana over HTTP with
+      # ansible.builtin.uri, so there is no connection plugin to fetch.
+      #
+      # CI calls the Makefile target, never the script directly, so local and
+      # CI cannot drift. The Grafana version comes from the role's pin.
+      - name: Module test
+        run: make module-test MODULE=${{ matrix.module }}
+
+      - name: Show the logs on failure
+        if: failure()
+        run: |
+          # nullglob: a run that failed before writing a log must not turn
+          # this step into a second failure about a literal '*.log'.
+          shopt -s nullglob
+          for log in build/module-test/*/*.log; do
+            echo "::group::${log}"
+            tail -80 "${log}"
+            echo "::endgroup::"
+          done

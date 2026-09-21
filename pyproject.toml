@@ -48,6 +48,22 @@ ansible-top = [
     "ansible-core==2.21.4",
 ]
 
+# The control-node environment a module test runs in.
+#
+# A module runs on the control node, not on a target, and every module under
+# plugins/modules/ imports requests behind a HAS_REQUESTS guard. Without it the
+# harness fails at the import and reports nothing about the module it was asked
+# to test.
+#
+# Unversioned, because requirements.txt is unversioned: that file is the claim
+# this repository makes to consumers about what its modules need, and a floor
+# stated only here would be a second, untested claim. uv.lock supplies the
+# reproducibility.
+module-test = [
+    {include-group = "ansible"},
+    "requests",
+]
+
 # The linters that gate. pylint is deliberately absent: nothing in this
 # repository invoked it, and `ansible-test sanity` runs its own pylint test
 # over plugins/.
