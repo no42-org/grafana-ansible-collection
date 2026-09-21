@@ -1,0 +1,52 @@
+[
+  {
+    "tag_name": "v1.19.2",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "untagged-ce745838f1ebd9f128d4",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.19.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.18.1",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.18.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.18.0-rc.0",
+    "draft": false,
+    "prerelease": true
+  },
+  {
+    "tag_name": "v1.17.1",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.17.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.17.0-rc.1",
+    "draft": false,
+    "prerelease": true
+  },
+  {
+    "tag_name": "v1.16.3",
+    "draft": false,
+    "prerelease": false
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "tag_name": "v2.0.0",
+    "draft": false,
+    "prerelease": true
+  },
+  {
+    "tag_name": "v1.9.9",
+    "draft": true,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v1.9.8",
+    "draft": false,
+    "prerelease": false
+  }
+]

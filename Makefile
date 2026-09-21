@@ -2,7 +2,7 @@
 PATH := ./node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list version-select-test
 
 default: all
 
@@ -52,6 +52,15 @@ role-test:
 
 role-test-list:
 	@./tools/role-test.sh --list
+
+# Cover the `<role>_version: latest` resolution against recorded GitHub
+# payloads. No container and no network: the role tests all pin their version,
+# so `when: <role>_version == "latest"` never fires there, and pointing a test
+# at the live API would make it depend on what upstream published this hour --
+# which is the input the selection exists to defend against. See
+# tests/version-selection/verify.yml and upstream issue #530.
+version-select-test:
+	@uv run --frozen --group ansible ansible-playbook tests/version-selection/verify.yml
 
 # reinstall the node_modules and start with a fresh node build
 reinstall: clean install

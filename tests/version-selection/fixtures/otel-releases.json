@@ -1,0 +1,52 @@
+[
+  {
+    "tag_name": "v0.161.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/opampsupervisor/v0.161.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/builder/v0.161.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v0.160.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/opampsupervisor/v0.160.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/builder/v0.160.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v0.159.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/opampsupervisor/v0.159.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "cmd/builder/v0.159.0",
+    "draft": false,
+    "prerelease": false
+  },
+  {
+    "tag_name": "v0.158.0",
+    "draft": false,
+    "prerelease": false
+  }
+]
