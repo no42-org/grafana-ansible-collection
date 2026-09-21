@@ -447,6 +447,25 @@ A floating label makes a role's behaviour change when nobody changed this reposi
 
 **Pinning alone would be worse than the label it replaces.** `opentelemetry_collector` sat at 0.90.1, released 2023-12-01, until upstream reached 0.160.0, because nothing asked anyone to move it. So the pin and the thing that moves it are one mechanism.
 
+### `latest` is still supported, and it is no longer a coin toss
+
+A consumer may set `<role>_version: latest`. The consequences of choosing a floating label are theirs; producing a version that was never a version is the role's defect, and it was one until upstream issue #530.
+
+The roles read GitHub's **releases list**, not `releases/latest`, and take the newest release whose tag matches that project's version pattern, skipping drafts and prereleases on the flags GitHub sets for them. Nothing matching is a failure naming the endpoint, the pattern and the tags it saw.
+
+The reason is that these repositories publish more than the software the role installs. Go submodule tags become full releases, non-draft and non-prerelease, interleaved with the real ones:
+
+```text
+  grafana/alloy                    v1.19.2, untagged-ce745838f1ebd9f128d4, v1.19.0, …
+  opentelemetry-collector-releases v0.161.0, cmd/opampsupervisor/v0.161.0, cmd/builder/v0.161.0, …
+```
+
+`releases/latest` returns whichever of those is newest. When it was `syntax/v0.1.1`, the old expression adopted it and built `.../download/vsyntax/v0.1.1/alloy-syntax/v0.1.1-1.arm64.deb`.
+
+Each role's pattern lives in its `vars/main.yml` as `__<role>_version_tag_regex`, used both to filter candidates and to extract the version, so the two cannot disagree. `mimir` accepts the `mimir-` prefix, which is what upstream PR `#461` carried.
+
+`make version-select-test` covers this against recorded payloads. It cannot come from the role tests, which all pin their version, and it must not come from the live API — a test whose result depends on what upstream published this hour is a test of the hazard, not of the fix.
+
 ### The tracker
 
 `.github/workflows/role-versions.yml` runs weekly and on demand. It calls `make role-versions-check`, which compares each pin against the upstream project's latest release, then `make role-versions-bump`, which opens one pull request per behind role.
