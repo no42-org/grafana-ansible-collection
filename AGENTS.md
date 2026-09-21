@@ -117,7 +117,7 @@ All of the above gate a release, in separate jobs of `.github/workflows/gate.yml
 - **`grafana_dashboards_dir` is a control-node path.** The role's discovery tasks are `delegate_to: localhost`. It must be absolute and fully resolved, because the folder-name derivation strips it as a literal regular expression prefix.
 - **`grafana_agent` and `promtail` are removed from this fork**, though upstream still ships both. The Agent is archived. Promtail went end of life on 2026-03-02. `alloy` replaces both. An upstream merge reintroduces both directories, and the removal has to be reapplied across eleven places, four of them prose that an upstream merge restores; `RELEASING.md` lists them.
 
-- **Every role's version is pinned, and the pin is watched.** `<role>_version` is a concrete version, never `latest`, so a role's behaviour cannot change without a commit. A weekly workflow opens a bump pull request when a pin falls behind, and the role tests verify the bump before it merges — that verification is why pinning is safe rather than a risk moved elsewhere. `grafana` is excluded for a recorded reason. See `RELEASING.md`.
+- **Every role's version is pinned, and the pin is watched.** `<role>_version` is a concrete version, never `latest`, so a role's behaviour cannot change without a commit. A weekly workflow opens a bump pull request when a pin falls behind, and the role tests verify the bump before it merges — that verification is why pinning is safe rather than a risk moved elsewhere. Each role is compared against the source it installs from: release assets for five of them, the apt and rpm package indexes for `grafana`. See `RELEASING.md`.
 
 ## Conventions
 

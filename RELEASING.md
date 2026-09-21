@@ -502,11 +502,23 @@ Dependabot's ecosystems are a fixed list — `pip`, `npm`, `github-actions`, `uv
 
 Renovate's `customManagers` can do exactly this. It is not used because the maintainer checklist requires exactly one dependency bot and this repository has just finished getting Dependabot right, including the `uv` ecosystem. Trading a working bot for one needing actions, npm and uv migrated to it is a larger change than the problem warrants.
 
-### The one exclusion
+### Every role is asked about the source it installs from
 
-| Role | Why |
-| --- | --- |
-| `grafana` | Installs from a package repository. Its version becomes `grafana-<v>` on RHEL and `grafana=<v>` on Debian, which repositories serve on their own schedule and retention, so a version that exists as a release may not exist as a package. Bumped by hand, and `make role-test ROLE=grafana` on both families is what proves a pin is installable. |
+There is no exclusion. There was one, and it was the wrong answer to a real observation.
+
+The roles do not obtain their software the same way, so the checker does not ask one question:
+
+| Roles | Installs from | Checked against |
+| --- | --- | --- |
+| `loki`, `mimir`, `tempo`, `alloy` | a `.rpm` or `.deb` asset attached to a GitHub release | the release, **and** that it carries those assets |
+| `opentelemetry_collector` | a `.tar.gz` asset from an `open-telemetry/opentelemetry-collector-releases` release | the release, and that it carries that asset |
+| `grafana` | `apt.grafana.com` and `rpm.grafana.com` | both package indexes, and only a version present in both |
+
+`grafana` was excluded because its releases and its packages are different populations: a version that exists as a release is not guaranteed to exist as a package, so comparing the pin against GitHub releases would propose bumps that cannot install. That observation is correct. The conclusion drawn from it — do not check at all — left the one pin nothing watched, in a document that argues two paragraphs earlier that an unwatched pin is worse than a floating label. A package repository has an index, and the index is the list of versions that are installable.
+
+`apt.grafana.com` also carries `loki`, `mimir`, `tempo` and `alloy`. They are not checked against it, because they do not install from it: a version can be in the package repository and absent as a release asset, or the reverse. Being convenient to query is not being the thing under test.
+
+**A release whose assets are missing is held, not proposed.** A GitHub release exists before its assets finish uploading. The checker prints `[held]` naming the role, the version and the missing suffix, and does not add it to the report, so no pull request is opened that the role tests could not pass. It is printed rather than failed on purpose: a weekly job that goes red for a condition that heals itself within the hour is a weekly job people stop reading.
 
 ## Role tests
 
