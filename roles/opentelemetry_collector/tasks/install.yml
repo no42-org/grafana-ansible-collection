@@ -1,11 +1,53 @@
 - name: Discover latest OpenTelemetry Collector version
-  ansible.builtin.set_fact:
-    otel_collector_version: "{{ (lookup('url', otel_collector_latest_url, split_lines=False) | from_json).get('tag_name') | replace('v', '') }}"
-  run_once: true
-  until: otel_collector_version is version('0.0.0', '>=')
-  retries: 10
-  when:
-    - otel_collector_version == 'latest'
+  when: otel_collector_version == 'latest'
+  vars:
+    # The releases endpoint returns a list. A consumer who has overridden it
+    # with a releases/latest URL gets a single object, which is wrapped here so
+    # both shapes go through the same filter.
+    __otel_collector_releases: >-
+      {{ __github_latest_version.json
+      if __github_latest_version.json is sequence
+      and __github_latest_version.json is not mapping
+      else [__github_latest_version.json] }}
+  block:
+    - name: Scrape Github API endpoint to obtain latest OpenTelemetry Collector version
+      ansible.builtin.uri:
+        url: "{{ otel_collector_latest_url }}"
+        method: GET
+        body_format: json
+      become: false
+      delegate_to: localhost
+      run_once: true
+      check_mode: false
+      register: __github_latest_version
+
+    # rejectattr on the API's own flags, not on the tag: releases/latest
+    # excluded drafts and prereleases for free, the list endpoint does not, and
+    # a prerelease can carry a version-shaped tag.
+    - name: Select the newest release whose tag is a version
+      ansible.builtin.set_fact:
+        __otel_collector_candidate_versions: >-
+          {{ __otel_collector_releases
+          | rejectattr('draft') | rejectattr('prerelease')
+          | map(attribute='tag_name')
+          | select('match', __otel_collector_version_tag_regex)
+          | map('regex_replace', __otel_collector_version_tag_regex, '\1')
+          | list }}
+      run_once: true
+
+    - name: Fail when no release tag is a version
+      ansible.builtin.fail:
+        msg: >-
+          No release at {{ otel_collector_latest_url }} has a tag matching
+          {{ __otel_collector_version_tag_regex }}. Tags seen:
+          {{ __otel_collector_releases | map(attribute='tag_name') | list }}.
+          Set otel_collector_version to a concrete version instead of 'latest'.
+      when: __otel_collector_candidate_versions | length == 0
+      run_once: true
+
+    - name: Latest available OpenTelemetry Collector version
+      ansible.builtin.set_fact:
+        otel_collector_version: "{{ __otel_collector_candidate_versions | first }}"
 
 - name: Discover installed version
   block:

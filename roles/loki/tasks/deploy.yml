@@ -3,10 +3,19 @@
 
 - name: Obtain the latest version from the Loki GitHub repo
   when: loki_version == "latest"
+  vars:
+    # The releases endpoint returns a list. A consumer who has overridden it
+    # with a releases/latest URL gets a single object, which is wrapped here so
+    # both shapes go through the same filter.
+    __loki_releases: >-
+      {{ __github_latest_version.json
+      if __github_latest_version.json is sequence
+      and __github_latest_version.json is not mapping
+      else [__github_latest_version.json] }}
   block:
     - name: Scrape Github API endpoint to obtain latest Loki version
       ansible.builtin.uri:
-        url: "https://api.github.com/repos/grafana/loki/releases/latest"
+        url: "https://api.github.com/repos/grafana/loki/releases?per_page=30"
         method: GET
         body_format: json
       become: false
@@ -15,9 +24,33 @@
       check_mode: false
       register: __github_latest_version
 
+    # rejectattr on the API's own flags, not on the tag: releases/latest
+    # excluded drafts and prereleases for free, the list endpoint does not, and
+    # a prerelease can carry a version-shaped tag.
+    - name: Select the newest release whose tag is a version
+      ansible.builtin.set_fact:
+        __loki_candidate_versions: >-
+          {{ __loki_releases
+          | rejectattr('draft') | rejectattr('prerelease')
+          | map(attribute='tag_name')
+          | select('match', __loki_version_tag_regex)
+          | map('regex_replace', __loki_version_tag_regex, '\1')
+          | list }}
+      run_once: true
+
+    - name: Fail when no release tag is a version
+      ansible.builtin.fail:
+        msg: >-
+          No release at https://api.github.com/repos/grafana/loki/releases has a tag matching
+          {{ __loki_version_tag_regex }}. Tags seen:
+          {{ __loki_releases | map(attribute='tag_name') | list }}.
+          Set loki_version to a concrete version instead of 'latest'.
+      when: __loki_candidate_versions | length == 0
+      run_once: true
+
     - name: Latest available Loki version
       ansible.builtin.set_fact:
-        loki_version: "{{ __github_latest_version.json.tag_name | regex_replace('^v?(\\d+\\.\\d+\\.\\d+)$', '\\1') }}"
+        loki_version: "{{ __loki_candidate_versions | first }}"
 
 - name: Verify current deployed version
   block:
