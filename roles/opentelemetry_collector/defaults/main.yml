@@ -9,7 +9,13 @@
 otel_collector_version: "0.160.0"
 otel_collector_binary_url: "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version }}/{% if otel_collector_type == 'contrib' %}otelcol-contrib_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% else %}otelcol_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% endif %}.tar.gz"
 
-otel_collector_latest_url: 'https://api.github.com/repos/open-telemetry/opentelemetry-collector-releases/releases/latest'
+# The releases list, not releases/latest. This repository publishes the
+# collector alongside its tooling -- 'cmd/builder/v0.161.0' and
+# 'cmd/opampsupervisor/v0.161.0' sit between every pair of real releases -- so
+# the newest release is not reliably a version of the collector. The role picks
+# the newest whose tag is one. The name is kept: a releases/latest URL set here
+# still works, it just leaves one candidate to choose from.
+otel_collector_latest_url: 'https://api.github.com/repos/open-telemetry/opentelemetry-collector-releases/releases?per_page=30'
 
 arch_mapping:
   x86_64: amd64

@@ -1,15 +1,9 @@
-__tempo_arch_map:
-  x86_64: 'amd64'
-  armv6l: 'arm'
-  armv7l: 'arm'
-  aarch64: 'arm64'
-__tempo_arch: "{{ __tempo_arch_map[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
-
-# The shape a release tag must have before it can become tempo_version.
+---
+# The shape a release tag must have before it can become loki_version.
 #
 # Named once and used twice, as the filter that selects candidate releases and
 # as the extractor that strips the tag down to the version. Written inline at
 # both sites they can drift, and a filter that disagrees with its extractor is
 # how a tag like 'syntax/v0.1.1' became a version in the first place: see
 # upstream issue #530.
-__tempo_version_tag_regex: '^v?(\d+\.\d+\.\d+)$'
+__loki_version_tag_regex: '^v?(\d+\.\d+\.\d+)$'

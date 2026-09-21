@@ -1,6 +1,15 @@
 ---
 - name: Obtain the latest version from the GitHub repo
   when: alloy_version == "latest"
+  vars:
+    # The releases endpoint returns a list. A consumer who has overridden it
+    # with a releases/latest URL gets a single object, which is wrapped here so
+    # both shapes go through the same filter.
+    __alloy_releases: >-
+      {{ __github_latest_version.json
+      if __github_latest_version.json is sequence
+      and __github_latest_version.json is not mapping
+      else [__github_latest_version.json] }}
   block:
     - name: Scrape Github API endpoint to obtain latest Alloy version
       ansible.builtin.uri:
@@ -13,9 +22,33 @@
       check_mode: false
       register: __github_latest_version
 
+    # rejectattr on the API's own flags, not on the tag: releases/latest
+    # excluded drafts and prereleases for free, the list endpoint does not, and
+    # a prerelease can carry a version-shaped tag.
+    - name: Select the newest release whose tag is a version
+      ansible.builtin.set_fact:
+        __alloy_candidate_versions: >-
+          {{ __alloy_releases
+          | rejectattr('draft') | rejectattr('prerelease')
+          | map(attribute='tag_name')
+          | select('match', __alloy_version_tag_regex)
+          | map('regex_replace', __alloy_version_tag_regex, '\1')
+          | list }}
+      run_once: true
+
+    - name: Fail when no release tag is a version
+      ansible.builtin.fail:
+        msg: >-
+          No release at {{ alloy_github_api_url }} has a tag matching
+          {{ __alloy_version_tag_regex }}. Tags seen:
+          {{ __alloy_releases | map(attribute='tag_name') | list }}.
+          Set alloy_version to a concrete version instead of 'latest'.
+      when: __alloy_candidate_versions | length == 0
+      run_once: true
+
     - name: Latest available Alloy version
       ansible.builtin.set_fact:
-        alloy_version: "{{ __github_latest_version.json.tag_name | regex_replace('^v?(\\d+\\.\\d+\\.\\d+)$', '\\1') }}"
+        alloy_version: "{{ __alloy_candidate_versions | first }}"
 
 - name: Verify current deployed version
   when: ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']

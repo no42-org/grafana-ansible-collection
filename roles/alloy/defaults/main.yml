@@ -9,7 +9,12 @@
 alloy_version: "1.19.2"
 alloy_uninstall: false
 alloy_expose_port: false
-alloy_github_api_url: "https://api.github.com/repos/grafana/alloy/releases/latest"
+# The releases list, not releases/latest. Alloy publishes Go submodule tags as
+# full releases -- 'syntax/v0.1.1' was the newest one when upstream issue #530
+# was reported -- so the newest release is not reliably a version of Alloy. The
+# role picks the newest whose tag is one. A releases/latest URL set here still
+# works; it just leaves one candidate to choose from.
+alloy_github_api_url: "https://api.github.com/repos/grafana/alloy/releases?per_page=30"
 alloy_download_url_rpm: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-{{ alloy_version }}-1.{{ __alloy_arch }}.rpm"
 alloy_download_url_deb: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-{{ alloy_version }}-1.{{ __alloy_arch }}.deb"
 alloy_readiness_check_use_https: false
