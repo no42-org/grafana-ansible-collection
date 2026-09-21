@@ -42,8 +42,15 @@ fi
 # request. It did, and it also left every subsequent commit in that clone
 # signed off by github-actions[bot]. These variables last exactly as long as
 # this process.
-export GIT_AUTHOR_NAME="github-actions[bot]"
-export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+#
+# Overridable, because the identity has to match whoever the token belongs to.
+# The workflow mints a GitHub App token when the app is configured, and then
+# the commit, the sign-off trailer and the pull request author must all name
+# that app rather than github-actions[bot], which did not make the change. The
+# defaults are the workflow token's identity, which is what runs without an
+# app and what a local run gets.
+export GIT_AUTHOR_NAME="${ROLE_BUMP_GIT_NAME:-github-actions[bot]}"
+export GIT_AUTHOR_EMAIL="${ROLE_BUMP_GIT_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
 export GIT_COMMITTER_NAME="${GIT_AUTHOR_NAME}"
 export GIT_COMMITTER_EMAIL="${GIT_AUTHOR_EMAIL}"
 

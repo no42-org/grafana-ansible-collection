@@ -472,6 +472,25 @@ Each role's pattern lives in its `vars/main.yml` as `__<role>_version_tag_regex`
 
 It merges nothing. `role-test.yml` already triggers on `roles/**`, so a bump runs that role's tests on both package families unprompted, and a human merges it once they pass. **That verification is the justification for pinning**; an unverified bump would move the risk rather than remove it, which is how the `tempo` role came to ship a configuration Tempo rejects.
 
+#### "Unprompted" needs a GitHub App
+
+A pull request opened with `GITHUB_TOKEN` is authored by `github-actions[bot]`, which has no merged pull requests here. This repository is public, so GitHub holds workflow runs for a first-time contributor and every bump waits in `action_required` for someone to press a button. On 2026-09-21 that was 86 minutes, and it would have been however long nobody was looking. The runs were queued four seconds after the pull requests, so the trigger was never the problem.
+
+Tests that start when a human arrives are not the guarantee the paragraph above describes.
+
+An app is not a first-time contributor, so `role-versions.yml` mints an app token when one is configured. Two settings switch it on, and the workflow needs no edit at that point:
+
+| | where | value |
+| --- | --- | --- |
+| `ROLE_BUMP_APP_ID` | repository **variable** | the app's ID, which is not a secret |
+| `ROLE_BUMP_PRIVATE_KEY` | repository **secret** | the app's private key |
+
+The app needs `contents: write` and `pull requests: write` on this repository and nothing else. The token is narrowed to those two with `permission-contents` and `permission-pull-requests` regardless, because an app token otherwise carries everything its installation was granted, and a job's own `permissions:` block cannot constrain it.
+
+With neither set the step is skipped and the job runs exactly as it did before, opening correct pull requests that wait for approval. That is the fallback, not a second code path: the same expression selects `GITHUB_TOKEN`.
+
+An app is preferred to a personal access token because it is scoped to this repository and expires with the job. `PROJECTS_TOKEN`, which `upstream-tracker.yml` uses, is a personal access token only because GitHub does not offer project scope to a workflow token; an app could replace that too.
+
 Two behaviours are deliberate and were verified by triggering them:
 
 - **A lookup that cannot resolve fails the run.** A rate limit, a network failure or a renamed repository must not read as "nothing to do" — a quiet tracker and an up-to-date repository otherwise look identical, and this repository has twice shipped a check whose silence was mistaken for success.
