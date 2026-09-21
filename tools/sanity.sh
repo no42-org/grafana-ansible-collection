@@ -15,8 +15,15 @@
 # staged tree did not contain. The local log named no error because the local
 # run had nothing to name.
 #
-# So the exclusions here are the opposite list: only what a fresh clone does
-# not have. If a file is in the repository, CI lints it, and so does this.
+# So the staged file list is asked of git rather than written out here: what
+# git tracks, plus what is new and not ignored. If a file is in the repository
+# CI lints it, and so does this; if it is not, neither does.
+#
+# It was a hand-written exclude list once, and that list was wrong in the other
+# direction -- it omitted tools/bin, so 75 MB of downloaded linter binaries were
+# staged, shipped into the container and read by the whole-file tests, none of
+# which CI has ever seen. A fourth copy of tools/includes/lint-paths.sh is a
+# fourth thing to keep in step; git already knows the answer.
 #
 # The namespace and name come from galaxy.yml rather than being written here
 # again. `make dist` renames the namespace in a copy at build time, so the
@@ -53,6 +60,10 @@ if [[ "$(command -v uv)" = "" ]]; then
 fi
 if [[ "$(command -v rsync)" = "" ]]; then
   echo >&2 "TOOLCHAIN NOT INSTALLED: rsync is required to stage the collection tree";
+  exit 1;
+fi
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo >&2 "not a git repository: the staged file list is derived from git, not from the filesystem";
   exit 1;
 fi
 if ! docker info >/dev/null 2>&1; then
@@ -94,26 +105,23 @@ trap cleanup EXIT
 
 mkdir -p "${collectionDir}"
 
-# Only what a fresh clone does not have. Everything else is a file CI lints.
-#
 # tests/output is ansible-test's own scratch directory from a previous run in
-# the working tree; carrying it in confuses the new run's bookkeeping.
+# the working tree. Most of what lands there is ignored by .gitignore already,
+# but not all of it, and carrying any of it in confuses the new run's
+# bookkeeping -- hence the one pathspec exclusion git cannot infer.
 info "staging the repository at ansible_collections/${namespace}/${name}"
-rsync -a \
-  --exclude '/.git' \
-  --exclude '/build' \
-  --exclude '/node_modules' \
-  --exclude '/.venv' \
-  --exclude '/.ansible' \
-  --exclude '/ansible_collections' \
-  --exclude '/openspec' \
-  --exclude '/.claude' \
-  --exclude '/.agent' \
-  --exclude '/tests/output' \
-  "${repoRoot}/" "${collectionDir}/"
+fileList="${stageRoot}/files.txt"
+git -C "${repoRoot}" ls-files -z --cached --others --exclude-standard \
+  -- . ':(exclude)tests/output' >"${fileList}"
+rsync -a --from0 --files-from="${fileList}" "${repoRoot}/" "${collectionDir}/"
 
 staged="$(find "${collectionDir}" -type f | wc -l | tr -d ' ')"
-info "staged ${staged} file(s); tools/ and .github/ included, unlike the dist tree"
+tracked="$(tr -dc '\0' <"${fileList}" | wc -c | tr -d ' ')"
+if [[ "${staged}" != "${tracked}" ]]; then
+  echo >&2 "staged ${staged} file(s) but git listed ${tracked}; the staging step is not copying what it was told to";
+  exit 1;
+fi
+info "staged ${staged} file(s) from git; tools/ and .github/ included, unlike the dist tree"
 
 cd "${collectionDir}"
 extra=("$@")
