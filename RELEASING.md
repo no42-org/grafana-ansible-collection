@@ -472,6 +472,17 @@ Each role's pattern lives in its `vars/main.yml` as `__<role>_version_tag_regex`
 
 It merges nothing. `role-test.yml` already triggers on `roles/**`, so a bump runs that role's tests on both package families unprompted, and a human merges it once they pass. **That verification is the justification for pinning**; an unverified bump would move the risk rather than remove it, which is how the `tempo` role came to ship a configuration Tempo rejects.
 
+#### A pin is written down three times
+
+`roles/<role>/defaults/main.yml` holds the pin, and two places a consumer actually reads repeat it: the version badge in the root `README.md`, and the default documented in that role's own `README.md`.
+A bump that rewrites only the first leaves both behind, and the drift is invisible from inside the bump.
+It reached six stale claims across `grafana`, `loki` and `opentelemetry_collector` over several bumps before anything compared them — the root badges, two table rows, and `roles/loki/README.md`, which still documented `loki_version: "latest"`, the opposite of what this fork does.
+
+`make ci-lint-versions` compares all three and fails in both directions: a documented version that is not the pin, and a role with no badge at all.
+It is part of `make ci-lint`, so it gates every pull request.
+`tools/bump-role-versions.sh` calls the same script with `--fix` after moving the pin, so a bump lands complete rather than half-applied and cannot open a pull request that fails its own gate.
+The role table comes from `tools/check-role-versions.py` by import rather than by copy, because two lists of which roles exist is the second definition this repository keeps getting bitten by.
+
 #### "Unprompted" needs a GitHub App
 
 A pull request opened with `GITHUB_TOKEN` is authored by `github-actions[bot]`, which has no merged pull requests here. This repository is public, so GitHub holds workflow runs for a first-time contributor and every bump waits in `action_required` for someone to press a button. On 2026-09-21 that was 86 minutes, and it would have been however long nobody was looking. The runs were queued four seconds after the pull requests, so the trigger was never the problem.
