@@ -215,7 +215,7 @@ lint-ansible:
 ####################################################################
 #                              CI                                  #
 ####################################################################
-ci-lint: ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig ci-lint-ansible
+ci-lint: ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig ci-lint-ansible ci-lint-versions
 
 # Shell Linting
 ci-lint-shell:
@@ -232,6 +232,12 @@ ci-lint-text:
 # Yaml Linting
 ci-lint-yaml:
 	@./tools/lint-yaml.sh
+
+# The versions the documentation claims against the versions the roles pin.
+# Needs no toolchain and no network: it reads defaults/main.yml and the
+# READMEs. Run tools/check-documented-versions.py --fix to rewrite the claims.
+ci-lint-versions:
+	@python3 tools/check-documented-versions.py
 
 # Editorconfig Linting
 ci-lint-editorconfig:

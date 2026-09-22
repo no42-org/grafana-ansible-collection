@@ -81,7 +81,18 @@ assert bumped != text, f"{path}: {var} {cur} was not replaced"
 open(path, "w").write(bumped)
 PYEOF
 
+  # The pin is written down twice more, in the root README's badge and in the
+  # role's own README, and a bump that moves only defaults/main.yml leaves both
+  # behind. That is not hypothetical: grafana, loki and opentelemetry_collector
+  # accumulated six stale claims this way before anything compared them.
+  #
+  # --fix rewrites the claims from the pin, so it runs after the pin has moved,
+  # and `git add -u` picks up whichever READMEs it touched. make ci-lint-versions
+  # is the same check without --fix, and it gates this pull request.
+  python3 tools/check-documented-versions.py --fix
+
   git add "${defaults}"
+  git add -u README.md "roles/${role}/README.md" 2>/dev/null || true
   # -s would take the trailer from user.name/user.email, which is deliberately
   # not set here, so the sign-off is spelled out instead.
   git commit \

@@ -157,6 +157,14 @@ jobs:
         run: make ci-lint-text
         if: success() || failure()
 
+      # The README badges and the role READMEs against the pins themselves. A
+      # bump rewrites defaults/main.yml, and before this nothing compared the
+      # documentation to it, so six claims across three roles went stale over
+      # several bumps without a single failing check.
+      - name: Documented versions
+        run: make ci-lint-versions
+        if: success() || failure()
+
       # Not a linter, and it lives here because it needs neither a container
       # nor the network: it runs the `<role>_version: latest` selection against
       # recorded GitHub payloads. The role tests cannot cover that path -- they
