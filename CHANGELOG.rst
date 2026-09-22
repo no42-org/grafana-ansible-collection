@@ -46,6 +46,13 @@ Minor Changes
   tools/bump-role-versions.sh now rewrites the documentation as part of the bump.
 - make sanity runs ansible-test sanity staged the way CI stages the tree, and the test workflows
   filter on everything their harnesses read rather than on roles/ alone.
+- Every role's version pin is compared against the source that role installs from, rather than
+  against a GitHub release for all of them. grafana installs from apt.grafana.com and
+  rpm.grafana.com, so it was excluded and became the one pin nothing watched: 13.2.2 was released on
+  2026-09-15 and this collection stayed on 13.2.1 with nothing to say so. A package repository has
+  an index, and the index is the list of versions that are installable. A release whose .rpm, .deb
+  or .tar.gz has not finished uploading is held rather than proposed, because proposing it opens a
+  pull request whose role test cannot pass.
 
 Bugfixes
 --------
@@ -70,6 +77,10 @@ Bugfixes
 - Release notes list the upstream contributions a release newly carried rather than every one
   carried since the fork diverged, which repeated the same list under every version number. The
   cumulative count is stated in one line instead.
+- tools/check-shipped-manifests.py imports ElementTree in the form ansible-test sanity's pylint
+  requires. Missed locally because the sanity tree was staged with the distribution exclude list,
+  which drops /tools; CI checks out the whole repository, so it lints files that staging had
+  removed.
 
 Known Issues
 ------------
