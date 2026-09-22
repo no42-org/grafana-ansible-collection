@@ -781,6 +781,25 @@ Two claims previously recorded here were also wrong, and are corrected rather th
 
 The findings are fixed. On a clean checkout the enabled linters report zero errors: `yamllint` 0, `ansible-lint` 0 failures and 0 warnings on 212 files against the `production` profile, `editorconfig-checker` 0, `shellcheck` clean.
 
+### `yamllint` warnings are not zero, and that is the policy
+
+`yamllint` prints **39** warnings on a clean checkout, and each one is a deliberate non-fix rather than a backlog.
+They surface as annotations on every pull request, so it is worth saying once which are actionable: none of them are.
+
+`line-length` is `level: warning` in `.yamllint` and `tools/lint-yaml.sh` refuses `--strict` on purpose, because `--strict` promotes `document-start`, `truthy` and `comments` to errors too.
+The bar this repository holds is zero *errors*.
+
+Of the 119 warnings before this was addressed:
+
+| | count | disposition |
+| --- | --- | --- |
+| `changelogs/changelog.yaml` line length | 77 | exempted in `.yamllint`. It is antsibull's `combined` format — one long prose string per change — and wrapping means folded scalars the generator does not write, so a regeneration would undo it. `CHANGELOG.rst` is the artifact a reader sees, and its generator wraps at 100. |
+| `changelogs/changelog.yaml` document start | 1 | fixed, a one-line `---`. |
+| `tests/version-selection/verify.yml` comments | 2 | fixed. A task name containing `#461` read as an inline comment; quoting the string settles it. |
+| inherited files | 39 | **left alone.** `document-start`, `truthy` and long lines in `roles/`, `examples/` and `tests/integration/`, which this fork keeps adoptable. Fixing them is a whitespace sweep of upstream's prose that manufactures a conflict on every merge, for a warning that changes nothing. `roles/alloy/tasks/deploy.yml:248` is the representative case: `git blame` attributes it to upstream PR #359. |
+
+The rule: a warning in a file this fork authored gets fixed; a warning in a file this fork inherits does not, because the cost is paid at every upstream merge and the benefit is zero.
+
 ### What each target is for
 
 | Target | Covers | Needs |

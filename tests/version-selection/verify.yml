@@ -65,7 +65,7 @@
           cmd/builder/... and cmd/opampsupervisor/... sit between every pair of
           real releases in the live list.
 
-      - name: mimir, the carried #461 prefix still works
+      - name: "mimir, the carried #461 prefix still works"
         fixture: mimir-releases.json
         pattern: "{{ __mimir_version_tag_regex }}"
         expect: "3.2.1"

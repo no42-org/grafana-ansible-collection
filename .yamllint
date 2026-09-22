@@ -27,3 +27,16 @@ rules:
   line-length:
     max: 150
     level: warning
+    # changelogs/changelog.yaml is antsibull-changelog's `combined` format: one
+    # release entry per key, each change a single-line string of prose. 77 of
+    # this repository's 119 yamllint warnings were that file's entries being
+    # longer than 150 characters, which says nothing about the file -- the
+    # rendered artifact a reader sees is CHANGELOG.rst, whose generator wraps
+    # at 100.
+    #
+    # Not fixable in place: wrapping those strings means folded scalars, which
+    # antsibull-changelog does not write, so the next regeneration would undo
+    # it and the warnings would return. Exempting the file states the rule does
+    # not apply here, rather than leaving 77 warnings nobody can act on.
+    ignore: |
+      changelogs/changelog.yaml
