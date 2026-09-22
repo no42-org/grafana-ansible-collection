@@ -33,3 +33,69 @@
         port: 12345
         host: 127.0.0.1
         timeout: 60
+
+    # The rejection path, which converge cannot cover: the harness runs converge
+    # twice and fails on any changed task, so a scenario whose purpose is to
+    # fail the role has to live here, where the play runs once.
+    #
+    # Two assertions, and the second is the one that matters. That the role
+    # fails is what upstream #535 asked for; that /etc/alloy/config.alloy still
+    # holds the good configuration is what proves the broken one was stopped
+    # before the write, rather than written and then complained about.
+    - name: "Read the configuration converge wrote"
+      ansible.builtin.slurp:
+        src: /etc/alloy/config.alloy
+      register: __config_before_invalid
+
+    - name: "Apply the role with a configuration Alloy rejects"
+      block:
+        - name: "Include the alloy role with an invalid configuration"
+          ansible.builtin.include_role:
+            name: alloy
+          vars:
+            alloy_config: |
+              prometheus.remote_write "prom" {
+                  endpoint {
+                      nosuchattribute = "this is not a valid Alloy config"
+                  }
+              }
+
+        - name: "Fail if the role accepted an invalid configuration"
+          ansible.builtin.fail:
+            msg: >-
+              the alloy role reported success for a configuration
+              alloy validate rejects
+      rescue:
+        - name: "Record that the role refused the invalid configuration"
+          ansible.builtin.set_fact:
+            __invalid_config_rejected: true
+
+    - name: "Assert the role refused the invalid configuration"
+      ansible.builtin.assert:
+        that:
+          - __invalid_config_rejected | default(false)
+        fail_msg: "the alloy role did not fail on a configuration alloy validate rejects"
+
+    - name: "Read the configuration after the refused run"
+      ansible.builtin.slurp:
+        src: /etc/alloy/config.alloy
+      register: __config_after_invalid
+
+    - name: "Assert the invalid configuration never reached disk"
+      ansible.builtin.assert:
+        that:
+          - __config_after_invalid.content == __config_before_invalid.content
+        fail_msg: >-
+          /etc/alloy/config.alloy was overwritten by a configuration
+          alloy validate rejects
+
+    - name: "Collect service facts after the refused run"
+      ansible.builtin.service_facts:
+
+    - name: "Assert alloy is still running after the refused run"
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['alloy.service'].state == 'running'"
+        fail_msg: >-
+          alloy is not running after the refused run:
+          {{ ansible_facts.services['alloy.service'].state | default('absent') }}

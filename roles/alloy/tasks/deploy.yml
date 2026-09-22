@@ -113,6 +113,7 @@
         group: "root"
         mode: "0750"
       notify: restart alloy
+      register: __alloy_override_dir
 
     - name: Template Alloy systemd override.conf - /etc/systemd/system/alloy.service.d/override.conf
       ansible.builtin.template:
@@ -122,6 +123,17 @@
         group: "root"
         mode: "0644"
       notify: restart alloy
+      register: __alloy_override_conf
+
+# Gates validation, which is skipped rather than failed where the binary is not
+# there to run. On a first deployment the package is already installed by the
+# setup task above; a check-mode run against a bare host is the case this
+# catches.
+- name: Check if the Alloy binary is available for configuration validation
+  ansible.builtin.stat:
+    path: "/usr/bin/alloy"
+  register: __alloy_binary
+  when: ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']
 
 - name: Template Alloy env file - {{ __alloy_env_file }}
   ansible.builtin.template:
@@ -132,7 +144,11 @@
     mode: "0644"
   notify: restart alloy
   when: ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']
+  register: __alloy_env_file_template
 
+# validate runs against the rendered temp file, so a configuration Alloy
+# rejects never replaces the one on disk. Validating after the write would
+# leave the host holding a broken configuration that the next reboot loads.
 - name: Template Alloy config - /etc/alloy/config.alloy
   ansible.builtin.template:
     src: "config.alloy.j2"
@@ -140,11 +156,32 @@
     owner: "root"
     group: "root"
     mode: "0644"
+    validate: "{{ (__alloy_validate_command ~ ' %s') if (__alloy_validate_possible | bool) else omit }}"
   when:
     - alloy_config | length > 0
     - alloy_env_file_vars.CONFIG_FILE is not defined
     - ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']
   notify: restart alloy
+  register: __alloy_config_template
+
+# The role does not write this path, but it does restart the service that reads
+# it. Skipped when the path is not there yet: a consumer may place it later in
+# their own play, and this role has never enforced an ordering.
+- name: Validate the Alloy configuration referenced by alloy_env_file_vars.CONFIG_FILE
+  when:
+    - alloy_env_file_vars.CONFIG_FILE is defined
+    - __alloy_validate_possible | bool
+  block:
+    - name: Check if the configuration referenced by CONFIG_FILE is present
+      ansible.builtin.stat:
+        path: "{{ alloy_env_file_vars.CONFIG_FILE }}"
+      register: __alloy_custom_config
+
+    - name: Validate the configuration referenced by CONFIG_FILE
+      ansible.builtin.command:
+        cmd: "{{ __alloy_validate_command }} {{ alloy_env_file_vars.CONFIG_FILE }}"
+      changed_when: false
+      when: __alloy_custom_config.stat.exists
 
 - name: Ensure that /etc/alloy/alloy.config is absent when a custom configuration file/dir is specified in alloy_env_file_vars.CONFIG_FILE
   ansible.builtin.file:
@@ -184,6 +221,17 @@
     - __firewalld_service_state.status.ActiveState == "active"
     - alloy_expose_port | bool
 
+# Whether this run restarts Alloy, taken from the tasks that notify the
+# handler. A converged host restarts nothing, so it has nothing to settle and
+# pays no delay for the confirmation below.
+- name: Record whether this run restarts Alloy
+  ansible.builtin.set_fact:
+    __alloy_restart_required: >-
+      {{ (__alloy_override_dir.changed | default(false))
+      or (__alloy_override_conf.changed | default(false))
+      or (__alloy_env_file_template.changed | default(false))
+      or (__alloy_config_template.changed | default(false)) }}
+
 - name: Flush handlers after deployment
   ansible.builtin.meta: flush_handlers
 
@@ -207,3 +255,44 @@
   when:
     - not ansible_check_mode
     - ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']
+
+# /-/ready cannot tell a healthy service from a crash loop: the packaged unit
+# is Restart=always, so a probe landing between two crashes gets a 200 from a
+# process that is about to die, and finds the unit active while it does. The
+# property that separates the two is NRestarts, which systemd zeroes on an
+# explicit restart and increments on every respawn.
+- name: Confirm that Alloy is still running after the restart
+  when:
+    - not ansible_check_mode
+    - ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse']
+    - __alloy_restart_required | bool
+    - alloy_restart_settle_seconds | int > 0
+  block:
+    - name: Read the Alloy unit state before the settle window
+      ansible.builtin.systemd:
+        name: alloy.service
+      register: __alloy_unit_before
+
+    - name: Give Alloy time to fail, in seconds - {{ alloy_restart_settle_seconds }}
+      ansible.builtin.wait_for:
+        timeout: "{{ alloy_restart_settle_seconds | int }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Read the Alloy unit state after the settle window
+      ansible.builtin.systemd:
+        name: alloy.service
+      register: __alloy_unit_after
+
+    - name: Assert that Alloy did not restart during the settle window
+      ansible.builtin.assert:
+        that:
+          - (__alloy_unit_after.status.NRestarts | int) <= (__alloy_unit_before.status.NRestarts | int)
+          - __alloy_unit_after.status.ActiveState == 'active'
+        fail_msg: >-
+          alloy.service did not stay up for
+          {{ alloy_restart_settle_seconds }}s after the restart:
+          ActiveState={{ __alloy_unit_after.status.ActiveState }},
+          NRestarts went from {{ __alloy_unit_before.status.NRestarts }}
+          to {{ __alloy_unit_after.status.NRestarts }}.
+          The configuration loads but the service does not survive it.

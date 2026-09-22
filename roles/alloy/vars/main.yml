@@ -16,3 +16,39 @@ __alloy_arch: "{{ __alloy_arch_map[ansible_facts['architecture']] | default(ansi
 # how a tag like 'syntax/v0.1.1' became a version in the first place: see
 # upstream issue #530.
 __alloy_version_tag_regex: '^v?(\d+\.\d+\.\d+)$'
+
+# The first Alloy release with a `validate` subcommand. Verified against the
+# binary: v1.8.3 does not offer it, v1.9.0 does. A role that pins older than
+# this skips validation rather than failing on a command that is not there.
+__alloy_validate_min_version: "1.9.0"
+
+# The flags that decide whether a configuration is valid, taken from the same
+# string systemd hands `alloy run`.
+#
+# `alloy validate` defaults to the generally-available stability level with
+# community components off, so a configuration that runs happily under the
+# consumer's CUSTOM_ARGS would be rejected here. Only these two flags are
+# carried over: the rest of CUSTOM_ARGS includes options such as
+# --server.http.listen-addr, which `validate` does not accept.
+#
+# Only the `--flag=value` form is recognised, because the space-separated form
+# cannot be told apart from the flag that follows it. Use
+# alloy_validate_extra_args for anything this does not cover.
+__alloy_validate_custom_args: "{{ alloy_env_file_vars.CUSTOM_ARGS | default('') }}"
+__alloy_validate_flags: >-
+  {{ ((__alloy_validate_custom_args | regex_findall('--stability\.level=\S+'))
+  + (__alloy_validate_custom_args | regex_findall('--feature\.community-components\.enabled(?:=\S+)?')))
+  | join(' ') }}
+__alloy_validate_command: >-
+  {{ ('/usr/bin/alloy validate ' ~ __alloy_validate_flags ~ ' ' ~ alloy_validate_extra_args)
+  | regex_replace('\s+', ' ') | trim }}
+
+# Whether validation can run at all on this host. Every term is a reason to
+# skip, never a reason to fail: the off switch, an Alloy too old for the
+# subcommand, a host that has no binary yet (a check-mode run against a bare
+# host), and the OS families whose configuration this role writes.
+__alloy_validate_possible: >-
+  {{ alloy_validate_config | bool
+  and (__alloy_binary.stat.exists | default(false))
+  and (alloy_version is version(__alloy_validate_min_version, '>='))
+  and ansible_facts['os_family'] in ['RedHat', 'Debian', 'Suse'] }}

@@ -20,6 +20,27 @@ alloy_download_url_deb: "https://github.com/grafana/alloy/releases/download/v{{ 
 alloy_readiness_check_use_https: false
 alloy_readiness_check_use_proxy: true
 
+# Run `alloy validate` over the configuration before it reaches disk.
+#
+# The readiness check alone cannot reject a broken configuration: Ansible's
+# `retries` only apply after a failed attempt, so a first-try 200 from /-/ready
+# ends the task, and /-/ready answers 200 from a process systemd is respawning.
+# Validation is skipped, not failed, when alloy_version predates 1.9.0 or the
+# binary is not on the host yet. Set false to turn it off entirely.
+alloy_validate_config: true
+# Extra flags for `alloy validate`, appended to the ones derived from
+# alloy_env_file_vars.CUSTOM_ARGS. For a configuration that is not in Alloy
+# syntax, or a flag this role does not know about, for example:
+#   alloy_validate_extra_args: "--config.format=otelcol"
+alloy_validate_extra_args: ""
+# How long to hold after /-/ready answers before confirming the service is
+# still up, in seconds. The packaged unit is Restart=always with the default
+# RestartSec of 100ms, so a configuration that loads and then crashes is
+# respawned about ten times a second and still answers /-/ready. The window is
+# what gives that crash time to happen. Only applies when this run actually
+# restarted Alloy; set 0 to skip the confirmation.
+alloy_restart_settle_seconds: 10
+
 alloy_user_groups: []
 # alloy_user_groups:
 #   - "systemd-journal"
