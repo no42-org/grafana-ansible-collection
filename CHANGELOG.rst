@@ -4,6 +4,81 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v7.4.0
+======
+
+Release Summary
+---------------
+
+Two test harnesses this collection never had, and the defects that existed because it never had
+them. A plugin module's whole behaviour is which HTTP route it builds, so make module-test now runs
+one against a running Grafana on the version the grafana role pins. The alloy role validates its
+configuration with alloy validate before writing it and confirms the service is still running after
+the restart, and its role test applies a configuration Alloy rejects. Both were built around a
+defect each had let through: the datasource module could not update a data source on any Grafana 13,
+which removed the route its update path built, and the alloy role reported success for a
+configuration Alloy cannot run, because a readiness check that cannot fail on the first attempt
+cannot tell a healthy service from one systemd is respawning ten times a second. The grafana role
+pin moves to 13.2.2. Version numbers are this fork's own and do not correspond to any
+grafana.grafana release; the upstream commit this release is built from is recorded in its GitHub
+release notes.
+
+Minor Changes
+-------------
+
+- The alloy role gains alloy_validate_config (default true), alloy_validate_extra_args and
+  alloy_restart_settle_seconds (default 10). Validation carries over --stability.level and
+  --feature.community-components.enabled from alloy_env_file_vars.CUSTOM_ARGS, because alloy
+  validate defaults to generally-available with community components off and would otherwise reject
+  a configuration that runs. It is skipped, never failed, when alloy_version predates 1.9.0, the
+  release that introduced the subcommand, or the binary is not yet on the host.
+- The grafana role pin moves to 13.2.2, verified by that role's tests on both package families
+  before merging.
+- A module test harness runs a plugin module against a running Grafana, on the version the grafana
+  role pins: make module-test MODULE=datasource. A module's whole behaviour is which HTTP route it
+  builds, so only a running Grafana can judge it, and nothing in this repository had ever done so.
+  MODULE_TEST_GRAFANA_VERSION runs the same scenario against another version, which is how a route
+  removal gets dated.
+- make ci-lint-versions compares the versions the documentation claims with the versions the roles
+  pin, and fails in both directions. A pin is written down three times -- defaults/main.yml, the
+  root README badge and the role README -- and only the first moved on a bump, so six claims across
+  three roles had gone stale, including a role README that still documented loki_version: latest.
+  tools/bump-role-versions.sh now rewrites the documentation as part of the bump.
+- make sanity runs ansible-test sanity staged the way CI stages the tree, and the test workflows
+  filter on everything their harnesses read rather than on roles/ alone.
+
+Bugfixes
+--------
+
+- The datasource module updates an existing data source through PUT /api/datasources/uid/<uid>
+  rather than PUT /api/datasources/<id>, which Grafana 13.0 removed. Measured against the real API,
+  one container per version: the numeric-id route answers on 10.4.19, 11.6.7 and 12.3.0 and returns
+  404 on 13.0.1, 13.1.0 and 13.2.1, while the uid route answers on all six. The uid is resolved from
+  the data source list by the name that collided, so uid stays optional for consumers who never set
+  one, and a 409 with no matching data source now fails with a message quoting Grafana rather than
+  raising KeyError. Addresses grafana/grafana-ansible-collection#537.
+- The alloy role validates the configuration with alloy validate before writing it and before
+  restarting the service, so a configuration Alloy rejects fails the play and never replaces the
+  file on disk. The readiness check could not do this: Ansible applies retries only after a failed
+  attempt, so a first-try 200 from /-/ready ends the task. Addresses grafana/grafana-ansible-
+  collection#535.
+- The alloy role confirms the service is still running after it restarts it, by comparing the
+  systemd unit's NRestarts across a settle window. The packaged unit is Restart=always with the
+  default RestartSec of 100ms, so a configuration that loads and then crashes is respawned about ten
+  times a second and still answers /-/ready from ActiveState=active. Only NRestarts separates the
+  two.
+- Release notes list the upstream contributions a release newly carried rather than every one
+  carried since the fork diverged, which repeated the same list under every version number. The
+  cumulative count is stated in one line instead.
+
+Known Issues
+------------
+
+- A playbook whose alloy configuration Alloy cannot load now fails where it previously reported
+  success. That is the defect being fixed, but it is a run that changes colour without the playbook
+  changing. alloy_validate_config: false and alloy_restart_settle_seconds: 0 restore the previous
+  behaviour.
+
 v7.3.0
 ======
 

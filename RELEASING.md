@@ -435,13 +435,16 @@ Direct pushes to `main` still work, because of the bypass. That is the case the 
 Every role installs a pinned version. None resolves `latest` at runtime.
 
 ```text
-  grafana                  13.2.1     package version, not a release tag
-  loki                     3.7.7
+  grafana                  13.2.2     package version, not a release tag
+  loki                     3.7.8
   mimir                    3.2.1      upstream tags these mimir-3.2.1
   tempo                    3.0.3
   alloy                    1.19.2
-  opentelemetry_collector  0.160.0
+  opentelemetry_collector  0.161.0
 ```
+
+This table is a fourth copy of the pins, and it was stale when `make ci-lint-versions` was written: that check reads `README.md` and the role READMEs, and a table in prose is not a claim it can parse.
+Treat it as documentation of the policy, not as the source of a version, and read `make role-versions-check` for the current pins.
 
 A floating label makes a role's behaviour change when nobody changed this repository, and makes a passing role test undurable — it proved whichever release was current that day, and nothing recorded which. All three inherited role defects this fork fixed were upstream moving under a role that assumed it would not.
 
