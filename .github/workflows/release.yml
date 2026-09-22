@@ -355,6 +355,13 @@ jobs:
           git remote add upstream https://github.com/grafana/grafana-ansible-collection.git 2>/dev/null || true
           git fetch -q --no-tags upstream main
           UPSTREAM_BASE="$(git merge-base HEAD upstream/main)"
+          # What this release newly carried, which is a different question from
+          # what the artifact contains. Enumerating from UPSTREAM_BASE listed
+          # every carried contribution in every release's notes, so the same
+          # nine appeared under nine different version numbers. The previous tag
+          # is the boundary; the first release has none and falls back to the
+          # base, where the two questions have the same answer.
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "${UPSTREAM_BASE}")"
           {
             echo "Release of \`${GALAXY_NAMESPACE}.${COLLECTION_NAME}\` version \`${VERSION}\`."
             echo ""
@@ -377,12 +384,12 @@ jobs:
             echo ""
             echo "Built from upstream commit \`${UPSTREAM_BASE}\`."
             echo ""
-            echo "## Upstream contributions carried in this release"
+            echo "## Upstream contributions newly carried in this release"
             echo ""
             echo "Cherry-picked from open, unmerged upstream pull requests, with their authors preserved."
             echo "Each is dropped once upstream merges it."
             echo ""
-            ./tools/carried-prs.sh --release-notes "${UPSTREAM_BASE}"
+            ./tools/carried-prs.sh --release-notes "${UPSTREAM_BASE}" "${PREVIOUS_TAG}"
             echo ""
             echo "Published to https://galaxy.ansible.com/ui/repo/published/${GALAXY_NAMESPACE}/${COLLECTION_NAME}/"
           } > release-notes.md
