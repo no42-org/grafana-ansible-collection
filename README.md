@@ -33,12 +33,12 @@ The upstream collection claims `ansible >= 2.9`; that claim was inherited and is
 
 Every role installs a **pinned** version. None resolves `latest` at run time, so what a role installs cannot change without a commit here — and a passing role test is a statement about a named version rather than about whichever release happened to be current that day.
 
-[![grafana](https://img.shields.io/badge/grafana-13.2.1-informational)](https://github.com/grafana/grafana/releases)
-[![loki](https://img.shields.io/badge/loki-3.7.7-informational)](https://github.com/grafana/loki/releases)
+[![grafana](https://img.shields.io/badge/grafana-13.2.2-informational)](https://github.com/grafana/grafana/releases)
+[![loki](https://img.shields.io/badge/loki-3.7.8-informational)](https://github.com/grafana/loki/releases)
 [![mimir](https://img.shields.io/badge/mimir-3.2.1-informational)](https://github.com/grafana/mimir/releases)
 [![tempo](https://img.shields.io/badge/tempo-3.0.3-informational)](https://github.com/grafana/tempo/releases)
 [![alloy](https://img.shields.io/badge/alloy-1.19.2-informational)](https://github.com/grafana/alloy/releases)
-[![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.160.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
+[![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.161.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 
 ### How the pins stay current
 

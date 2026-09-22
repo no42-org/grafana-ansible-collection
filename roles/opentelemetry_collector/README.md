@@ -12,7 +12,7 @@ Available variables with their default values are listed below (`defaults/main.y
 
 | Variable Name | Description | Default Value |
 |---------------|-------------|---------------|
-| `otel_collector_version` | Version of OpenTelemetry Collector to install. Set to 'latest' to take the newest release whose tag is a version; the role skips the `cmd/builder` and `cmd/opampsupervisor` releases published alongside it, and fails naming the tags it saw if none qualifies. | `"0.160.0"` |
+| `otel_collector_version` | Version of OpenTelemetry Collector to install. Set to 'latest' to take the newest release whose tag is a version; the role skips the `cmd/builder` and `cmd/opampsupervisor` releases published alongside it, and fails naming the tags it saw if none qualifies. | `"0.161.0"` |
 | `otel_collector_binary_url` | URL for downloading the OpenTelemetry Collector binary. This URL is constructed based on the collector version, type, and architecture. | `"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version }}/{% if otel_collector_type == 'contrib' %}otelcol-contrib_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% else %}otelcol_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% endif %}.tar.gz"` |
 | `arch_mapping` | Mapping of `ansible_facts['architecture']` values to OpenTelemetry Collector binary architecture names. | See below\* |
 | `otel_collector_arch` | Architecture for the OpenTelemetry Collector binary, determined based on the `ansible_facts['architecture']` fact. | `"{{ arch_mapping[ansible_facts['architecture']] | default('amd64') }}"` |
