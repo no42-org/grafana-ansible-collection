@@ -14,7 +14,7 @@
 # both -- the role tests run on both families, and a version only one of them
 # serves is one this repository cannot verify a bump against. `make role-test
 # ROLE=grafana` on both families is what proves a pin here is installable.
-grafana_version: "13.2.1"
+grafana_version: "13.2.2"
 grafana_manage_repo: true
 
 # Retry the package installation. The failure being mitigated is
