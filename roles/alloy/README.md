@@ -22,7 +22,7 @@ This role is tailored for operating systems such as **RedHat**, **Rocky Linux**,
 
 | Variable Name         | Description                                                          | Default Value                                                       |
 |-----------------------|----------------------------------------------------------------------|---------------------------------------------------------------------|
-| `alloy_version`             | The version of Alloy to download and deploy. Supported standard version "1.4.2" format or "latest". With "latest" the role takes the newest release whose tag is a version, skipping submodule and untagged releases, and fails naming the tags it saw if none qualifies. | `1.19.2` |
+| `alloy_version`             | The version of Alloy to download and deploy. Supported standard version "1.4.2" format or "latest". With "latest" the role takes the newest release whose tag is a version, skipping submodule and untagged releases, and fails naming the tags it saw if none qualifies. | `1.20.0` |
 | `alloy_uninstall`           | If set to `true` will perfom uninstall instead of deployment. | `false` |
 | `alloy_expose_port`         | By default, this is set to false. It supports only simple firewalld configurations. If set to true, a firewalld rule is added to expose the TCP alloy port. The Port is automatically extracted from the environment variable `alloy_env_file_vars` in CUSTOM_ARGS when --server.http.listen-addr=0.0.0.0:12345 is defined. If set to false, configuration is skipped. If the firewalld.service is not active, all firewalld tasks are skipped. | `false` |
 | `alloy_user_groups`         | Appends the alloy user to specific groups. | `[]` |
