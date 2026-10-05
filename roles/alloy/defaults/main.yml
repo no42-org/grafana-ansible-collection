@@ -6,7 +6,7 @@
 # recorded which. tools/check-role-versions.py watches this pin and opens a
 # pull request when grafana/alloy releases something newer; the bump is then verified
 # by the role tests on both package families before it can merge.
-alloy_version: "1.20.0"
+alloy_version: "1.20.1"
 alloy_uninstall: false
 alloy_expose_port: false
 # The releases list, not releases/latest. Alloy publishes Go submodule tags as
