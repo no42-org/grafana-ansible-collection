@@ -24,7 +24,7 @@ Every role installs a **pinned** version. None resolves `latest` at run time, so
 [![loki](https://img.shields.io/badge/loki-3.7.8-informational)](https://github.com/grafana/loki/releases)
 [![mimir](https://img.shields.io/badge/mimir-3.2.1-informational)](https://github.com/grafana/mimir/releases)
 [![tempo](https://img.shields.io/badge/tempo-3.1.0-informational)](https://github.com/grafana/tempo/releases)
-[![alloy](https://img.shields.io/badge/alloy-1.20.0-informational)](https://github.com/grafana/alloy/releases)
+[![alloy](https://img.shields.io/badge/alloy-1.20.1-informational)](https://github.com/grafana/alloy/releases)
 [![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.162.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 [![promtail](https://img.shields.io/badge/promtail-3.6.0%20%C2%B7%20end%20of%20life-critical)](https://github.com/no42-org/grafana-ansible-collection/issues/4)
 [![grafana_agent](https://img.shields.io/badge/grafana__agent-0.44.3%20%C2%B7%20superseded-yellow)](https://github.com/grafana/agent)
