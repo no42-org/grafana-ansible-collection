@@ -6,7 +6,7 @@
 # recorded which. tools/check-role-versions.py watches this pin and opens a
 # pull request when grafana/tempo releases something newer; the bump is then verified
 # by the role tests on both package families before it can merge.
-tempo_version: "3.0.3"
+tempo_version: "3.1.0"
 tempo_uninstall: false
 __tempo_arch: "{{ arch_mapping[ansible_facts['architecture']] | default('amd64') }}"
 tempo_download_url_rpm: "https://github.com/grafana/tempo/releases/download/v{{ tempo_version }}/tempo_{{ tempo_version }}_linux_{{ __tempo_arch }}.rpm"
