@@ -37,7 +37,7 @@ Every role installs a **pinned** version. None resolves `latest` at run time, so
 [![loki](https://img.shields.io/badge/loki-3.7.8-informational)](https://github.com/grafana/loki/releases)
 [![mimir](https://img.shields.io/badge/mimir-3.2.1-informational)](https://github.com/grafana/mimir/releases)
 [![tempo](https://img.shields.io/badge/tempo-3.1.0-informational)](https://github.com/grafana/tempo/releases)
-[![alloy](https://img.shields.io/badge/alloy-1.20.0-informational)](https://github.com/grafana/alloy/releases)
+[![alloy](https://img.shields.io/badge/alloy-1.20.1-informational)](https://github.com/grafana/alloy/releases)
 [![opentelemetry_collector](https://img.shields.io/badge/opentelemetry__collector-0.162.0-informational)](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
 
 ### How the pins stay current
