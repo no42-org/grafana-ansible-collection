@@ -185,8 +185,6 @@ MD039: true
 MD040:
   # List of languages
   allowed_languages: []
-  # Require language only
-  language_only: false
 
 # MD041/first-line-heading/first-line-h1 - First line in a file should be a top-level heading
 #
@@ -210,8 +208,6 @@ MD043:
   # List of headings
   headings:
     - "*"
-  # List of headings
-  headers: []
   # Match case of headings
   match_case: false
 
@@ -260,3 +256,8 @@ MD052: true
 MD053:
   # Ignored definitions
   ignored_definitions: ["//"]
+
+# MD076 is rumdl's own rule, with no markdownlint counterpart: it rejects a
+# blank line between list items. This repository's documents put one between
+# long bullets on purpose, so the rule is off rather than the documents edited.
+MD076: false
