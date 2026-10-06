@@ -47,7 +47,6 @@ build_ignore:
   - .ansible-lint
   - .editorconfig
   - .markdownlint.yaml
-  - .textlintrc
   - .shellcheckrc
   - .gitignore
   # Manifests addressed to this repository rather than to a consumer.

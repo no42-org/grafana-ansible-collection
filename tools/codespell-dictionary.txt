@@ -1,0 +1,3 @@
+examplars->exemplars
+grafanalabs->Grafana Labs
+grafanacloud->Grafana Cloud

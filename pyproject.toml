@@ -92,6 +92,11 @@ lint = [
     # Node toolchain that carried its predecessor is gone. It reads
     # .markdownlint.yaml as it stands; the one rumdl-only rule is disabled there.
     "rumdl==0.2.78",
+    # Prose linting, replacing textlint. Its built-in dictionary is the
+    # misspelling rule; the Grafana rewrites live in tools/codespell-dictionary.txt
+    # and the casing terms in .markdownlint.yaml's MD044, because codespell
+    # matches case-insensitively and cannot enforce one.
+    "codespell==2.4.3",
 ]
 
 [tool.uv]

@@ -55,6 +55,7 @@ DEVELOPER_TOOLS = frozenset(
     {
         "ansible-lint",
         "black",
+        "codespell",
         "editorconfig-checker",
         "flake8",
         "isort",
