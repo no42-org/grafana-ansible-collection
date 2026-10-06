@@ -1,9 +1,4 @@
 .DEFAULT_GOAL:= lint
-# No PATH manipulation. Every script that needs a Node binary names it
-# explicitly as ./node_modules/.bin/<tool>, and no recipe here calls one bare,
-# so prepending node_modules to PATH only made it ambiguous which copy of a
-# tool a recipe would get. The inherited `PATH := ./node_modules/.bin:$(PATH)`
-# line is gone.
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
 .PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list ci-lint-release
@@ -18,23 +13,16 @@ all: install
 setup:
 	@./tools/setup.sh
 
-# Provisions both toolchains. `uv sync` installs the pinned Python linters into
-# .venv, provisioning an interpreter if the machine has none that fits -- which
-# is the whole reason pipenv was replaced. `yarn install` provides the Node
-# linters.
-# Provisions both toolchains. `corepack yarn` uses the version pinned by
-# package.json's packageManager field, rather than whatever yarn the machine
-# happens to provide. `uv sync` installs the pinned Python linters into .venv,
+# Provisions the toolchain. `uv sync` installs the pinned linters into .venv,
 # provisioning an interpreter if the machine has none that fits -- which is the
-# whole reason pipenv was replaced.
+# whole reason pipenv was replaced. One toolchain: the Node one that carried
+# markdownlint-cli2 and textlint is gone.
 install:
-	corepack enable
-	yarn install
 	uv sync --group lint
 
-# remove the build and log folders
+# remove the build folder
 clean:
-	rm -rf build node_modules
+	rm -rf build
 
 ####################################################################
 #                          Role tests                              #
@@ -67,7 +55,7 @@ role-test:
 role-test-list:
 	@./tools/role-test.sh --list
 
-# reinstall the node_modules and start with a fresh node build
+# start over from a clean build directory and a fresh toolchain sync
 reinstall: clean install
 
 ####################################################################
