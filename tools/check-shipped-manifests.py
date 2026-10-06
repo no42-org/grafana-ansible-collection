@@ -66,6 +66,7 @@ DEVELOPER_TOOLS = frozenset(
         "pytest",
         "pytest-testinfra",
         "ruff",
+        "rumdl",
         "testinfra",
         "textlint",
         "tox",

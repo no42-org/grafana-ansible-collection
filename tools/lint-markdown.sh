@@ -7,10 +7,18 @@ source "./tools/includes/logging.sh"
 source "./tools/includes/lint-paths.sh"
 
 # output the heading
-heading "Grafana Ansible Collection" "Performing Markdown Linting using markdownlint"
+heading "Grafana Ansible Collection" "Performing Markdown Linting using rumdl"
 
-if [[ ! -f "$(pwd)"/node_modules/.bin/markdownlint-cli2 ]]; then
-  echo >&2 "TOOLCHAIN NOT INSTALLED: markdownlint-cli2 is not available. Run \"make install\".";
+# The toolchain not being installed is a distinct failure from the linter
+# finding something, and the messages say which. See tools/lint-yaml.sh.
+if [[ "$(command -v uv)" = "" ]]; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
+  echo >&2 "This is not a lint failure. No file has been checked.";
+  exit 1;
+fi
+
+if ! uv run --frozen --group lint rumdl --version >/dev/null 2>&1; then
+  echo >&2 "TOOLCHAIN NOT INSTALLED: rumdl is not available. Run \"make install\".";
   echo >&2 "This is not a lint failure. No file has been checked.";
   exit 1;
 fi
@@ -22,9 +30,12 @@ fi
 #
 # The previous shape ran markdownlint once per directory glob and kept only the
 # first non-zero status, so its "Summary: N error(s)" line reported the last
-# group's count. It printed "Summary: 2 error(s)" over 3718 findings. It also
-# used markdownlint-cli2-config, a wrapper binary removed in markdownlint-cli2
-# 0.23; the config now arrives via --config.
+# group's count. It printed "Summary: 2 error(s)" over 3718 findings.
+#
+# rumdl replaced markdownlint-cli2 and reads the same .markdownlint.yaml, so
+# the rule set did not move with the engine. The one rule rumdl adds, MD076,
+# is disabled in that file.
+#
 # Scoped to the prose this fork authors.
 #
 # The inherited documents -- the top-level README that Galaxy renders, the role
@@ -41,7 +52,7 @@ fi
 statusCode=0
 if ! git ls-files -z -- '*.md' \
         ':!:README.md' ':!:roles/*/README.md' ':!:examples/*.md' ':!:CLAUDE.md' \
-      | xargs -0 ./node_modules/.bin/markdownlint-cli2 --config "$(pwd)/.markdownlint.yaml"; then
+      | xargs -0 uv run --frozen --group lint rumdl check --config "$(pwd)/.markdownlint.yaml"; then
   statusCode=1
 fi
 
