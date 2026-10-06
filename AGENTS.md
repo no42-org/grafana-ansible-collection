@@ -97,7 +97,7 @@ A module's whole behaviour is which HTTP route it builds, so only a running Graf
 ```bash
 make ci-lint-release   # tools/*.sh + every workflow's hygiene; needs no provisioning
 make ci-lint           # the collection: shell, yaml, editorconfig, ansible, markdown, text
-make install           # uv + corepack yarn; works without a system Python
+make install           # uv only; works without a system Python
 make dist              # rename + build the collection tarball
 make role-test ROLE=<role> DISTRO=debian|rhel
 make module-test MODULE=<module>

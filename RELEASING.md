@@ -374,6 +374,14 @@ The first seven are code and configuration. The last four are prose, and the pro
 
 Miss the prose and the collection ships a README advertising roles it does not contain. The rewrite count moves with all of it; see **When the rewrite count changes**.
 
+### The Node toolchain removed from the fork
+
+Upstream still ships `package.json`, `yarn.lock` and `.textlintrc`, and this fork deleted all three in #137 when `rumdl` and `codespell` took over the Markdown and text gates.
+The same rule applies as for the roles above: an upstream merge brings them back, and upstream's own Dependabot keeps editing `package.json`, so expect a modify/delete conflict on that file at every merge.
+Resolve it by deleting the file again. The rewrite count is unaffected, because `package.json` and `yarn.lock` were already excluded from the rename.
+
+If the files come back, so do the places that referenced them: the `setup-node` step in `gate.yml`, the `npm` block in `dependabot.yml`, the `yarn` lines in `Makefile` and `tools/setup.sh`, and their `build_ignore` entries in `galaxy.yml`.
+
 ## Releases are cut from `main`
 
 Since 6.2.0 releases are cut from `main`, which carries both the pipeline and the curated contributions.
@@ -805,21 +813,20 @@ The rule: a warning in a file this fork authored gets fixed; a warning in a file
 | Target | Covers | Needs |
 | --- | --- | --- |
 | `make ci-lint-release` | `tools/*.sh`, every workflow's hygiene, `galaxy.yml`, `dependabot.yml` | `uv` |
-| `make ci-lint-{shell,yaml,editorconfig,ansible,markdown,text}` | the collection itself | `uv` **and** `node` |
+| `make ci-lint-{shell,yaml,editorconfig,ansible,markdown,text}` | the collection itself | `uv` |
 | `make ci-lint` | all six of the above | as above |
 
-Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no `node_modules`, so it runs in seconds and catches the release machinery, while the collection lint set needs the Node linters too.
+Both sets gate a release, in separate jobs of `gate.yml`. The split is a division of labour, not a gap: `ci-lint-release` needs no `.venv`, so it runs in seconds and catches the release machinery, while the collection lint set needs the pinned linters installed.
 
 Neither needs a linter installed by hand. Both obtain every tool themselves.
 
 ### How the tools are provisioned
 
-Two mechanisms, chosen by what the tool is. There is deliberately no third.
+Two mechanisms, chosen by what the tool is. There is deliberately no third. There used to be: `markdownlint-cli2` and `textlint` came through `yarn`, which meant a second lockfile, a second Dependabot ecosystem and a `setup-node` step for two linters over seven files. `rumdl` and `codespell` replaced them in #137, and the Node toolchain went with them.
 
 | Tool | Mechanism | Version lives in |
 | --- | --- | --- |
-| `ansible-lint`, `yamllint`, `zizmor` | `uv run --frozen --group lint` | `pyproject.toml`, hashes in `uv.lock` |
-| `markdownlint-cli2`, `textlint` | `node_modules/.bin` | `package.json`, hashes in `yarn.lock` |
+| `ansible-lint`, `yamllint`, `zizmor`, `rumdl`, `codespell` | `uv run --frozen --group lint` | `pyproject.toml`, hashes in `uv.lock` |
 | `shellcheck`, `actionlint`, `editorconfig-checker` | `tools/includes/<tool>.sh`, downloaded to `tools/bin/` | that script, with its checksum |
 
 **A tool's version is declared once, and no workflow names it.** That is the rule, and it exists because it was broken. `yamllint` was pinned to `1.35.1` in `pyproject.toml` and `1.38.0` in `gate.yml`, and neither pin was wrong for its own call site: `lint-yaml.sh` resolved yamllint through `uv` while `lint-release.sh` called a bare binary that CI installed separately. One tool, two call paths, two correct-looking pins, and a green local run that said nothing about CI. `shellcheck` had drifted the same way, 0.11.0 locally against 0.9.0 in CI.
@@ -836,7 +843,7 @@ Two mechanisms, chosen by what the tool is. There is deliberately no third.
 
 Trust-on-first-use is weaker: a computed hash cannot detect an asset that was already wrong when first fetched. It still detects any later change to a release asset that is immutable by convention, which is the realistic risk. This is not the deferred supply-chain work, which is about signing what this repository *publishes*. Verifying a tool you download and execute is a different problem from attesting an artifact you ship.
 
-**Bumping a pin is manual.** Dependabot covers `uv.lock` and `yarn.lock` but not the three downloaded binaries, so those move by hand, like the role version pins. Change the version and its checksum together: a bump that updates one without the other fails loudly at download time, which is intended. Never refresh a hash to make a download pass without establishing why it moved.
+**Bumping a pin is manual.** Dependabot covers `uv.lock` but not the three downloaded binaries, so those move by hand, like the role version pins. Change the version and its checksum together: a bump that updates one without the other fails loudly at download time, which is intended. Never refresh a hash to make a download pass without establishing why it moved.
 
 **Pin choice is measured, not preferred.** When `shellcheck`'s two pins were reconciled, both versions were run over the same tree first: 0 findings each. The deciding fact was elsewhere — **0.9.0 publishes no `darwin.aarch64` asset**, so adopting CI's pin would have made `make ci-lint-shell` unrunnable on Apple Silicon, which is the `editorconfig-checker@5.0.1` defect again.
 
@@ -853,7 +860,7 @@ Two rules are turned off, both on the rule's merits rather than its count:
 
 `MD030` was changed from the inherited `3/2/3/2` to `1/1/1/1`. The file described those values as the defaults and they are not — markdownlint's default is 1 — and the inherited READMEs are themselves mixed, with `README.md` carrying 13 three-space list items and 9 one-space.
 
-`textlint`'s `no-todo` rule and its package are removed: it fired on eight `- [ ]` checkboxes in the pull request template, where an unchecked box is the template working.
+`textlint` is gone, replaced by `codespell` in #137, and the terminology list went from two hundred entries to three on the way: `.textlintrc` carried textlint's default JavaScript-ecosystem list verbatim, and only the Grafana rewrites were worth keeping. The casing terms moved to `MD044`. Before that, `textlint`'s `no-todo` rule had already been removed: it fired on eight `- [ ]` checkboxes in the pull request template, where an unchecked box is the template working.
 
 ### Two linter traps
 
@@ -914,15 +921,13 @@ Both live in `tools/check-shipped-manifests.py` and run inside `make ci-lint-rel
 ### Toolchain
 
 ```bash
-brew install uv node shellcheck docker
-corepack enable          # yarn, at the version package.json pins
-make install             # provisions both toolchains
+brew install uv shellcheck docker
+make install             # provisions the toolchain
 ```
 
 | Tool | Provides | Pinned by |
 | --- | --- | --- |
-| `uv` | `ansible-core` (both executed versions), `yamllint`, `ansible-lint`, `zizmor` | `pyproject.toml` + `uv.lock` |
-| `corepack` + `yarn` | `markdownlint-cli2`, `textlint` | `package.json` `packageManager` + `yarn.lock` |
+| `uv` | `ansible-core` (both executed versions), `yamllint`, `ansible-lint`, `zizmor`, `rumdl`, `codespell` | `pyproject.toml` + `uv.lock` |
 | `shellcheck` | shell linting | version-pinned download in CI; whatever is installed locally |
 | `docker` | role tests, `ansible-test sanity --docker` | — |
 | downloaded on first use | `editorconfig-checker` | `tools/includes/editorconfig-checker.sh` |

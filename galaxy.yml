@@ -23,7 +23,6 @@ documentation: https://docs.ansible.com/ansible/latest/collections/grafana/grafa
 # tarball contains only collection content, so it can be diffed against
 # upstream's tarball after applying the inverse namespace rename.
 build_ignore:
-  - node_modules/*
   - .github/*
   - tools/*
   - build/*
@@ -34,8 +33,6 @@ build_ignore:
   - pyproject.toml
   - uv.lock
   - .venv/*
-  - package.json
-  - yarn.lock
   # Fork test infrastructure. Consumers get collection content; the harness
   # that tests it is this repository's business, like tools/.
   - tests/roles
