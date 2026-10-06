@@ -13,7 +13,7 @@
 # rather than a gap. The full set gates a release too, in the `lint` job of
 # .github/workflows/gate.yml, which both ci.yml and release.yml call. This
 # script is the release *machinery* check, and its value is that it needs no
-# pipenv and no node_modules, so it runs in seconds locally.
+# .venv, so it runs in seconds locally.
 #
 # Two earlier justifications for the narrow scope were wrong and are recorded
 # here so they are not reinstated. "ci-lint is red on a pristine tree and

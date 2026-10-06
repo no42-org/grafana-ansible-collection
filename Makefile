@@ -1,9 +1,4 @@
 .DEFAULT_GOAL:= lint
-# No PATH manipulation. Every script that needs a Node binary names it
-# explicitly as ./node_modules/.bin/<tool>, and no recipe here calls one bare,
-# so prepending node_modules to PATH only made it ambiguous which copy of a
-# tool a recipe would get. The inherited `PATH := ./node_modules/.bin:$(PATH)`
-# line is gone.
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
 .PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity version-select-test dist dist-clean
@@ -25,23 +20,16 @@ all: install
 setup:
 	@./tools/setup.sh
 
-# Provisions both toolchains. `uv sync` installs the pinned Python linters into
-# .venv, provisioning an interpreter if the machine has none that fits -- which
-# is the whole reason pipenv was replaced. `yarn install` provides the Node
-# linters.
-# Provisions both toolchains. `corepack yarn` uses the version pinned by
-# package.json's packageManager field, rather than whatever yarn the machine
-# happens to provide. `uv sync` installs the pinned Python linters into .venv,
+# Provisions the toolchain. `uv sync` installs the pinned linters into .venv,
 # provisioning an interpreter if the machine has none that fits -- which is the
-# whole reason pipenv was replaced.
+# whole reason pipenv was replaced. One toolchain: the Node one that carried
+# markdownlint-cli2 and textlint is gone, see #137.
 install:
-	corepack enable
-	yarn install
 	uv sync --group lint
 
-# remove the build and log folders
+# remove the build folder
 clean:
-	rm -rf build node_modules
+	rm -rf build
 
 ####################################################################
 #                          Role tests                              #
@@ -174,11 +162,11 @@ dist: dist-clean
 	uv run --frozen --group ansible ansible-galaxy collection build $(DIST_SRC) --output-path $(DIST_OUT)
 	@ls -1 $(DIST_OUT)/*.tar.gz
 
-# remove only the dist output, leaving node_modules in place
+# remove only the dist output, leaving .venv in place
 dist-clean:
 	rm -rf $(BUILD_DIR)
 
-# reinstall the node_modules and start with a fresh node build
+# start over from a clean build directory and a fresh toolchain sync
 reinstall: clean install
 
 ####################################################################
