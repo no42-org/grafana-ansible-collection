@@ -212,11 +212,24 @@ MD043:
   match_case: false
 
 # MD044/proper-names - Proper names should have the correct capitalization
+#
+# The names are the casing terms carried over from .textlintrc when textlint
+# was retired. Role and module names are left out on purpose: `loki` and
+# `alloy` are identifiers as often as they are products, and a rule that has
+# to be exempted every time one is mentioned enforces nothing.
 MD044:
   # List of proper names
-  names: []
-  # Include code blocks
-  code_blocks: true
+  names:
+    - Grafana
+    - Grafana Labs
+    - Grafana Cloud
+    - Prometheus
+    - PromQL
+    - GitHub
+    - Markdown
+  # Include code blocks. Off: a package name or a path inside a fence is not
+  # prose, and `grafana` is the collection namespace.
+  code_blocks: false
   # Include HTML elements
   html_elements: true
 
