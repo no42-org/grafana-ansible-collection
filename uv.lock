@@ -370,6 +370,15 @@ wheels = [
 ]
 
 [[package]]
+name = "codespell"
+version = "2.4.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/19/45e941380f69c042b43423513d201e6592346f992394347f5e7174c31407/codespell-2.4.3.tar.gz", hash = "sha256:cbe085e331227b37bb86ef8bddd08dc768c704ee9a07ca869852c093fa2793e2", size = 352773, upload-time = "2026-07-15T11:51:54.159Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/bf/bdb951d34eb169140b546f44be9ec4525d1acefb9eb5572071f5492b19fc/codespell-2.4.3-py3-none-any.whl", hash = "sha256:af2505b335e8573dbd2d384d1c4ef498f4006f4ba2d6fceca01e55b91f52628a", size = 340736, upload-time = "2026-07-15T11:51:52.925Z" },
+]
+
+[[package]]
 name = "cryptography"
 version = "50.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -443,6 +452,7 @@ ansible-top = [
 lint = [
     { name = "ansible-core", version = "2.18.19", source = { registry = "https://pypi.org/simple" } },
     { name = "ansible-lint" },
+    { name = "codespell" },
     { name = "rumdl" },
     { name = "yamllint" },
     { name = "zizmor" },
@@ -460,6 +470,7 @@ ansible-top = [{ name = "ansible-core", specifier = "==2.21.4" }]
 lint = [
     { name = "ansible-core", specifier = ">=2.18,<2.19" },
     { name = "ansible-lint", specifier = "==25.6.1" },
+    { name = "codespell", specifier = "==2.4.3" },
     { name = "rumdl", specifier = "==0.2.78" },
     { name = "yamllint", specifier = "==1.38.0" },
     { name = "zizmor", specifier = "==1.30.1" },

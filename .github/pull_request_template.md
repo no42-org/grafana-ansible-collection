@@ -19,7 +19,7 @@ Closes #
 
 <!--
 Optional. Most code here is upstream's. If you have also filed this at
-grafana/grafana-ansible-collection, link it — it is useful for tracking, and
+`grafana/grafana-ansible-collection`, link it — it is useful for tracking, and
 `make carried-prs` uses that link to notice if upstream ever merges it.
 Not a prerequisite: upstream's maintainership is dormant.
 -->
