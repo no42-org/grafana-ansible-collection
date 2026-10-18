@@ -4,3 +4,7 @@
   ansible.builtin.systemd:
     name: tempo.service
     state: restarted
+  # In check mode on a host without Tempo, the package install is only
+  # predicted, so tempo.service does not exist yet (upstream #406). Where
+  # Tempo is installed, check mode still reports the start or restart.
+  when: not ansible_check_mode or __already_deployed.stat.exists
