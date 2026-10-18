@@ -1,0 +1,29 @@
+---
+# Dry-run the tempo role on a host with no Tempo installed (upstream #406).
+#
+# The same playbook as converge, so the dry run and the real run apply the
+# same role with the same variables. A check-mode run installs nothing, so any
+# task that needs the package's tempo.service fails here and nowhere else.
+#
+# The apt module refuses check mode without python3-apt, which a stock Ubuntu
+# server ships and the dokken image does not. A real run installs it on its
+# own. Installing it here is a host prerequisite, not a role change. It
+# persists into converge, so on Debian converge no longer exercises the apt
+# module's own python3-apt bootstrap; real Ubuntu hosts do not need it either.
+- name: Provide what apt needs to dry-run
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Install python3-apt
+      ansible.builtin.apt:
+        name: python3-apt
+        state: present
+        update_cache: true
+      check_mode: false
+      # Harness setup, not role output: the check phase fails on a dry run that
+      # predicts no change, and this task must not satisfy that on its own.
+      changed_when: false
+      when: ansible_facts['os_family'] == 'Debian'
+
+- name: Check
+  ansible.builtin.import_playbook: converge.yml
