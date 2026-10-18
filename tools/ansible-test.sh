@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Run `ansible-test sanity` against a tree shaped the way CI shapes it.
+# Run `ansible-test sanity` or `ansible-test units` against a tree shaped the
+# way CI shapes it. Both need the same staged tree, so they share this script
+# rather than each keeping a copy of the staging.
 #
 # ansible-test requires the collection at ansible_collections/<namespace>/<name>
 # and refuses to run anywhere else, so every local run has to stage a copy
@@ -30,11 +32,12 @@
 # value in the tree is the source namespace CI checks out under, which is
 # exactly what ansible-test needs.
 #
-# Usage: tools/sanity.sh [extra ansible-test arguments...]
+# Usage: tools/ansible-test.sh <sanity|units> [extra ansible-test arguments...]
 #
-#   tools/sanity.sh                     every sanity test
-#   tools/sanity.sh --test pylint       one of them
-#   tools/sanity.sh -v                  echo the commands, including file lists
+#   tools/ansible-test.sh sanity                  every sanity test
+#   tools/ansible-test.sh sanity --test pylint    one of them
+#   tools/ansible-test.sh sanity -v               echo the commands, including file lists
+#   tools/ansible-test.sh units                   every unit test under tests/unit
 #
 # SANITY_KEEP=1 leaves the staged tree in place and prints where it is, for
 # when a failure needs looking at rather than reproducing.
@@ -52,7 +55,16 @@ set -o nounset
 source "$(pwd)/tools/includes/utils.sh"
 source "$(pwd)/tools/includes/logging.sh"
 
-heading "Grafana Ansible Collection" "Running ansible-test sanity"
+command="${1:-}"
+case "${command}" in
+  sanity|units) shift ;;
+  *)
+    echo >&2 "usage: tools/ansible-test.sh <sanity|units> [extra ansible-test arguments...]"
+    exit 1
+    ;;
+esac
+
+heading "Grafana Ansible Collection" "Running ansible-test ${command}"
 
 if [[ "$(command -v uv)" = "" ]]; then
   echo >&2 "TOOLCHAIN NOT INSTALLED: uv is required, see (https://docs.astral.sh/uv/) or run: brew install uv";
@@ -125,11 +137,11 @@ info "staged ${staged} file(s) from git; tools/ and .github/ included, unlike th
 
 cd "${collectionDir}"
 extra=("$@")
-if "${ansibleTest[@]}" sanity --docker --color ${extra[@]+"${extra[@]}"}; then
-  success "ansible-test sanity passed"
+if "${ansibleTest[@]}" "${command}" --docker --color ${extra[@]+"${extra[@]}"}; then
+  success "ansible-test ${command} passed"
 else
   status=$?
-  error "ansible-test sanity failed"
+  error "ansible-test ${command} failed"
   if [[ "${SANITY_KEEP:-0}" != "1" ]]; then
     info "re-run with SANITY_KEEP=1 to keep the staged tree for inspection"
   fi

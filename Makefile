@@ -1,7 +1,7 @@
 .DEFAULT_GOAL:= lint
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity version-select-test dist dist-clean
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -99,9 +99,15 @@ module-test-list:
 # ansible_collections/<namespace>/<name>, so a local run has to copy the tree
 # somewhere first, and copying the wrong subset produces a green run against
 # files CI does not have. That happened once, with the dist exclude list; see
-# the header of tools/sanity.sh.
+# the header of tools/ansible-test.sh.
 sanity:
-	@./tools/sanity.sh $(args)
+	@./tools/ansible-test.sh sanity $(args)
+
+# ansible-test units, against the same staged tree as sanity. A module whose
+# endpoint is a hosted service, such as cloud_plugin and https://grafana.com,
+# is out of reach of module-test's container, so its HTTP calls are mocked here.
+units:
+	@./tools/ansible-test.sh units $(args)
 
 # Cover the `<role>_version: latest` resolution against recorded GitHub
 # payloads. No container and no network: the role tests all pin their version,
