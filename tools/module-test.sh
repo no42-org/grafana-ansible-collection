@@ -205,8 +205,8 @@ readonly apiKey
 
 # ansible resolves `grafana.grafana.<module>` from
 # <path>/ansible_collections/<namespace>/<name>, and this repository *is* that
-# collection without being laid out as one. tools/sanity.sh copies the tree to
-# satisfy the same requirement; here it is a symlink, because a copy would test
+# collection without being laid out as one. tools/ansible-test.sh copies the
+# tree to satisfy the same requirement; here it is a symlink, because a copy would test
 # whatever the copy was made from and the point is to test the working tree.
 #
 # The repository root stays on the path as well, so collections installed into
