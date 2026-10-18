@@ -79,6 +79,8 @@ make role-test ROLE=grafana DISTRO=rhel     # converge, idempotence, verify
 make role-test-list
 ```
 
+A role whose test directory has a `check.yml` gets a dry run with `--check` after `prepare` and before the first converge. That is the only phase that sees a host without the role's packages, which is where upstream #406 failed. A role opts in once it passes.
+
 `DISTRO` is a package family. `rhel` is not optional politeness — the `grafana` role's `yum`/`dnf` block is unreachable on Debian, so a Debian-only pass can hide a broken change.
 
 `ANSIBLE_GROUP=ansible-top` runs the same test on the newest ansible-core inside `requires_ansible`'s range instead of the 2.18 everything else runs on. Both versions are declared once, in `pyproject.toml`, and the harness refuses anything from `PATH`: a local pass and a CI pass are statements about the same engine and the same collections, which they were not before. The log names the engine it ran on. Do not trust a role-test log that does not.

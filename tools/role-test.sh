@@ -8,9 +8,10 @@
 # depends only on uv and docker; ansible-core comes from the dependency group
 # pyproject.toml declares, so a local run and a CI run execute the same engine.
 #
-# Three phases, in order, with an optional fourth ahead of them:
+# Three phases, in order, with two optional ones ahead of them:
 #
 #   prepare       optional; seed state the role is expected to reconcile away
+#   check         optional; dry-run the role with --check before any converge
 #   converge      apply the role to a fresh container
 #   idempotence   apply it again; fail if any task reports changed
 #   verify        assert the expected end state
@@ -25,6 +26,14 @@
 # be removed again, which the harness reads, correctly, as a role that flaps.
 # Such state has to be seeded once, before the first converge. A role without
 # that problem does not need the file and does not get the phase.
+#
+# check exists because a dry run on a fresh host is a path no other phase
+# reaches: converge installs the packages, so every later phase finds the
+# service units in place. The tempo role called systemd for a unit its own
+# package would have installed, passed every phase, and failed the first
+# `--check` an operator tried (upstream #406). A role opts in with check.yml
+# once it passes. A dry run that reports nothing changed fails too: on a host
+# without the role's packages, that can only mean the role skipped everything.
 #
 # Usage: tools/role-test.sh <role> <distro>
 #        tools/role-test.sh --list
@@ -102,6 +111,8 @@ verify="${TEST_ROOT}/${role}/verify.yml"
 # converges. Anything a scenario can set up inside converge belongs there,
 # because converge runs twice and that is what proves it idempotent.
 prepare="${TEST_ROOT}/${role}/prepare.yml"
+# Optional as well: present only for roles proven to dry-run on a fresh host.
+check="${TEST_ROOT}/${role}/check.yml"
 
 if [[ ! -f "${converge}" ]]; then
   echo >&2 "no converge playbook at ${converge}"
@@ -307,11 +318,23 @@ mkdir -p "${fixturesDir}"
 runPlaybook() {
   local playbook="${1}"
   local logFile="${2}"
+  shift 2
   "${ansiblePlaybook[@]}" \
     -i "${workDir}/inventory.yml" \
     -e "role_test_fixtures=${fixturesDir}" \
+    "$@" \
     "${playbook}" 2>&1 | tee "${logFile}"
   return "${PIPESTATUS[0]}"
+}
+
+# Optional phases count toward the total, so the log never reads "phase 0/3".
+phaseTotal=3
+[[ -f "${prepare}" ]] && phaseTotal=$((phaseTotal + 1))
+[[ -f "${check}" ]] && phaseTotal=$((phaseTotal + 1))
+phaseNo=0
+phase() {
+  phaseNo=$((phaseNo + 1))
+  info "phase ${phaseNo}/${phaseTotal}: ${1}"
 }
 
 # ----------------------------------------------------------------- prepare
@@ -325,7 +348,7 @@ runPlaybook() {
 # from the deployer, and its `when:` sits on a looped task, so with nothing to
 # remove the condition is never evaluated and the tasks under it ship untested.
 if [[ -f "${prepare}" ]]; then
-  info "phase 0/3: prepare — seeding state the role must reconcile"
+  phase "prepare — seeding state the role must reconcile"
   if ! runPlaybook "${prepare}" "${workDir}/prepare.log"; then
     emergency "prepare failed; converge, idempotence and verify were not run"
   fi
@@ -334,15 +357,37 @@ else
   debug "no prepare playbook at ${prepare}; skipping"
 fi
 
+# ------------------------------------------------------------------- check
+# After prepare, because seeded state is part of the host the role finds; before
+# converge, because only then are the role's packages absent. A failure stops the run:
+# a converge on top of an unexplained dry-run failure says nothing useful.
+if [[ -f "${check}" ]]; then
+  phase "check — dry-running the role before any converge"
+  if ! runPlaybook "${check}" "${workDir}/check.log" --check; then
+    emergency "check failed; converge, idempotence and verify were not run"
+  fi
+  checkChanged="$(
+    grep -oE 'changed=[0-9]+' "${workDir}/check.log" \
+      | cut -d= -f2 \
+      | awk '{ sum += $1 } END { print sum + 0 }'
+  )"
+  if [[ "${checkChanged}" -eq 0 ]]; then
+    emergency "check reported 0 changed tasks; a dry run that predicts nothing proves nothing"
+  fi
+  success "check passed: ${checkChanged} change(s) predicted"
+else
+  debug "no check playbook at ${check}; skipping"
+fi
+
 # ---------------------------------------------------------------- converge
-info "phase 1/3: converge"
+phase "converge"
 if ! runPlaybook "${converge}" "${workDir}/converge.log"; then
   emergency "converge failed; idempotence and verify were not run"
 fi
 success "converge passed"
 
 # ------------------------------------------------------------- idempotence
-info "phase 2/3: idempotence — applying the role a second time"
+phase "idempotence — applying the role a second time"
 if ! runPlaybook "${converge}" "${workDir}/idempotence.log"; then
   emergency "the second converge failed outright"
 fi
@@ -363,7 +408,7 @@ fi
 success "idempotence passed: 0 changed tasks on the second run"
 
 # ------------------------------------------------------------------ verify
-info "phase 3/3: verify"
+phase "verify"
 if ! runPlaybook "${verify}" "${workDir}/verify.log"; then
   emergency "verify failed"
 fi
