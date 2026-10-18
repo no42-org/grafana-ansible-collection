@@ -698,16 +698,16 @@ Re-derive the number:
 ```
 
 ```text
-total occurrences      : 104
+total occurrences      : 107
 community.grafana.*    : 2  (must remain untouched)
-in excluded changelogs : 24  (not rewritten)
-expected rewrites      : 78
+in excluded changelogs : 26  (not rewritten)
+expected rewrites      : 79
 ```
 
 Read the diff before updating `EXPECTED_REWRITES` in `tools/rename-namespace.sh`.
 The count moving is the symptom; the cause may need the rewrite rule changed rather than the number bumped.
 
-### It has moved deliberately four times, and the reasoning is the template
+### It has moved deliberately five times, and the reasoning is the template
 
 83 → 80, when the README's three install commands were hardcoded to `indigo423.grafana`.
 
@@ -747,6 +747,17 @@ The arithmetic again, because the total moved by more than six:
 +6  the module test scenario's module calls
 +12 changelog entries from 7.2.1 and 7.3.0 (excluded from the rename)
 104 total, minus 2 community.* and 24 in changelogs = 78
+```
+
+78 → 79, when `tests/unit/plugins/modules/test_cloud_plugin.py` arrived.
+It imports the module as `ansible_collections.grafana.grafana.plugins.modules.cloud_plugin`.
+Unlike `tests/modules`, `tests/unit` ships in the tarball, and the rewrite is what makes that import resolve inside `indigo423.grafana`.
+
+```text
+104 occurrences at the last derivation
++2  7.4.0 changelog entries from 4750dec (excluded from the rename)
++1  the unit test's import
+107 total, minus 2 community.* and 26 in changelogs = 79
 ```
 
 Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
