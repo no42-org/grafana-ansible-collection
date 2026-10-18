@@ -8,7 +8,7 @@ Four things here are non-obvious. Each has already been got wrong at least once.
 
 The rename happens at **build time**, in a copy under `build/src`. Never rename in the tree — that would conflict on every upstream merge, across 51 files.
 
-`make dist` asserts an **exact count of 72 rewrites** and fails if it moves. If your change adds or removes a fully-qualified collection name, that build failure is the assertion working, not a bug:
+`make dist` asserts an **exact rewrite count**, `EXPECTED_REWRITES` in `tools/rename-namespace.sh` (79 today), and fails if it moves. If your change adds or removes a fully-qualified collection name, that build failure is the assertion working, not a bug:
 
 ```bash
 ./tools/rename-namespace.sh --expected-count   # re-derive, then read the diff before bumping
