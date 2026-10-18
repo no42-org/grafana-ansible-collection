@@ -161,6 +161,33 @@ jobs:
         run: make version-select-test
         if: success() || failure()
 
+  # Unit tests, for modules no container can stand in for: cloud_plugin always
+  # calls https://grafana.com, so make module-test cannot reach it. Unlike the
+  # sanity job below this runs through make, on the one ansible-core the
+  # `ansible` group declares. The tests mock a requests call per state, and
+  # nothing in them depends on which engine runs them.
+  units:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No `make install`: tools/ansible-test.sh resolves ansible-core with
+      # `uv run --group ansible`, which provisions that group and nothing else.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: units
+
+      - name: Run unit tests
+        run: make units
+
   sanity:
     name: Sanity (Ⓐ${{ matrix.ansible }})
     runs-on: ubuntu-24.04
