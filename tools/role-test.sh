@@ -47,6 +47,13 @@
 # on a sampled subset of roles in CI). Anything else is refused: the point is
 # that only a declared version can execute a role.
 #
+# ROLE_TEST_VARIANT names a variant of the role's one scenario:
+# tests/roles/<role>/variants/<name>.yml, passed as extra vars to every phase.
+# A variant sets role_test_* inputs the scenario reads with defaults, never a
+# dictionary the scenario sets, because an extra var replaces it whole. It
+# exists so one scenario can run against a different input -- an IPv6 bind
+# address, an older Grafana -- without a second copy of it to drift.
+#
 # Containers are named deterministically and removed unconditionally before and
 # after the run, so a crashed or interrupted run cannot poison the next one.
 
@@ -113,6 +120,18 @@ verify="${TEST_ROOT}/${role}/verify.yml"
 prepare="${TEST_ROOT}/${role}/prepare.yml"
 # Optional as well: present only for roles proven to dry-run on a fresh host.
 check="${TEST_ROOT}/${role}/check.yml"
+
+variant="${ROLE_TEST_VARIANT:-}"
+variantArgs=()
+if [[ -n "${variant}" ]]; then
+  variantFile="$(pwd)/${TEST_ROOT}/${role}/variants/${variant}.yml"
+  if [[ ! -f "${variantFile}" ]]; then
+    echo >&2 "no variant '${variant}' for ${role}; variants under ${TEST_ROOT}/${role}/variants/:"
+    find "${TEST_ROOT}/${role}/variants" -name '*.yml' -exec basename {} .yml \; 2>/dev/null | sort >&2
+    exit 1
+  fi
+  variantArgs=(-e "@${variantFile}")
+fi
 
 if [[ ! -f "${converge}" ]]; then
   echo >&2 "no converge playbook at ${converge}"
@@ -184,10 +203,13 @@ fi
 GALAXY_CMD=("${ansibleGalaxy[@]}")
 galaxyInstall "${roleTestRequirements}" offline-first
 
-heading "Grafana Ansible Collection" "Role test: ${role} on ${distro}"
+# A variant gets its own containers and work directory, so it cannot collide
+# with the plain run of the same role and distro.
+suffix="${variant:+-${variant}}"
+heading "Grafana Ansible Collection" "Role test: ${role} on ${distro}${variant:+, variant ${variant}}"
 
-readonly stack="roletest-${role}-${distro}"
-readonly workDir="${WORK_ROOT}/${role}-${distro}"
+readonly stack="roletest-${role}-${distro}${suffix}"
+readonly workDir="${WORK_ROOT}/${role}-${distro}${suffix}"
 
 # Topology. A role may declare more than one node, and a private network for
 # them, by shipping tests/roles/<role>/topology:
@@ -322,6 +344,7 @@ runPlaybook() {
   "${ansiblePlaybook[@]}" \
     -i "${workDir}/inventory.yml" \
     -e "role_test_fixtures=${fixturesDir}" \
+    ${variantArgs[@]+"${variantArgs[@]}"} \
     "$@" \
     "${playbook}" 2>&1 | tee "${logFile}"
   return "${PIPESTATUS[0]}"
