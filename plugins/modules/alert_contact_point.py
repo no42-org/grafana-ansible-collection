@@ -122,6 +122,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -190,9 +191,9 @@ def present_alert_contact_point(module):
                 # returning None, which the caller unpacks into three values.
                 return False, True, body
             else:
-                return True, False, {"status": result.status_code, 'response': result.json()['message']}
+                return True, False, failure(result)
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def absent_alert_contact_point(module):
@@ -220,7 +221,7 @@ def absent_alert_contact_point(module):
         if result.status_code == 202:
             return False, True, result.json()
         else:
-            return True, False, {"status": result.status_code, 'response': result.json()['message']}
+            return True, False, failure(result)
     else:
         return True, False, "Alert Contact point does not exist"
 
