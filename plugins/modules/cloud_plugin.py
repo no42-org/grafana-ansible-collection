@@ -131,7 +131,7 @@ def present_cloud_plugin(module):
     elif result.status_code == 409:
         api_url = 'https://grafana.com/api/instances/' + module.params['stack_slug'] + '/plugins/' + module.params['name']
         result = requests.get(api_url, headers=headers)
-        if result.status_code != 200:
+        if not 200 <= result.status_code < 300:
             return True, False, _failure(result)
 
         if result.json()['pluginSlug'] == module.params['name'] and result.json()['version'] == module.params['version']:
@@ -141,7 +141,7 @@ def present_cloud_plugin(module):
                 'name']
             result = requests.post(api_url, json={'version': module.params['version']},
                                    headers=headers)
-            if result.status_code != 200:
+            if not 200 <= result.status_code < 300:
                 return True, False, _failure(result)
 
             return False, True, result.json()
