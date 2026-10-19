@@ -41,3 +41,18 @@ def failure(result):
     if isinstance(body, dict) and 'message' in body:
         return {'status': result.status_code, 'response': body['message']}
     return {'status': result.status_code, 'response': body}
+
+
+def accepted(result, ok=(200,)):
+    """(body, None) for an accepted response, (None, failure(result)) otherwise.
+
+    For a lookup, whose body the caller is about to read as the data it asked
+    for: a refusal's body is not that data (#159). An accepted status with a
+    body that is not JSON is reported too, since the caller cannot use it.
+    """
+    if result.status_code not in ok:
+        return None, failure(result)
+    try:
+        return result.json(), None
+    except ValueError:
+        return None, failure(result)

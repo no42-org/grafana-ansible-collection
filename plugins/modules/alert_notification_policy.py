@@ -162,7 +162,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import accepted, failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -188,8 +188,11 @@ def alert_notification_policy(module):
         'User-Agent': 'grafana-ansible-collection',
     }
     result = requests.get(api_url, headers=headers)
+    policy, refused = accepted(result)
+    if refused:
+        return True, False, refused
 
-    if 'routes' not in result.json():
+    if 'routes' not in policy:
         api_url = module.params['grafana_url'] + '/api/v1/provisioning/policies'
         result = requests.put(api_url, json=body, headers=headers)
 
