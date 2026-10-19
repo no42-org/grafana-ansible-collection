@@ -209,3 +209,14 @@ def test_concrete_version_already_installed_is_unchanged(monkeypatch, capsys):
     result = run_module_succeeding(monkeypatch, capsys, 'present', '1.0.14', post=post, get=get)
     assert result['changed'] is False
     assert len(post.headers) == 1
+
+
+def test_latest_without_a_reported_newest_version_updates(monkeypatch, capsys):
+    installed = dict(PLUGIN)
+    del installed['latestVersion']
+    post = Recorder(Response(409, {'message': 'already installed'}), Response(200, PLUGIN))
+    get = Recorder(Response(200, installed))
+
+    result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
+    assert result['changed'] is True
+    assert len(post.headers) == 2

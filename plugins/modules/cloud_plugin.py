@@ -134,8 +134,13 @@ def present_cloud_plugin(module):
         if not 200 <= result.status_code < 300:
             return True, False, _failure(result)
 
-        if result.json()['pluginSlug'] == module.params['name'] and result.json()['version'] == module.params['version']:
-            return False, False, result.json()
+        installed = result.json()
+        wanted = module.params['version']
+        if wanted == 'latest':
+            wanted = installed.get('latestVersion')
+
+        if installed['pluginSlug'] == module.params['name'] and wanted is not None and installed['version'] == wanted:
+            return False, False, installed
         else:
             api_url = 'https://grafana.com/api/instances/' + module.params['stack_slug'] + '/plugins/' + module.params[
                 'name']
