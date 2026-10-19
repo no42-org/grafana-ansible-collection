@@ -224,3 +224,66 @@ jobs:
             tail -80 "${log}"
             echo "::endgroup::"
           done
+
+  # Named variants of a role's one scenario: the same converge, idempotence and
+  # verify with a vars file from tests/roles/<role>/variants/ layered on top.
+  # A job of its own so the role x distro matrix above stays a product.
+  #
+  # One package family. The grafana variants are about the address the role's
+  # probes connect to (#189), which no package-manager branch touches; the
+  # matrix above already covers installation on both families.
+  #
+  #   ipv6             "::1" on the pinned Grafana, which accepts only the
+  #                    bare form
+  #   ipv6-bracketed   "[::1]" on Grafana 10.4.19, which accepts only the
+  #                    bracketed form
+  role-test-variants:
+    name: ${{ matrix.role }} (${{ matrix.distro }}) variant ${{ matrix.variant }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: grafana
+            distro: debian
+            variant: ipv6
+          - role: grafana
+            distro: debian
+            variant: ipv6-bracketed
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: role-test-variants
+
+      - name: Compute the collection cache week
+        run: echo "COLLECTION_WEEK=$(date -u +%G-%V)" >> "${GITHUB_ENV}"
+
+      # Shares the role-test job's cache entry rather than seeding a third.
+      - name: Cache the harness collections
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ansible_collections
+          key: role-test-collections-${{ env.COLLECTION_WEEK }}-${{ hashFiles('tests/roles/requirements.yml') }}
+
+      - name: Role test
+        run: make role-test ROLE=${{ matrix.role }} DISTRO=${{ matrix.distro }} VARIANT=${{ matrix.variant }}
+
+      - name: Show the logs on failure
+        if: failure()
+        run: |
+          shopt -s nullglob
+          for log in build/role-test/*/*.log; do
+            echo "::group::${log}"
+            tail -80 "${log}"
+            echo "::endgroup::"
+          done
