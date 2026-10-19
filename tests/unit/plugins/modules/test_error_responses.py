@@ -150,11 +150,15 @@ def test_no_module_indexes_the_message_of_a_response():
     paths = sorted(glob.glob(modules))
     assert paths, 'found no modules at %s' % modules
     pattern = re.compile(r"json\(\)\s*(\[|\.get\()\s*['\"]message['\"]")
-    offenders = [os.path.basename(p) for p in paths if pattern.search(open(p).read())]
+    offenders = []
+    for path in paths:
+        with open(path) as module_file:
+            if pattern.search(module_file.read()):
+                offenders.append(os.path.basename(path))
     assert offenders == [], "use module_utils.responses instead of reading json()'s message in: %s" % ', '.join(offenders)
 
 
-class NotJson(Response):
+class NotJson(object):
     """A refusal whose body is not JSON, as a proxy's HTML error page is not."""
 
     def __init__(self, status_code, text):
