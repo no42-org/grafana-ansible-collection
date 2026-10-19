@@ -101,11 +101,11 @@ CASES = [
 ]
 
 
-def run_failing(monkeypatch, capsys, name, args, responses):
-    """Run a module, require it to fail cleanly, and return its result.
+def run(monkeypatch, capsys, name, args, responses):
+    """Run a module and return its exit code and result.
 
     An exception escaping main() is not caught here, so a module that raises
-    on the refusal fails the test with its own traceback.
+    fails the test with its own traceback.
     """
     module = importlib.import_module('ansible_collections.grafana.grafana.plugins.modules.' + name)
     requests = Requests(responses)
@@ -116,8 +116,13 @@ def run_failing(monkeypatch, capsys, name, args, responses):
     with patch_module_args(args):
         with pytest.raises(SystemExit) as exit_info:
             module.main()
-    assert exit_info.value.code == 1
-    result = json.loads(capsys.readouterr().out)
+    return exit_info.value.code, json.loads(capsys.readouterr().out)
+
+
+def run_failing(monkeypatch, capsys, name, args, responses):
+    """Run a module, require it to fail cleanly, and return its result."""
+    code, result = run(monkeypatch, capsys, name, args, responses)
+    assert code == 1
     assert result['failed'] is True
     return result
 
@@ -198,3 +203,82 @@ def test_user_refused_password_change_fails_with_the_status(monkeypatch, capsys)
                                   Response(200, {'id': 7, 'login': 'u'})],
                           'put': [REFUSED]})
     assert result['msg'] == {'status': 400, 'response': REFUSAL_BODY}
+
+
+# --------------------------------------------------- #159 refused lookups
+# Each lookup below read its body before checking its status. The fakes
+# answer only the requests listed, so a delete, PUT or update the module
+# should not send fails the test as "unexpected".
+
+FORBIDDEN_BODY = {'message': 'Forbidden'}
+CONTACT_POINT = dict(GRAFANA, name='cp', uid='cp', type='email', settings={'addresses': 'a@example.org'})
+FOLDER = dict(GRAFANA, title='f', uid='f')
+USER = dict(admin_name='admin', admin_password='pw', login='u', grafana_url='http://grafana.test')
+
+LOOKUP_CASES = [
+    ('alert_contact_point-present', 'alert_contact_point', CONTACT_POINT,
+     {'post': [Response(409, {'message': 'conflict'})], 'get': [Response(403, FORBIDDEN_BODY)]}),
+    ('alert_contact_point-absent', 'alert_contact_point', dict(CONTACT_POINT, state='absent'),
+     {'get': [Response(403, FORBIDDEN_BODY)]}),
+    ('folder-present', 'folder', FOLDER,
+     {'post': [Response(412, {'message': 'exists'})], 'get': [Response(403, FORBIDDEN_BODY)]}),
+    ('folder-absent', 'folder', dict(FOLDER, state='absent'),
+     {'get': [Response(403, FORBIDDEN_BODY)]}),
+    ('user-present', 'user', USER,
+     {'get': [Response(403, FORBIDDEN_BODY)]}),
+    ('user-absent', 'user', dict(USER, state='absent'),
+     {'get': [Response(403, FORBIDDEN_BODY)]}),
+]
+
+
+@pytest.mark.parametrize('name, args, responses', [c[1:] for c in LOOKUP_CASES], ids=[c[0] for c in LOOKUP_CASES])
+def test_refused_lookup_fails_with_its_status(monkeypatch, capsys, name, args, responses):
+    result = run_failing(monkeypatch, capsys, name, args, responses)
+    assert result['msg'] == {'status': 403, 'response': 'Forbidden'}
+
+
+def test_refused_policy_read_fails_without_writing(monkeypatch, capsys):
+    # A 403 body has no 'routes', which the module took to mean "no policy
+    # yet" and answered with a PUT.
+    result = run_failing(monkeypatch, capsys, 'alert_notification_policy', dict(GRAFANA, routes=[]),
+                         {'get': [Response(403, FORBIDDEN_BODY)]})
+    assert result['msg'] == 'Status code is 403'
+    assert result['output'] == 'Forbidden'
+
+
+def test_lookup_that_is_not_json_fails_with_the_text(monkeypatch, capsys):
+    result = run_failing(monkeypatch, capsys, 'folder', dict(FOLDER, state='absent'),
+                         {'get': [NotJson(502, '<html>Bad Gateway</html>')]})
+    assert result['msg'] == {'status': 502, 'response': '<html>Bad Gateway</html>'}
+
+
+def test_refused_read_back_after_an_accepted_update_reports_the_change(monkeypatch, capsys):
+    # The PUT was accepted, so the change happened. A refused read-back must
+    # not turn that into a failure; the module reports the body it sent.
+    code, result = run(monkeypatch, capsys, 'alert_contact_point', CONTACT_POINT,
+                       {'post': [Response(409, {'message': 'conflict'})],
+                        'get': [Response(200, []), Response(403, FORBIDDEN_BODY)],
+                        'put': [Response(202, {})]})
+    assert code == 0
+    assert result['changed'] is True
+    # The request body the module sent, which spells the key UID.
+    assert result['output']['UID'] == 'cp'
+
+
+def test_password_change_proceeds_when_the_new_password_is_refused(monkeypatch, capsys):
+    # The first lookup logs in with the new password. A 401 there is the
+    # answer "not changed yet", not a failure.
+    code, result = run(monkeypatch, capsys, 'user',
+                       dict(USER, password='new', state='update_password'),
+                       {'get': [Response(401, {'message': 'invalid username or password'}),
+                                Response(200, {'id': 7, 'login': 'u'})],
+                        'put': [Response(200, {'message': 'User password updated'})]})
+    assert code == 0
+    assert result['changed'] is True
+
+
+def test_password_change_fails_when_the_admin_lookup_is_refused(monkeypatch, capsys):
+    result = run_failing(monkeypatch, capsys, 'user', dict(USER, password='new', state='update_password'),
+                         {'get': [Response(401, {'message': 'invalid username or password'}),
+                                  Response(403, FORBIDDEN_BODY)]})
+    assert result['msg'] == {'status': 403, 'response': 'Forbidden'}
