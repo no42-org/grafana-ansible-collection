@@ -112,12 +112,12 @@
 # wait_for that runs after the flush: the socket opens long before the
 # migrations finish, and by then the restart has already landed.
 #
-# 0.0.0.0 is the role's own default for http_addr. It is a bind address, and
-# so are '' and '::'; none of them is somewhere to send a request. The probe
-# never leaves the host, so its destination is the loopback address and
-# validate_certs is off -- a certificate issued for this server's name cannot
-# match 127.0.0.1, which would fail the check on every correctly configured
-# https deployment.
+# http_addr is a bind address, not somewhere to send a request. The probe
+# never leaves the host, so it connects to __grafana_probe_url_host from
+# vars/main.yml: loopback for a wildcard bind, bracketed for an IPv6 address.
+# validate_certs is off because a certificate issued for this server's name
+# cannot match a loopback address, which would fail the check on every
+# correctly configured https deployment.
 #
 # The default() in `until` is what makes the retry loop a retry loop. The
 # first attempt usually reaches a port that is not listening yet, the module
@@ -125,14 +125,9 @@
 # raises on undefined instead of retrying.
 - name: Wait for DB migrations to complete
   ansible.builtin.uri:
-    url: "{{ grafana_ini.server.protocol | default('http') }}://{{ __grafana_health_host }}:{{ grafana_ini.server.http_port }}/api/health"
+    url: "{{ grafana_ini.server.protocol | default('http') }}://{{ __grafana_probe_url_host }}:{{ grafana_ini.server.http_port }}/api/health"
     follow_redirects: none
     validate_certs: false
-  vars:
-    __grafana_health_host: >-
-      {{ '127.0.0.1'
-        if grafana_ini.server.http_addr | default('') in ['', '0.0.0.0', '::']
-        else grafana_ini.server.http_addr }}
   register: grafana_health
   retries: 10
   delay: 5
