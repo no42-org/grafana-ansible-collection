@@ -149,6 +149,48 @@ def test_no_module_indexes_the_message_of_a_response():
     modules = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'plugins', 'modules', '*.py')
     paths = sorted(glob.glob(modules))
     assert paths, 'found no modules at %s' % modules
-    pattern = re.compile(r"json\(\)\[\s*['\"]message['\"]\s*\]")
+    pattern = re.compile(r"json\(\)\s*(\[|\.get\()\s*['\"]message['\"]")
     offenders = [os.path.basename(p) for p in paths if pattern.search(open(p).read())]
-    assert offenders == [], "use module_utils.responses instead of json()['message'] in: %s" % ', '.join(offenders)
+    assert offenders == [], "use module_utils.responses instead of reading json()'s message in: %s" % ', '.join(offenders)
+
+
+class NotJson(Response):
+    """A refusal whose body is not JSON, as a proxy's HTML error page is not."""
+
+    def __init__(self, status_code, text):
+        self.status_code = status_code
+        self.text = text
+
+    def json(self):
+        raise ValueError('Expecting value: line 1 column 1 (char 0)')
+
+
+def test_cloud_stack_refused_listing_fails_with_the_status(monkeypatch, capsys):
+    # After "That URL has already been taken", cloud_stack lists the org's
+    # stacks. The listing was parsed before its status was checked.
+    taken = Response(409, {'message': 'That URL has already been taken, please try an alternate URL'})
+    result = run_failing(monkeypatch, capsys, 'cloud_stack',
+                         dict(name='s', stack_slug='s', cloud_api_key='key', org_slug='org'),
+                         {'post': [taken], 'get': [NotJson(502, '<html>Bad Gateway</html>')]})
+    assert result['msg'] == {'status': 502, 'response': '<html>Bad Gateway</html>'}
+
+
+def test_datasource_conflict_that_is_not_json_is_resolved_by_listing(monkeypatch, capsys):
+    # The 409 branch read the conflict text with result.json().get(), which
+    # raised on a body that is not JSON before the listing was even asked.
+    result = run_failing(monkeypatch, capsys, 'datasource',
+                         dict(GRAFANA, dataSource={'name': 'ds', 'type': 'prometheus'}),
+                         {'post': [NotJson(409, '<html>Conflict</html>')], 'get': [REFUSED]})
+    assert result['msg']['status'] == 400
+
+
+def test_user_refused_password_change_fails_with_the_status(monkeypatch, capsys):
+    result = run_failing(monkeypatch, capsys, 'user',
+                         dict(admin_name='admin', admin_password='pw', login='u', password='new',
+                              grafana_url='http://grafana.test', state='update_password'),
+                         # The new password does not log in yet (401), then the admin
+                         # lookup finds the user, and the password change is refused.
+                         {'get': [Response(401, {'message': 'invalid username or password'}),
+                                  Response(200, {'id': 7, 'login': 'u'})],
+                          'put': [REFUSED]})
+    assert result['msg'] == {'status': 400, 'response': REFUSAL_BODY}

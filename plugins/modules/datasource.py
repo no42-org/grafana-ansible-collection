@@ -160,7 +160,7 @@ def present_datasource(module):
         # id-by-name lookup this replaces carry the same deprecation notice as
         # the route that just disappeared.
         name = module.params['dataSource']['name']
-        conflict = result.json().get('message')
+        conflict = message(result)
 
         listing = requests.get(api_url, headers=headers)
         if listing.status_code != 200:

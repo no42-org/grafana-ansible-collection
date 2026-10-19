@@ -198,9 +198,9 @@ def present_cloud_stack(module):
         if message(result) == "That URL has already been taken, please try an alternate URL":
             api_url = STACKS_API_BASE + '?org=' + module.params['org_slug']
             result = requests.get(api_url, headers=headers)
-            list_response = result.json()
             if result.status_code != 200:
-                return True, False, {"status": result.status_code, 'response': list_response.get('message', str(list_response))}
+                return True, False, failure(result)
+            list_response = result.json()
             stackInfo = {}
             for stack in list_response.get('items', []):
                 if stack['slug'] == module.params['stack_slug']:
