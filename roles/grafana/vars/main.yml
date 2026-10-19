@@ -34,6 +34,9 @@ __grafana_probe_url_host: "{{ '[' ~ __grafana_probe_host ~ ']' if ':' in __grafa
 # success, which is what h2 did before (#151); an empty socket path would do
 # the same.
 __grafana_probe_protocol: "{{ grafana_ini.server.protocol | default('http') }}"
-__grafana_probe_tcp: "{{ __grafana_probe_protocol not in ['socket', 'socket_h2'] }}"
-__grafana_probe_socket: "{{ __grafana_probe_protocol in ['socket', 'socket_h2'] and grafana_ini.server.socket | default('') | length > 0 }}"
-__grafana_probe_scheme: "{{ 'https' if __grafana_probe_protocol in ['https', 'h2'] else 'http' }}"
+__grafana_probe_on_socket: "{{ __grafana_probe_protocol in ['socket', 'socket_h2'] }}"
+__grafana_probe_tcp: "{{ not __grafana_probe_on_socket | bool }}"
+__grafana_probe_socket: "{{ __grafana_probe_on_socket | bool and grafana_ini.server.socket | default('') | length > 0 }}"
+# socket_h2 speaks TLS on its socket: measured on 13.2.4, a plain request gets
+# "Client sent an HTTP request to an HTTPS server" (#157).
+__grafana_probe_scheme: "{{ 'https' if __grafana_probe_protocol in ['https', 'h2', 'socket_h2'] else 'http' }}"

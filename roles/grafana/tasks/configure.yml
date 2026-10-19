@@ -48,10 +48,14 @@
     - "'ldap' in grafana_ini.auth"
     - "'enabled' not in grafana_ini.auth.ldap or grafana_ini.auth.ldap.enabled"
 
+# /run/grafana belongs to systemd: the packaged grafana-server.service, deb and
+# rpm alike, declares RuntimeDirectory=grafana with RuntimeDirectoryMode=0750
+# and recreates it on every start. Managing it here as well set it to 0775,
+# which the next restart undid, so the role never converged (#157).
 - name: "Enable grafana socket"
   when:
-    - "grafana_ini.server.protocol is defined and grafana_ini.server.protocol == 'socket'"
-    - "grafana_ini.server.socket | dirname != '/var/run'"
+    - __grafana_probe_on_socket | bool
+    - "grafana_ini.server.socket | dirname not in ['/run', '/var/run', '/run/grafana', '/var/run/grafana']"
   block:
     - name: "Create grafana socket directory"
       ansible.builtin.file:
@@ -114,6 +118,8 @@
 # http_addr is a bind address, not somewhere to send a request. The probe
 # never leaves the host, so it connects to __grafana_probe_url_host from
 # vars/main.yml: loopback for a wildcard bind, bracketed for an IPv6 address.
+# On a socket protocol it goes through the socket instead; the URL then only
+# supplies the scheme and the path (#157).
 # validate_certs is off because a certificate issued for this server's name
 # cannot match a loopback address, which would fail the check on every
 # correctly configured https deployment.
@@ -124,7 +130,8 @@
 # raises on undefined instead of retrying.
 - name: Wait for DB migrations to complete
   ansible.builtin.uri:
-    url: "{{ __grafana_probe_scheme }}://{{ __grafana_probe_url_host }}:{{ grafana_ini.server.http_port }}/api/health"
+    url: "{{ __grafana_probe_scheme }}://{{ 'localhost' if __grafana_probe_socket | bool else __grafana_probe_url_host ~ ':' ~ grafana_ini.server.http_port }}/api/health"
+    unix_socket: "{{ grafana_ini.server.socket if __grafana_probe_socket | bool else omit }}"
     follow_redirects: none
     validate_certs: false
   register: grafana_health
@@ -132,4 +139,4 @@
   delay: 5
   until: grafana_health.json.database | default('') == 'ok'
   when:
-    - __grafana_probe_tcp | bool
+    - __grafana_probe_tcp | bool or __grafana_probe_socket | bool
