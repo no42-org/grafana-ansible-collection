@@ -1,0 +1,20 @@
+---
+# Where the role's own probes connect, derived once from the bind address.
+#
+# grafana_ini.server.http_addr is a bind address, and the consumer has to write
+# it in whichever IPv6 form their Grafana accepts: 10.3 to 11.0 start only on
+# "[::1]", 11.6 and later only on "::1". So the probes cannot use the value as
+# given. "Wait for grafana to start" needs a bare host for its socket, and
+# "Wait for DB migrations to complete" needs a bracketed one inside its URL.
+#
+# A wildcard bind is not a destination. "0.0.0.0" and "" become 127.0.0.1;
+# "::" becomes ::1, which a socket bound to "::" accepts whether or not the
+# kernel sets bindv6only, where 127.0.0.1 is accepted only when it does not.
+#
+# grafana.ini still gets http_addr exactly as the consumer wrote it.
+__grafana_probe_bind: "{{ grafana_ini.server.http_addr | default('') | regex_replace('^\\[(.*)\\]$', '\\1') }}"
+__grafana_probe_host: >-
+  {{ '127.0.0.1' if __grafana_probe_bind in ['', '0.0.0.0']
+  else '::1' if __grafana_probe_bind == '::'
+  else __grafana_probe_bind }}
+__grafana_probe_url_host: "{{ '[' ~ __grafana_probe_host ~ ']' if ':' in __grafana_probe_host else __grafana_probe_host }}"
