@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure, message
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import accepted, failure, message
 
 
 class Response(object):
@@ -39,3 +39,13 @@ def test_message_and_failure(body, expected_message, expected_response):
 
     assert message(result) == expected_message
     assert failure(result) == {'status': 418, 'response': expected_response}
+
+
+@pytest.mark.parametrize('status, body, ok, expected', [
+    (200, [{'uid': 'a'}], (200,), ([{'uid': 'a'}], None)),
+    (202, {'id': 1}, (200, 202), ({'id': 1}, None)),
+    (403, {'message': 'Forbidden'}, (200,), (None, {'status': 403, 'response': 'Forbidden'})),
+    (200, '<html>not json</html>', (200,), (None, {'status': 200, 'response': '<html>not json</html>'})),
+], ids=['accepted', 'accepted-by-ok', 'refused', 'accepted-but-not-json'])
+def test_accepted(status, body, ok, expected):
+    assert accepted(Response(status, body), ok=ok) == expected

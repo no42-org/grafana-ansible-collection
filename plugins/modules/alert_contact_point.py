@@ -122,7 +122,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import accepted, failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -160,9 +160,11 @@ def present_alert_contact_point(module):
 
         api_url = module.params['grafana_url'] + '/api/v1/provisioning/contact-points'
 
-        result = requests.get(api_url, headers=headers)
+        listing, refused = accepted(requests.get(api_url, headers=headers))
+        if refused:
+            return True, False, refused
 
-        for contact_points in result.json():
+        for contact_points in listing:
             if contact_points['uid'] == module.params['uid']:
                 if (contact_points['name'] == module.params['name'] and contact_points['type'] == module.params['type'] and contact_points['settings']
                    and contact_points['settings'] == module.params['settings']
@@ -180,9 +182,13 @@ def present_alert_contact_point(module):
             if result.status_code == 202:
                 api_url = module.params['grafana_url'] + '/api/v1/provisioning/contact-points'
 
-                result = requests.get(api_url, headers=headers)
+                listing, refused = accepted(requests.get(api_url, headers=headers))
+                if refused:
+                    # The update was accepted; a refused read-back does not
+                    # undo it. Report the accepted body, as below.
+                    return False, True, body
 
-                for contact_points in result.json():
+                for contact_points in listing:
                     if contact_points['uid'] == module.params['uid']:
                         return False, True, contact_points
                 # The update returned 202, so the change happened. If the
@@ -208,9 +214,11 @@ def absent_alert_contact_point(module):
         'User-Agent': 'grafana-ansible-collection',
     }
 
-    result = requests.get(api_url, headers=headers)
+    listing, refused = accepted(requests.get(api_url, headers=headers))
+    if refused:
+        return True, False, refused
 
-    for contact_points in result.json():
+    for contact_points in listing:
         if contact_points['uid'] == module.params['uid']:
             already_exists = True
     if already_exists:
