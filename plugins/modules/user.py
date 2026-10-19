@@ -120,7 +120,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import accepted, failure
 
 try:
     import requests
@@ -144,9 +144,11 @@ def _get_user(grafana_url, admin_name, admin_password, login, email=None):
             admin_name, admin_password))
 
     if result.status_code == 404:
-        return None
+        return None, None
 
-    return result.json()
+    # (user, None) when found, (None, failure) when the lookup is refused. A
+    # refusal used to come back as a "user" without an id (#159).
+    return accepted(result)
 
 
 def _set_user_password(grafana_url, admin_name, admin_password, user_id, password):
@@ -175,8 +177,10 @@ def present_user(module):
         'OrgId': module.params['orgid']
     }
 
-    user = _get_user(module.params['grafana_url'], module.params['admin_name'],
-                     module.params['admin_password'], module.params['login'], module.params['email'])
+    user, refused = _get_user(module.params['grafana_url'], module.params['admin_name'],
+                              module.params['admin_password'], module.params['login'], module.params['email'])
+    if refused:
+        return True, False, refused
 
     if user is None:
         api_url = module.params['grafana_url'] + '/api/admin/users'
@@ -198,8 +202,10 @@ def absent_user(module):
     if module.params['grafana_url'][-1] == '/':
         module.params['grafana_url'] = module.params['grafana_url'][:-1]
 
-    user = _get_user(module.params['grafana_url'], module.params['admin_name'],
-                     module.params['admin_password'], module.params['login'], module.params['email'])
+    user, refused = _get_user(module.params['grafana_url'], module.params['admin_name'],
+                              module.params['admin_password'], module.params['login'], module.params['email'])
+    if refused:
+        return True, False, refused
 
     if user is None:
         return False, False, "User does not exist"
@@ -219,17 +225,21 @@ def password_user(module):
     if module.params['grafana_url'][-1] == '/':
         module.params['grafana_url'] = module.params['grafana_url'][:-1]
 
-    # try with new password to check if already changed
-    user = _get_user(module.params['grafana_url'], module.params['login'],
-                     module.params['password'], module.params['login'], module.params['email'])
+    # try with new password to check if already changed. A refusal here,
+    # typically 401, is the answer "not changed yet", so only a user found
+    # with the new password ends the task.
+    user, refused = _get_user(module.params['grafana_url'], module.params['login'],
+                              module.params['password'], module.params['login'], module.params['email'])
 
-    if 'id' in user:
+    if user is not None and 'id' in user:
         # Auth is OK, password does not need to be changed
         return False, False, {'message': 'Password has already been changed', 'user': user}
 
     # from here, we begin password change procedure
-    user = _get_user(module.params['grafana_url'], module.params['admin_name'],
-                     module.params['admin_password'], module.params['login'], module.params['email'])
+    user, refused = _get_user(module.params['grafana_url'], module.params['admin_name'],
+                              module.params['admin_password'], module.params['login'], module.params['email'])
+    if refused:
+        return True, False, refused
 
     if user is None:
         return True, False, "User does not exist"

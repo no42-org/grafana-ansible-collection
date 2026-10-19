@@ -155,7 +155,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import accepted, failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -189,9 +189,11 @@ def present_folder(module):
         folderInfo = {}
 
         api_url = module.params['grafana_url'] + '/api/folders'
-        result = requests.get(api_url, headers=headers)
+        folders, refused = accepted(requests.get(api_url, headers=headers))
+        if refused:
+            return True, False, refused
 
-        for folder in result.json():
+        for folder in folders:
             if folder['uid'] == module.params['uid'] and folder['title'] == module.params['title']:
                 sameConfig = True
                 folderInfo = folder
@@ -227,9 +229,11 @@ def absent_folder(module):
         "Authorization": 'Bearer ' + module.params['grafana_api_key'],
         'User-Agent': 'grafana-ansible-collection',
     }
-    result = requests.get(api_url, headers=headers)
+    folders, refused = accepted(requests.get(api_url, headers=headers))
+    if refused:
+        return True, False, refused
 
-    for folder in result.json():
+    for folder in folders:
         if folder['uid'] == module.params['uid'] and folder['title'] == module.params['title']:
             sameConfig = True
     if sameConfig is True:
