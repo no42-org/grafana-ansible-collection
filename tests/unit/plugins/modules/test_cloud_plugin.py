@@ -191,6 +191,7 @@ def test_latest_with_the_newest_installed_is_unchanged(monkeypatch, capsys):
     result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
     assert result['changed'] is False
     assert len(post.headers) == 1, 'an update was sent for a plugin already at its newest version'
+    assert_authenticated(get, 1)
 
 
 def test_latest_with_an_older_version_installed_updates(monkeypatch, capsys):
@@ -200,6 +201,7 @@ def test_latest_with_an_older_version_installed_updates(monkeypatch, capsys):
     result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
     assert result['changed'] is True
     assert len(post.headers) == 2
+    assert_authenticated(get, 1)
 
 
 def test_concrete_version_already_installed_is_unchanged(monkeypatch, capsys):
@@ -209,9 +211,14 @@ def test_concrete_version_already_installed_is_unchanged(monkeypatch, capsys):
     result = run_module_succeeding(monkeypatch, capsys, 'present', '1.0.14', post=post, get=get)
     assert result['changed'] is False
     assert len(post.headers) == 1
+    assert_authenticated(get, 1)
 
 
 def test_latest_without_a_reported_newest_version_updates(monkeypatch, capsys):
+    # What this covers is the decision: with no latestVersion to compare, an
+    # update is sent. The update response is the fixture's full record, because
+    # what a successful update returns is unverified (#144), and main() reads
+    # its success fields from it either way.
     installed = dict(PLUGIN)
     del installed['latestVersion']
     post = Recorder(Response(409, {'message': 'already installed'}), Response(200, PLUGIN))
@@ -220,3 +227,4 @@ def test_latest_without_a_reported_newest_version_updates(monkeypatch, capsys):
     result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
     assert result['changed'] is True
     assert len(post.headers) == 2
+    assert_authenticated(get, 1)
