@@ -43,11 +43,16 @@ PLUGIN = {
 
 
 class Response(object):
+    """A requests response. A str body is not JSON, as an HTML error page is not."""
+
     def __init__(self, status_code, body):
         self.status_code = status_code
         self._body = body
+        self.text = body if isinstance(body, str) else json.dumps(body)
 
     def json(self):
+        if isinstance(self._body, str):
+            raise ValueError('Expecting value: line 1 column 1 (char 0)')
         return self._body
 
 
@@ -81,6 +86,19 @@ def run_module(monkeypatch, state, version, post=None, get=None, delete=None):
     return exit_info.value.code
 
 
+def run_module_failing(monkeypatch, capsys, state, version, **fakes):
+    """Run the module, require it to fail cleanly, and return its msg.
+
+    An exception escaping main() is not caught here, so a refusal that raises
+    fails the test with its own traceback.
+    """
+    capsys.readouterr()
+    assert run_module(monkeypatch, state, version, **fakes) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result['failed'] is True
+    return result['msg']
+
+
 def assert_authenticated(recorder, calls):
     assert len(recorder.headers) == calls
     for headers in recorder.headers:
@@ -108,3 +126,41 @@ def test_absent_deletes_with_cloud_api_key(monkeypatch):
 
     assert run_module(monkeypatch, 'absent', 'latest', delete=delete) == 0
     assert_authenticated(delete, 1)
+
+
+def test_refusal_with_a_message_fails_with_it(monkeypatch, capsys):
+    post = Recorder(Response(403, {'message': 'Forbidden'}))
+
+    msg = run_module_failing(monkeypatch, capsys, 'present', '1.0.14', post=post)
+    assert msg == {'status': 403, 'response': 'Forbidden'}
+
+
+def test_json_refusal_without_a_message_fails_with_the_body(monkeypatch, capsys):
+    delete = Recorder(Response(401, {'error': 'invalid token'}))
+
+    msg = run_module_failing(monkeypatch, capsys, 'absent', 'latest', delete=delete)
+    assert msg == {'status': 401, 'response': {'error': 'invalid token'}}
+
+
+def test_refusal_that_is_not_json_fails_with_the_text(monkeypatch, capsys):
+    post = Recorder(Response(502, '<html>Bad Gateway</html>'))
+
+    msg = run_module_failing(monkeypatch, capsys, 'present', '1.0.14', post=post)
+    assert msg == {'status': 502, 'response': '<html>Bad Gateway</html>'}
+
+
+def test_refused_lookup_after_a_conflict_fails_without_updating(monkeypatch, capsys):
+    post = Recorder(Response(409, {'message': 'already installed'}))
+    get = Recorder(Response(404, {'message': 'Not found'}))
+
+    msg = run_module_failing(monkeypatch, capsys, 'present', '1.0.15', post=post, get=get)
+    assert msg == {'status': 404, 'response': 'Not found'}
+    assert len(post.headers) == 1, 'an update was attempted after the lookup was refused'
+
+
+def test_refused_update_fails_with_its_status(monkeypatch, capsys):
+    post = Recorder(Response(409, {'message': 'already installed'}), Response(400, {'message': 'invalid version'}))
+    get = Recorder(Response(200, PLUGIN))
+
+    msg = run_module_failing(monkeypatch, capsys, 'present', '1.0.15', post=post, get=get)
+    assert msg == {'status': 400, 'response': 'invalid version'}
