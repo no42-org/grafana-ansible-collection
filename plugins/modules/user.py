@@ -243,7 +243,7 @@ def password_user(module):
     if result.status_code == 200:
         return False, True, result.json()
 
-    return True, False, result.json()
+    return True, False, failure(result)
 
 
 def main():
