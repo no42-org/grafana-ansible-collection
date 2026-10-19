@@ -147,8 +147,12 @@ def _get_user(grafana_url, admin_name, admin_password, login, email=None):
         return None, None
 
     # (user, None) when found, (None, failure) when the lookup is refused. A
-    # refusal used to come back as a "user" without an id (#159).
-    return accepted(result)
+    # refusal used to come back as a "user" without an id (#159), and a body
+    # without one is no more usable than a refusal.
+    user, refused = accepted(result, kind=dict)
+    if user is not None and 'id' not in user:
+        return None, failure(result)
+    return user, refused
 
 
 def _set_user_password(grafana_url, admin_name, admin_password, user_id, password):
@@ -230,6 +234,10 @@ def password_user(module):
     # with the new password ends the task.
     user, refused = _get_user(module.params['grafana_url'], module.params['login'],
                               module.params['password'], module.params['login'], module.params['email'])
+    if refused and refused['status'] not in (401, 403):
+        # Only an authentication refusal means "not changed yet". Anything
+        # else, a 500 or a proxy's 502, is an error of its own.
+        return True, False, refused
 
     if user is not None and 'id' in user:
         # Auth is OK, password does not need to be changed

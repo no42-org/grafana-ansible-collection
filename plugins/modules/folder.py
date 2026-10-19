@@ -189,7 +189,7 @@ def present_folder(module):
         folderInfo = {}
 
         api_url = module.params['grafana_url'] + '/api/folders'
-        folders, refused = accepted(requests.get(api_url, headers=headers))
+        folders, refused = accepted(requests.get(api_url, headers=headers), kind=list)
         if refused:
             return True, False, refused
 
@@ -229,7 +229,7 @@ def absent_folder(module):
         "Authorization": 'Bearer ' + module.params['grafana_api_key'],
         'User-Agent': 'grafana-ansible-collection',
     }
-    folders, refused = accepted(requests.get(api_url, headers=headers))
+    folders, refused = accepted(requests.get(api_url, headers=headers), kind=list)
     if refused:
         return True, False, refused
 
