@@ -125,7 +125,7 @@
 # raises on undefined instead of retrying.
 - name: Wait for DB migrations to complete
   ansible.builtin.uri:
-    url: "{{ grafana_ini.server.protocol | default('http') }}://{{ __grafana_probe_url_host }}:{{ grafana_ini.server.http_port }}/api/health"
+    url: "{{ __grafana_probe_scheme }}://{{ __grafana_probe_url_host }}:{{ grafana_ini.server.http_port }}/api/health"
     follow_redirects: none
     validate_certs: false
   register: grafana_health
@@ -133,4 +133,4 @@
   delay: 5
   until: grafana_health.json.database | default('') == 'ok'
   when:
-    - grafana_ini.server.protocol is undefined or grafana_ini.server.protocol in ['http', 'https']
+    - __grafana_probe_tcp | bool
