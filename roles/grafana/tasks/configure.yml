@@ -51,11 +51,12 @@
 # /run/grafana belongs to systemd: the packaged grafana-server.service, deb and
 # rpm alike, declares RuntimeDirectory=grafana with RuntimeDirectoryMode=0750
 # and recreates it on every start. Managing it here as well set it to 0775,
-# which the next restart undid, so the role never converged (#157).
+# which the next restart undid, so the role never converged (#157). A socket
+# directly in /run or /var/run is refused by the preflight.
 - name: "Enable grafana socket"
   when:
-    - __grafana_probe_on_socket | bool
-    - "grafana_ini.server.socket | dirname not in ['/run', '/var/run', '/run/grafana', '/var/run/grafana']"
+    - __grafana_on_socket | bool
+    - not __grafana_socket_dir_is_runtime_dir | bool
   block:
     - name: "Create grafana socket directory"
       ansible.builtin.file:
@@ -72,6 +73,17 @@
         owner: "root"
         group: "root"
         mode: "0644"
+
+# An earlier version of this role wrote that entry for /run/grafana too, so a
+# host it configured would recreate the directory as 0775 at every boot, and
+# systemd would set it back to 0750 at the next start.
+- name: "Remove the socket tmpfiles entry the systemd runtime directory makes redundant"
+  ansible.builtin.file:
+    path: /etc/tmpfiles.d/grafana.conf
+    state: absent
+  when:
+    - __grafana_on_socket | bool
+    - __grafana_socket_dir_is_runtime_dir | bool
 
 - name: "Enable grafana to ports lower than port 1024"
   community.general.capabilities:

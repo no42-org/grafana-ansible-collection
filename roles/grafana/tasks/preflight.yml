@@ -103,6 +103,20 @@
     - "grafana_ini.server.protocol is defined and grafana_ini.server.protocol in ['socket', 'socket_h2']"
     - "grafana_ini.server.socket is undefined or grafana_ini.server.socket == ''"
 
+# Grafana runs as the grafana user and cannot create a socket in /run or
+# /var/run itself, and the role will not hand either directory to it.
+# /run/grafana, which systemd creates for the service, is the place for one.
+- name: "Fail if grafana_ini.server.socket is directly in /run or /var/run"
+  ansible.builtin.fail:
+    msg: >-
+      grafana_ini.server.socket is {{ grafana_ini.server.socket }}. Grafana
+      cannot create a socket directly in /run or /var/run; use
+      /run/grafana/grafana.sock, a directory systemd creates for the
+      service, or a directory of your own.
+  when:
+    - "grafana_ini.server.protocol is defined and grafana_ini.server.protocol in ['socket', 'socket_h2']"
+    - "grafana_ini.server.socket | default('') | dirname is match('^/(var/)?run/*$')"
+
 # Measured on 13.2.4: without a root_url, Grafana derives
 # socket_h2://localhost:3000/ from this protocol, rejects it as an invalid URL
 # and exits at startup. root_url is the address users reach Grafana at, which
