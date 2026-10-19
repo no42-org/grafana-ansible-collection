@@ -93,8 +93,9 @@
     # the converge green.
     - name: "Read the Grafana health endpoint"
       ansible.builtin.uri:
-        url: "http://{{ role_test_probe_url_host | default('127.0.0.1') }}:3000/api/health"
+        url: "{{ role_test_probe_scheme | default('http') }}://{{ role_test_probe_url_host | default('127.0.0.1') }}:3000/api/health"
         follow_redirects: none
+        validate_certs: false
       register: __health
 
     - name: "Assert the database migrations completed"
@@ -267,6 +268,13 @@
           - "('http_addr = ' ~ role_test_http_addr) in (__ini_content.content | b64decode).splitlines()"
         fail_msg: "grafana.ini does not set http_addr = {{ role_test_http_addr }}"
       when: role_test_http_addr is defined
+
+    - name: "Assert grafana.ini carries the server keys a variant set"
+      ansible.builtin.assert:
+        that:
+          - "(item.key ~ ' = ' ~ item.value) in (__ini_content.content | b64decode).splitlines()"
+        fail_msg: "grafana.ini does not set {{ item.key }} = {{ item.value }}"
+      loop: "{{ role_test_server | default({}) | dict2items }}"
 
     # ----------------------------- #417 booleans render in the documented form
     # Whole lines, not substrings: the macro carries whitespace control, and

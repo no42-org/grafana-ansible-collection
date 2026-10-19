@@ -42,3 +42,34 @@
         dest: /srv/grafana-data/dashboards/stale.json
         mode: "0644"
       become: true
+
+    # A certificate for the variants that serve TLS (#151). Minted here rather
+    # than in converge so it is the same file on both converges; `creates:`
+    # keeps a rerun from replacing it. The key is world-readable because the
+    # grafana user does not exist until the role installs the package, and
+    # this is a throwaway key for a throwaway container.
+    - name: "Create the test certificate directory"
+      ansible.builtin.file:
+        path: /etc/ssl/role-test
+        state: directory
+        mode: "0755"
+      become: true
+      when: role_test_tls is defined
+
+    - name: "Mint a self-signed certificate for the TLS variants"
+      ansible.builtin.command:
+        cmd: >-
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2
+          -subj /CN=grafana.role-test
+          -keyout /etc/ssl/role-test/grafana.key
+          -out /etc/ssl/role-test/grafana.crt
+        creates: /etc/ssl/role-test/grafana.crt
+      become: true
+      when: role_test_tls is defined
+
+    - name: "Let the grafana service read the test key"
+      ansible.builtin.file:
+        path: /etc/ssl/role-test/grafana.key
+        mode: "0644"
+      become: true
+      when: role_test_tls is defined
