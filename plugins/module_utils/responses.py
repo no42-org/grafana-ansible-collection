@@ -43,16 +43,21 @@ def failure(result):
     return {'status': result.status_code, 'response': body}
 
 
-def accepted(result, ok=(200,)):
+def accepted(result, ok=(200,), kind=None):
     """(body, None) for an accepted response, (None, failure(result)) otherwise.
 
     For a lookup, whose body the caller is about to read as the data it asked
-    for: a refusal's body is not that data (#159). An accepted status with a
-    body that is not JSON is reported too, since the caller cannot use it.
+    for: a refusal's body is not that data (#159). An accepted status whose
+    body is not JSON, or not the `kind` of JSON the caller expects (a list of
+    folders, say, where a gateway answered 200 with a dict), is reported too,
+    since the caller cannot use it.
     """
     if result.status_code not in ok:
         return None, failure(result)
     try:
-        return result.json(), None
+        body = result.json()
     except ValueError:
         return None, failure(result)
+    if kind is not None and not isinstance(body, kind):
+        return None, failure(result)
+    return body, None

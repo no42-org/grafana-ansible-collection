@@ -49,3 +49,9 @@ def test_message_and_failure(body, expected_message, expected_response):
 ], ids=['accepted', 'accepted-by-ok', 'refused', 'accepted-but-not-json'])
 def test_accepted(status, body, ok, expected):
     assert accepted(Response(status, body), ok=ok) == expected
+
+
+def test_accepted_rejects_the_wrong_kind_of_json():
+    assert accepted(Response(200, {'message': 'login required'}), kind=list) == (
+        None, {'status': 200, 'response': 'login required'})
+    assert accepted(Response(200, [1]), kind=list) == ([1], None)
