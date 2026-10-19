@@ -49,9 +49,12 @@
 #
 # ROLE_TEST_VARIANT names a variant of the role's one scenario:
 # tests/roles/<role>/variants/<name>.yml, passed as extra vars to every phase.
-# A variant sets role_test_* inputs the scenario reads with defaults, never a
-# dictionary the scenario sets, because an extra var replaces it whole. It
-# exists so one scenario can run against a different input -- an IPv6 bind
+# A variant sets role_test_* inputs the scenario reads with defaults, or a role
+# input the scenario never sets (grafana_version, say). Never a dictionary the
+# scenario sets, because an extra var replaces it whole. The name is lowercase
+# letters, digits and hyphens: it becomes part of a path and of container
+# names. Every variant must be named in role-test.yml's variants job, which
+# `make ci-lint-release` checks, or it would never run in CI. It exists so one scenario can run against a different input -- an IPv6 bind
 # address, an older Grafana -- without a second copy of it to drift.
 #
 # Containers are named deterministically and removed unconditionally before and
@@ -124,6 +127,10 @@ check="${TEST_ROOT}/${role}/check.yml"
 variant="${ROLE_TEST_VARIANT:-}"
 variantArgs=()
 if [[ -n "${variant}" ]]; then
+  if [[ ! "${variant}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    echo >&2 "variant name '${variant}' must be lowercase letters, digits and hyphens"
+    exit 1
+  fi
   variantFile="$(pwd)/${TEST_ROOT}/${role}/variants/${variant}.yml"
   if [[ ! -f "${variantFile}" ]]; then
     echo >&2 "no variant '${variant}' for ${role}; variants under ${TEST_ROOT}/${role}/variants/:"

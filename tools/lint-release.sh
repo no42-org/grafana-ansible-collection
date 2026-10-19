@@ -225,6 +225,23 @@ if [[ "$(echo "${uvVersions}" | wc -l | tr -d ' ')" != "1" ]]; then
   statusCode=1
 fi
 
+# A role test variant runs in CI only if role-test.yml's variants job names it.
+# Adding a file under tests/roles/<role>/variants/ schedules nothing on its
+# own, and a variant that never runs is a gate that looks present and is not.
+echo "  ‣ every role test variant runs in CI"
+unscheduled=""
+for variantFile in tests/roles/*/variants/*.yml; do
+  [[ -e "${variantFile}" ]] || continue
+  variantName="$(basename "${variantFile}" .yml)"
+  if ! grep -qE "^[[:space:]]*variant:[[:space:]]*${variantName}[[:space:]]*$" .github/workflows/role-test.yml; then
+    unscheduled="${unscheduled} ${variantFile}"
+  fi
+done
+if [[ -n "${unscheduled}" ]]; then
+  lintError "variant(s) not named in role-test.yml's role-test-variants job:${unscheduled}"
+  statusCode=1
+fi
+
 # What the published collection claims about its own dependencies.
 #
 # Two checks, both in tools/check-shipped-manifests.py: the declared Python
