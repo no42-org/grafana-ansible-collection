@@ -76,11 +76,13 @@
 
     # The probe addresses come from the variant as literals, not derived the
     # way the role derives them: a test that recomputed the role's mapping
-    # would agree with the role's bug.
-    - name: "Assert the HTTP port is listening"
+    # would agree with the role's bug. A socket variant sets
+    # role_test_probe_socket, and both probes then go through that path.
+    - name: "Assert Grafana is listening"
       ansible.builtin.wait_for:
-        port: 3000
-        host: "{{ role_test_probe_host | default('127.0.0.1') }}"
+        port: "{{ omit if role_test_probe_socket is defined else 3000 }}"
+        host: "{{ omit if role_test_probe_socket is defined else role_test_probe_host | default('127.0.0.1') }}"
+        path: "{{ role_test_probe_socket | default(omit) }}"
         timeout: 60
 
     # --------------------- #528 the database survived the handler restart
@@ -94,6 +96,7 @@
     - name: "Read the Grafana health endpoint"
       ansible.builtin.uri:
         url: "{{ role_test_probe_scheme | default('http') }}://{{ role_test_probe_url_host | default('127.0.0.1') }}:3000/api/health"
+        unix_socket: "{{ role_test_probe_socket | default(omit) }}"
         follow_redirects: none
         validate_certs: false
       register: __health

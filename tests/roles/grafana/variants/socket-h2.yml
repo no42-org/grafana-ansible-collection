@@ -1,0 +1,23 @@
+---
+# protocol socket_h2 on the Grafana version the role pins (#157).
+#
+# Measured on 13.2.4, one container per case, with curl --unix-socket:
+#
+#   protocol    root_url   starts   /api/health through the socket
+#   socket      unset      yes      http, HTTP/1.1
+#   socket_h2   unset      exits    -- socket_h2://localhost:3000/ is invalid
+#   socket_h2   set        yes      https only, HTTP/1.1 and HTTP/2,
+#                                   with or without cert_file
+#
+# So socket_h2 needs a root_url, and its socket speaks TLS.
+#
+# The socket lives in /srv/grafana-socket, a directory the role has to create.
+# The socket variant covers the other case, /run/grafana, which the packaged
+# unit's RuntimeDirectory owns.
+role_test_server:
+  protocol: socket_h2
+  socket: /srv/grafana-socket/grafana.sock
+  root_url: https://grafana.role-test/
+role_test_probe_socket: /srv/grafana-socket/grafana.sock
+role_test_probe_url_host: localhost
+role_test_probe_scheme: https

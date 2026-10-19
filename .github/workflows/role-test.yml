@@ -238,6 +238,8 @@ jobs:
   #   ipv6-bracketed   "[::1]" on Grafana 10.4.19, which accepts only the
   #                    bracketed form
   #   h2               protocol h2 with a self-signed certificate
+  #   socket           protocol socket, the socket in /run/grafana
+  #   socket-h2        protocol socket_h2, which also needs a root_url
   role-test-variants:
     name: ${{ matrix.role }} (${{ matrix.distro }}) variant ${{ matrix.variant }}
     runs-on: ubuntu-24.04
@@ -255,6 +257,12 @@ jobs:
           - role: grafana
             distro: debian
             variant: h2
+          - role: grafana
+            distro: debian
+            variant: socket
+          - role: grafana
+            distro: debian
+            variant: socket-h2
 
     steps:
       - name: Check out code
