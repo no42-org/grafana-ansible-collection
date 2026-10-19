@@ -313,3 +313,37 @@ def test_password_change_fails_when_the_new_password_probe_errors(monkeypatch, c
     result = run_failing(monkeypatch, capsys, 'user', dict(USER, password='new', state='update_password'),
                          {'get': [Response(500, {'message': 'internal error'})]})
     assert result['msg'] == {'status': 500, 'response': 'internal error'}
+
+
+# --------------------------------------------------- #162 absent is idempotent
+# Removing a resource that is not listed is not a change. The fakes answer no
+# DELETE, so a module that sends one fails the test as "unexpected".
+
+ABSENT_CASES = [
+    ('alert_contact_point', dict(CONTACT_POINT, state='absent'),
+     {'get': [Response(200, [{'uid': 'other'}])]}),
+    ('folder', dict(FOLDER, state='absent'),
+     {'get': [Response(200, [{'uid': 'other', 'title': 'other'}])]}),
+]
+
+
+@pytest.mark.parametrize('name, args, responses', ABSENT_CASES, ids=[c[0] for c in ABSENT_CASES])
+def test_absent_resource_that_does_not_exist_is_not_a_change(monkeypatch, capsys, name, args, responses):
+    code, result = run(monkeypatch, capsys, name, args, responses)
+    assert code == 0
+    assert result['changed'] is False
+
+
+PRESENT_CASES = [
+    ('alert_contact_point', dict(CONTACT_POINT, state='absent'),
+     {'get': [Response(200, [{'uid': 'cp'}])], 'delete': [Response(202, {})]}),
+    ('folder', dict(FOLDER, state='absent'),
+     {'get': [Response(200, [{'uid': 'f', 'title': 'f'}])], 'delete': [Response(200, {})]}),
+]
+
+
+@pytest.mark.parametrize('name, args, responses', PRESENT_CASES, ids=[c[0] for c in PRESENT_CASES])
+def test_absent_resource_that_exists_is_removed(monkeypatch, capsys, name, args, responses):
+    code, result = run(monkeypatch, capsys, name, args, responses)
+    assert code == 0
+    assert result['changed'] is True
