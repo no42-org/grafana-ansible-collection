@@ -160,7 +160,7 @@ def present_alert_contact_point(module):
 
         api_url = module.params['grafana_url'] + '/api/v1/provisioning/contact-points'
 
-        listing, refused = accepted(requests.get(api_url, headers=headers))
+        listing, refused = accepted(requests.get(api_url, headers=headers), kind=list)
         if refused:
             return True, False, refused
 
@@ -182,7 +182,7 @@ def present_alert_contact_point(module):
             if result.status_code == 202:
                 api_url = module.params['grafana_url'] + '/api/v1/provisioning/contact-points'
 
-                listing, refused = accepted(requests.get(api_url, headers=headers))
+                listing, refused = accepted(requests.get(api_url, headers=headers), kind=list)
                 if refused:
                     # The update was accepted; a refused read-back does not
                     # undo it. Report the accepted body, as below.
@@ -214,7 +214,7 @@ def absent_alert_contact_point(module):
         'User-Agent': 'grafana-ansible-collection',
     }
 
-    listing, refused = accepted(requests.get(api_url, headers=headers))
+    listing, refused = accepted(requests.get(api_url, headers=headers), kind=list)
     if refused:
         return True, False, refused
 

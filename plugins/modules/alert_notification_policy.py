@@ -188,7 +188,7 @@ def alert_notification_policy(module):
         'User-Agent': 'grafana-ansible-collection',
     }
     result = requests.get(api_url, headers=headers)
-    policy, refused = accepted(result)
+    policy, refused = accepted(result, kind=dict)
     if refused:
         return True, False, refused
 

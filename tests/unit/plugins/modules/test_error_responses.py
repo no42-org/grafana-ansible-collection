@@ -282,3 +282,34 @@ def test_password_change_fails_when_the_admin_lookup_is_refused(monkeypatch, cap
                          {'get': [Response(401, {'message': 'invalid username or password'}),
                                   Response(403, FORBIDDEN_BODY)]})
     assert result['msg'] == {'status': 403, 'response': 'Forbidden'}
+
+
+# A 200 whose JSON is not the kind of data the lookup asked for, as a gateway
+# answering every path with a login dict produces. Found in code review.
+SHAPE_CASES = [
+    ('alert_contact_point-absent', 'alert_contact_point', dict(CONTACT_POINT, state='absent'),
+     {'get': [Response(200, {'message': 'login required'})]}),
+    ('folder-absent', 'folder', dict(FOLDER, state='absent'),
+     {'get': [Response(200, {'message': 'login required'})]}),
+    ('user-present', 'user', USER,
+     {'get': [Response(200, {})]}),
+]
+
+
+@pytest.mark.parametrize('name, args, responses', [c[1:] for c in SHAPE_CASES], ids=[c[0] for c in SHAPE_CASES])
+def test_lookup_of_the_wrong_shape_fails_with_its_status(monkeypatch, capsys, name, args, responses):
+    result = run_failing(monkeypatch, capsys, name, args, responses)
+    assert result['msg']['status'] == 200
+
+
+def test_policy_read_of_the_wrong_shape_fails_without_writing(monkeypatch, capsys):
+    result = run_failing(monkeypatch, capsys, 'alert_notification_policy', dict(GRAFANA, routes=[]),
+                         {'get': [Response(200, ['not', 'a', 'policy'])]})
+    assert result['msg'] == 'Status code is 200'
+
+
+def test_password_change_fails_when_the_new_password_probe_errors(monkeypatch, capsys):
+    # Only an authentication refusal means "not changed yet".
+    result = run_failing(monkeypatch, capsys, 'user', dict(USER, password='new', state='update_password'),
+                         {'get': [Response(500, {'message': 'internal error'})]})
+    assert result['msg'] == {'status': 500, 'response': 'internal error'}
