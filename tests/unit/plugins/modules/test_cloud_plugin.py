@@ -65,6 +65,7 @@ class Recorder(object):
 
     def __call__(self, url, **kwargs):
         self.headers.append(kwargs.get('headers'))
+        assert self.responses, 'unexpected request to %s' % url
         return self.responses.pop(0)
 
 
@@ -84,6 +85,13 @@ def run_module(monkeypatch, state, version, post=None, get=None, delete=None):
         with pytest.raises(SystemExit) as exit_info:
             cloud_plugin.main()
     return exit_info.value.code
+
+
+def run_module_succeeding(monkeypatch, capsys, state, version, **fakes):
+    """Run the module, require it to succeed, and return its result."""
+    capsys.readouterr()
+    assert run_module(monkeypatch, state, version, **fakes) == 0
+    return json.loads(capsys.readouterr().out)
 
 
 def run_module_failing(monkeypatch, capsys, state, version, **fakes):
@@ -174,3 +182,30 @@ def test_update_accepted_with_another_success_status_succeeds(monkeypatch):
     get = Recorder(Response(200, dict(PLUGIN, version='1.0.14')))
 
     assert run_module(monkeypatch, 'present', '1.0.15', post=post, get=get) == 0
+
+
+def test_latest_with_the_newest_installed_is_unchanged(monkeypatch, capsys):
+    post = Recorder(Response(409, {'message': 'already installed'}))
+    get = Recorder(Response(200, dict(PLUGIN, version='1.0.15', latestVersion='1.0.15')))
+
+    result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
+    assert result['changed'] is False
+    assert len(post.headers) == 1, 'an update was sent for a plugin already at its newest version'
+
+
+def test_latest_with_an_older_version_installed_updates(monkeypatch, capsys):
+    post = Recorder(Response(409, {'message': 'already installed'}), Response(200, PLUGIN))
+    get = Recorder(Response(200, dict(PLUGIN, version='1.0.14', latestVersion='1.0.15')))
+
+    result = run_module_succeeding(monkeypatch, capsys, 'present', 'latest', post=post, get=get)
+    assert result['changed'] is True
+    assert len(post.headers) == 2
+
+
+def test_concrete_version_already_installed_is_unchanged(monkeypatch, capsys):
+    post = Recorder(Response(409, {'message': 'already installed'}))
+    get = Recorder(Response(200, PLUGIN))
+
+    result = run_module_succeeding(monkeypatch, capsys, 'present', '1.0.14', post=post, get=get)
+    assert result['changed'] is False
+    assert len(post.headers) == 1
