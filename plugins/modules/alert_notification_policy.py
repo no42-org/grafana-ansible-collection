@@ -162,6 +162,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -195,7 +196,7 @@ def alert_notification_policy(module):
         if result.status_code == 202:
             return False, True, result.json()
         else:
-            return True, False, {"status": result.status_code, 'response': result.json()['message']}
+            return True, False, failure(result)
     elif (result.json()['receiver'] == module.params['rootPolicyReceiver'] and result.json()['routes'] == module.params['routes']
           and result.json()['group_wait'] == module.params['groupWait'] and result.json()['group_interval'] == module.params['groupInterval']
           and result.json()['repeat_interval'] == module.params['repeatInterval']):
@@ -208,7 +209,7 @@ def alert_notification_policy(module):
         if result.status_code == 202:
             return False, True, result.json()
         else:
-            return True, False, {"status": result.status_code, 'response': result.json()['message']}
+            return True, False, failure(result)
 
 
 def main():

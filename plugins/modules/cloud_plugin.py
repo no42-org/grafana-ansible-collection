@@ -93,6 +93,7 @@ RETURN = r'''
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -100,16 +101,6 @@ except ImportError:
     HAS_REQUESTS = False
 
 __metaclass__ = type
-
-
-def _failure(result):
-    try:
-        body = result.json()
-    except ValueError:
-        return {'status': result.status_code, 'response': result.text}
-    if isinstance(body, dict) and 'message' in body:
-        return {'status': result.status_code, 'response': body['message']}
-    return {'status': result.status_code, 'response': body}
 
 
 def present_cloud_plugin(module):
@@ -132,7 +123,7 @@ def present_cloud_plugin(module):
         api_url = 'https://grafana.com/api/instances/' + module.params['stack_slug'] + '/plugins/' + module.params['name']
         result = requests.get(api_url, headers=headers)
         if not 200 <= result.status_code < 300:
-            return True, False, _failure(result)
+            return True, False, failure(result)
 
         installed = result.json()
         wanted = module.params['version']
@@ -147,11 +138,11 @@ def present_cloud_plugin(module):
             result = requests.post(api_url, json={'version': module.params['version']},
                                    headers=headers)
             if not 200 <= result.status_code < 300:
-                return True, False, _failure(result)
+                return True, False, failure(result)
 
             return False, True, result.json()
     else:
-        return True, False, _failure(result)
+        return True, False, failure(result)
 
 
 def absent_cloud_plugin(module):
@@ -165,7 +156,7 @@ def absent_cloud_plugin(module):
     if result.status_code == 200:
         return False, True, result.json()
     else:
-        return True, False, _failure(result)
+        return True, False, failure(result)
 
 
 def main():

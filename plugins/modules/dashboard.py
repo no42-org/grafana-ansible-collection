@@ -108,6 +108,7 @@ output:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -133,7 +134,7 @@ def present_dashboard(module):
     if result.status_code == 200:
         return False, True, result.json()
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def absent_dashboard(module):
@@ -153,7 +154,7 @@ def absent_dashboard(module):
     if result.status_code == 200:
         return False, True, result.json()
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def main():

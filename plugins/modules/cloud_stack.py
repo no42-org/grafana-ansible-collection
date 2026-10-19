@@ -141,6 +141,7 @@ RETURN = r'''
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure, message
 try:
     import requests
     HAS_REQUESTS = True
@@ -190,11 +191,11 @@ def present_cloud_stack(module):
         if full_details:
             return False, True, full_details
         return False, True, stack
-    elif result.status_code in [409, 403] and result.json()['message'] in [
+    elif result.status_code in [409, 403] and message(result) in [
             "That URL has already been taken, please try an alternate URL",
             "Hosted instance limit reached"]:
         stack_found = False
-        if result.json()['message'] == "That URL has already been taken, please try an alternate URL":
+        if message(result) == "That URL has already been taken, please try an alternate URL":
             api_url = STACKS_API_BASE + '?org=' + module.params['org_slug']
             result = requests.get(api_url, headers=headers)
             list_response = result.json()
@@ -214,17 +215,17 @@ def present_cloud_stack(module):
                 api_url = f'{STACKS_API_BASE}/{stackInfo["id"]}'
                 result = requests.post(api_url, json={'deleteProtection': body['deleteProtection']}, headers=headers)
                 if result.status_code != 200:
-                    return True, False, {"status": result.status_code, 'response': result.json()['message']}
+                    return True, False, failure(result)
                 full_details = get_stack_details_from_gcom(module, stackInfo['id'])
                 if full_details:
                     return False, True, full_details
                 return False, True, result.json()
             else:
                 return True, False, "Stack is not found under your org"
-        elif result.json()['message'] == "Hosted instance limit reached":
+        elif message(result) == "Hosted instance limit reached":
             return True, False, "You have reached Maximum number of Cloud Stacks in your Org."
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def absent_cloud_stack(module):
@@ -239,7 +240,7 @@ def absent_cloud_stack(module):
             return False, True, gcom_details
         return False, True, result.json()
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def main():
