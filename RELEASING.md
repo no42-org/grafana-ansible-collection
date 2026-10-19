@@ -341,7 +341,7 @@ Recorded so the reasoning is not repeated:
 | PR | Why not |
 | --- | --- |
 | `#525` | "Fixes" the dashboards loop by listing a string into its characters. Newest of four competing fixes and the worst. |
-| `#504`, `#439` | Correct enough but superseded by `#448`, which fixes the regular expression explicitly. |
+| `#504` | Correct enough but superseded by `#448`, which fixes the regular expression explicitly. `#448` was itself dropped when upstream merged `#439` for the same loop, and this fork took that line in its upstream merge of 2026-10-19. |
 | `#527` | Competes with `#534` on the same `grafana_rhsm_*` conditions; assumes the variables are defined. |
 | `#433` | A 1408-line, 25-file new Pyroscope role. That is adopting a feature, not carrying a fix. |
 | `#529`, `#462`, `#463` | Features, deferred. Untested for clean application. **7.0.0 candidates** — see Deferred. |
@@ -443,12 +443,12 @@ Direct pushes to `main` still work, because of the bypass. That is the case the 
 Every role installs a pinned version. None resolves `latest` at runtime.
 
 ```text
-  grafana                  13.2.2     package version, not a release tag
+  grafana                  13.2.4     package version, not a release tag
   loki                     3.7.8
-  mimir                    3.2.1      upstream tags these mimir-3.2.1
-  tempo                    3.0.3
-  alloy                    1.19.2
-  opentelemetry_collector  0.161.0
+  mimir                    3.2.2      upstream tags these mimir-3.2.2
+  tempo                    3.1.0
+  alloy                    1.21.0
+  opentelemetry_collector  0.163.1
 ```
 
 This table is a fourth copy of the pins, and it was stale when `make ci-lint-versions` was written: that check reads `README.md` and the role READMEs, and a table in prose is not a claim it can parse.
