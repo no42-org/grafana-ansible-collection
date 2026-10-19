@@ -1,0 +1,16 @@
+---
+# protocol h2 on the Grafana version the role pins (#151).
+#
+# Measured on 13.2.4 with a self-signed certificate: h2 listens on [::]:3000
+# and answers /api/health over HTTP/1.1 as well as HTTP/2, so the role can
+# probe it exactly as it probes https. Before #151 it did not probe it at all:
+# "Wait for grafana to start" got neither a port nor a path and slept for 300
+# seconds, and "Wait for DB migrations to complete" was skipped.
+#
+# prepare.yml mints the certificate when role_test_tls is set.
+role_test_tls: true
+role_test_server:
+  protocol: h2
+  cert_file: /etc/ssl/role-test/grafana.crt
+  cert_key: /etc/ssl/role-test/grafana.key
+role_test_probe_scheme: https
