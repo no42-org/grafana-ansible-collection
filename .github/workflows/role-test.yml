@@ -236,9 +236,10 @@ jobs:
   # verify with a vars file from tests/roles/<role>/variants/ layered on top.
   # A job of its own so the role x distro matrix above stays a product.
   #
-  # One package family. The grafana variants are about how the role's probes
-  # reach the server (#189, #151), which no package-manager branch touches;
-  # the matrix above already covers installation on both families.
+  # One package family, except socket. The grafana variants are mostly about
+  # how the role's probes reach the server (#189, #151), which no
+  # package-manager branch touches; socket depends on the packaged unit's
+  # RuntimeDirectory (#157), so it runs on both families.
   #
   #   ipv6             "::1" on the pinned Grafana, which accepts only the
   #                    bare form
@@ -266,6 +267,11 @@ jobs:
             variant: h2
           - role: grafana
             distro: debian
+            variant: socket
+          # rhel as well: the RuntimeDirectory the role now defers to is in
+          # the rpm unit too, and the debian pass cannot show it.
+          - role: grafana
+            distro: rhel
             variant: socket
           - role: grafana
             distro: debian
