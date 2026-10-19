@@ -234,7 +234,7 @@ def absent_folder(module):
         return True, False, refused
 
     for folder in folders:
-        if folder['uid'] == module.params['uid'] and folder['title'] == module.params['title']:
+        if folder['uid'] == module.params['uid']:
             sameConfig = True
     if sameConfig is True:
         api_url = module.params['grafana_url'] + '/api/folders/' + module.params['uid']

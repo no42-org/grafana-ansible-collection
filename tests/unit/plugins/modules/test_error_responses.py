@@ -339,11 +339,14 @@ PRESENT_CASES = [
      {'get': [Response(200, [{'uid': 'cp'}])], 'delete': [Response(202, {})]}),
     ('folder', dict(FOLDER, state='absent'),
      {'get': [Response(200, [{'uid': 'f', 'title': 'f'}])], 'delete': [Response(200, {})]}),
+    # The DELETE is addressed by uid, so a folder renamed since is still removed.
+    ('folder-renamed', dict(FOLDER, state='absent'),
+     {'get': [Response(200, [{'uid': 'f', 'title': 'renamed'}])], 'delete': [Response(200, {})]}),
 ]
 
 
 @pytest.mark.parametrize('name, args, responses', PRESENT_CASES, ids=[c[0] for c in PRESENT_CASES])
 def test_absent_resource_that_exists_is_removed(monkeypatch, capsys, name, args, responses):
-    code, result = run(monkeypatch, capsys, name, args, responses)
+    code, result = run(monkeypatch, capsys, name.split('-')[0], args, responses)
     assert code == 0
     assert result['changed'] is True
