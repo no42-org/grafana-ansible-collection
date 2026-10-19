@@ -18,3 +18,17 @@ __grafana_probe_host: >-
   {{ '127.0.0.1' if __grafana_probe_bind in ['', '0.0.0.0', '::']
   else __grafana_probe_bind }}
 __grafana_probe_url_host: "{{ '[' ~ __grafana_probe_host ~ ']' if ':' in __grafana_probe_host else __grafana_probe_host }}"
+
+# How the probes reach the server, decided once for both waits from the
+# protocol. Grafana defines five: http, https, h2, socket and socket_h2.
+#
+# h2 is probed exactly as https. Measured on 13.2.4: in h2 mode Grafana
+# answers /api/health over HTTP/1.1 as well as HTTP/2, so ansible.builtin.uri,
+# which speaks only HTTP/1.1, needs nothing more. The socket protocols are
+# probed by their path. A protocol outside these is not probed at all: a
+# wait_for given neither a port nor a path sleeps for its timeout and reports
+# success, which is what h2 did before (#151).
+__grafana_probe_protocol: "{{ grafana_ini.server.protocol | default('http') }}"
+__grafana_probe_tcp: "{{ __grafana_probe_protocol in ['http', 'https', 'h2'] }}"
+__grafana_probe_socket: "{{ __grafana_probe_protocol in ['socket', 'socket_h2'] }}"
+__grafana_probe_scheme: "{{ 'https' if __grafana_probe_protocol in ['https', 'h2'] else 'http' }}"
