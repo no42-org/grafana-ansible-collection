@@ -164,3 +164,13 @@ def test_refused_update_fails_with_its_status(monkeypatch, capsys):
 
     msg = run_module_failing(monkeypatch, capsys, 'present', '1.0.15', post=post, get=get)
     assert msg == {'status': 400, 'response': 'invalid version'}
+
+
+def test_update_accepted_with_another_success_status_succeeds(monkeypatch):
+    # The two status checks this module gained accept any 2xx: before them,
+    # the lookup and the update were taken as success whatever their status,
+    # and nothing has shown the update answers 200 rather than 202.
+    post = Recorder(Response(409, {'message': 'already installed'}), Response(202, PLUGIN))
+    get = Recorder(Response(200, dict(PLUGIN, version='1.0.14')))
+
+    assert run_module(monkeypatch, 'present', '1.0.15', post=post, get=get) == 0
