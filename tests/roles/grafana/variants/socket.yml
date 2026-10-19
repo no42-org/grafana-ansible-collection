@@ -1,0 +1,13 @@
+---
+# protocol socket on the Grafana version the role pins (#157).
+#
+# The socket lives in /run/grafana, which the packaged grafana-server.service
+# owns: RuntimeDirectory=grafana with RuntimeDirectoryMode=0750, on deb and rpm
+# alike. systemd recreates it on every start, so a role that also manages it
+# flips its mode on every run. Grafana answers /api/health through the socket
+# over http, so verify, and the role's own database wait, can read it there.
+role_test_server:
+  protocol: socket
+  socket: /run/grafana/grafana.sock
+role_test_probe_socket: /run/grafana/grafana.sock
+role_test_probe_url_host: localhost
