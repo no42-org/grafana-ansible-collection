@@ -24,11 +24,16 @@ __grafana_probe_url_host: "{{ '[' ~ __grafana_probe_host ~ ']' if ':' in __grafa
 #
 # h2 is probed exactly as https. Measured on 13.2.4: in h2 mode Grafana
 # answers /api/health over HTTP/1.1 as well as HTTP/2, so ansible.builtin.uri,
-# which speaks only HTTP/1.1, needs nothing more. The socket protocols are
-# probed by their path. A protocol outside these is not probed at all: a
+# which speaks only HTTP/1.1, needs nothing more. Any other protocol that is not
+# a socket is probed as http, because that is what Grafana serves: given an
+# unknown value such as "gopher", 13.2.4 logs nothing and listens with
+# protocol=http.
+#
+# The socket protocols are probed by their path, and only when one is set. A
 # wait_for given neither a port nor a path sleeps for its timeout and reports
-# success, which is what h2 did before (#151).
+# success, which is what h2 did before (#151); an empty socket path would do
+# the same.
 __grafana_probe_protocol: "{{ grafana_ini.server.protocol | default('http') }}"
-__grafana_probe_tcp: "{{ __grafana_probe_protocol in ['http', 'https', 'h2'] }}"
-__grafana_probe_socket: "{{ __grafana_probe_protocol in ['socket', 'socket_h2'] }}"
+__grafana_probe_tcp: "{{ __grafana_probe_protocol not in ['socket', 'socket_h2'] }}"
+__grafana_probe_socket: "{{ __grafana_probe_protocol in ['socket', 'socket_h2'] and grafana_ini.server.socket | default('') | length > 0 }}"
 __grafana_probe_scheme: "{{ 'https' if __grafana_probe_protocol in ['https', 'h2'] else 'http' }}"
