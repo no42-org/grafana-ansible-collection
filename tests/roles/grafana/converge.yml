@@ -61,10 +61,11 @@
       auth:
         basic:
           enabled: true
-      # The bind address, from a variant when one is run (#189). The default is
-      # the role's own, so a run without a variant is unchanged.
-      server:
-        http_addr: "{{ role_test_http_addr | default('0.0.0.0') }}"
+      # The bind address, from a variant when one is run (#189), and any other
+      # server keys a variant adds, such as protocol and certificates (#151).
+      # The defaults are the role's own, so a run without a variant is
+      # unchanged.
+      server: "{{ {'http_addr': role_test_http_addr | default('0.0.0.0')} | combine(role_test_server | default({})) }}"
     # Exercises #448: the loop that turns dashboard subdirectory paths into
     # folder names. With no subdirectories the block is skipped entirely.
     grafana_dashboards_dir: "{{ role_test_fixtures }}/dashboards"
