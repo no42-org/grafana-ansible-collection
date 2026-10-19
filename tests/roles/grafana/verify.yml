@@ -74,10 +74,13 @@
           grafana-server is not running:
           {{ ansible_facts.services['grafana-server.service'].state | default('absent') }}
 
+    # The probe addresses come from the variant as literals, not derived the
+    # way the role derives them: a test that recomputed the role's mapping
+    # would agree with the role's bug.
     - name: "Assert the HTTP port is listening"
       ansible.builtin.wait_for:
         port: 3000
-        host: 127.0.0.1
+        host: "{{ role_test_probe_host | default('127.0.0.1') }}"
         timeout: 60
 
     # --------------------- #528 the database survived the handler restart
@@ -90,7 +93,7 @@
     # the converge green.
     - name: "Read the Grafana health endpoint"
       ansible.builtin.uri:
-        url: http://127.0.0.1:3000/api/health
+        url: "http://{{ role_test_probe_url_host | default('127.0.0.1') }}:3000/api/health"
         follow_redirects: none
       register: __health
 
@@ -253,6 +256,17 @@
           grafana.ini does not set paths.plugins, so the Grafana server falls
           back to its own default while the plugin CLI resolves the directory
           separately; the two disagree whenever paths.data is overridden
+
+    # --------------------------- #189 http_addr is rendered as the consumer wrote it
+    # The role normalises the address for its own probes only. Which form
+    # Grafana accepts depends on its version, so grafana.ini must carry the
+    # consumer's value untouched.
+    - name: "Assert grafana.ini carries http_addr as given"
+      ansible.builtin.assert:
+        that:
+          - "('http_addr = ' ~ role_test_http_addr) in (__ini_content.content | b64decode).splitlines()"
+        fail_msg: "grafana.ini does not set http_addr = {{ role_test_http_addr }}"
+      when: role_test_http_addr is defined
 
     # ----------------------------- #417 booleans render in the documented form
     # Whole lines, not substrings: the macro carries whitespace control, and

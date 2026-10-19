@@ -41,14 +41,15 @@ clean:
 ROLE ?=
 DISTRO ?= debian
 ANSIBLE_GROUP ?= ansible
+VARIANT ?=
 
 role-test:
 	@if [ -z "$(ROLE)" ]; then \
-		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel] [ANSIBLE_GROUP=ansible|ansible-top]"; \
+		echo "usage: make role-test ROLE=<role> [DISTRO=debian|rhel] [ANSIBLE_GROUP=ansible|ansible-top] [VARIANT=<name>]"; \
 		echo "       make role-test-list"; \
 		exit 1; \
 	fi
-	@ROLE_TEST_ANSIBLE_GROUP=$(ANSIBLE_GROUP) ./tools/role-test.sh $(ROLE) $(DISTRO)
+	@ROLE_TEST_ANSIBLE_GROUP=$(ANSIBLE_GROUP) ROLE_TEST_VARIANT=$(VARIANT) ./tools/role-test.sh $(ROLE) $(DISTRO)
 
 role-test-list:
 	@./tools/role-test.sh --list
