@@ -10,15 +10,17 @@ v7.4.1
 Release Summary
 ---------------
 
-Fixes for four defects that reached users. The cloud_plugin module could not install or update a
-plugin at all: state=present read a parameter the module never declares and raised KeyError before
-sending a request. It also crashed with a traceback when Grafana Cloud refused a request, and
-reported changed on every run with the default version: latest. The grafana role hung for 300
-seconds on an IPv6 http_addr written in brackets, the only form Grafana 10.3 to 11.0 accept, and the
-tempo role failed a dry run on a host without Tempo. Pins move to grafana 13.2.4, alloy 1.21.0,
-opentelemetry_collector 0.163.1, tempo 3.1.0 and mimir 3.2.2. Version numbers are this fork's own
-and do not correspond to any grafana.grafana release; the upstream commit this release is built from
-is recorded in its GitHub release notes.
+Fixes for defects that reached users. The cloud_plugin module could not install or update a plugin
+at all: state=present read a parameter the module never declares and raised KeyError before sending
+a request. It, and eight more plugin modules, crashed with a traceback instead of reporting the HTTP
+status when a request was refused with a body that had no message, and cloud_plugin reported changed
+on every run with the default version: latest. The grafana role hung for 300 seconds on an IPv6
+http_addr written in brackets, the only form Grafana 10.3 to 11.0 accept, and with protocol h2 it
+slept 300 seconds instead of checking that Grafana had started. The tempo role failed a dry run on a
+host without Tempo. Pins move to grafana 13.2.4, alloy 1.21.0, opentelemetry_collector 0.163.1,
+tempo 3.1.0 and mimir 3.2.2. Version numbers are this fork's own and do not correspond to any
+grafana.grafana release; the upstream commit this release is built from is recorded in its GitHub
+release notes.
 
 Minor Changes
 -------------
@@ -29,10 +31,10 @@ Minor Changes
   collection#439, which upstream merged in place of #448, the version this fork carried. Behaviour
   is unchanged; the line is upstream's again.
 - Role tests gain a dry-run phase, run with --check before the first converge for roles that opt in,
-  and named variants, which rerun a role's scenario with different inputs. The grafana role runs two
-  variants, an IPv6 http_addr in each form, against the Grafana version that requires it. make units
-  runs unit tests for plugin modules no container can reach, starting with cloud_plugin, and gates
-  every release.
+  and named variants, which rerun a role's scenario with different inputs. The grafana role runs
+  three: an IPv6 http_addr in each form, each against the Grafana version that requires it, and
+  protocol h2. make units runs unit tests for plugin modules no container can reach, starting with
+  cloud_plugin, and gates every release.
 - The Markdown and text gates run on rumdl and codespell, provisioned through uv.lock like every
   other linter, and the Node toolchain that carried their predecessors is gone.
 
@@ -60,6 +62,18 @@ Bugfixes
   install but installs nothing, so the restart handler and Ensure that Tempo is started failed on a
   tempo.service that does not exist. Both are skipped only in that case, so a dry run on an
   installed host still reports the restart. Addresses grafana/grafana-ansible-collection#406.
+- The grafana role probes a Grafana served with protocol h2 instead of sleeping. Wait for grafana to
+  start got neither a port nor a path, so wait_for slept its 300-second timeout and reported success
+  whether Grafana had started or not, and Wait for DB migrations to complete was skipped. h2 is now
+  probed as https, which Grafana 13.2.4 answers over HTTP/1.1 as well as HTTP/2; a protocol Grafana
+  does not recognise is probed as http, which is what Grafana serves for one; and socket_h2 is
+  probed by its socket path when one is set.
+- The alert_contact_point, alert_notification_policy, cloud_api_key, cloud_stack, dashboard,
+  datasource, folder and user modules fail with the HTTP status when a request is refused with a
+  body that has no message or is not JSON, rather than raising KeyError or a decode error.
+  cloud_stack no longer raises when a 409 or 403 it branches on carries no message. The rule
+  cloud_plugin gained for this now lives in plugins/module_utils/responses.py, and all nine modules
+  use it; a refusal that carries a message fails exactly as before.
 
 v7.4.0
 ======
