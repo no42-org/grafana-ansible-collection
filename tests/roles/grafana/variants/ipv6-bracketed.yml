@@ -13,6 +13,11 @@
 # on it the bracketed form is the only one that starts. The reported defect is
 # the role's "Wait for grafana to start" handing that form to wait_for, which
 # cannot resolve it and times out.
+#
+# grafana_version is a role input the scenario never sets, so overriding it
+# here replaces only the role default. The pin is frozen on purpose and sits
+# outside the weekly bump: what matters is a release from the bracket-only
+# window, not the newest one.
 grafana_version: "10.4.19"
 role_test_http_addr: "[::1]"
 role_test_probe_host: "::1"
