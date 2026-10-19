@@ -72,6 +72,7 @@ EXAMPLES = '''
 '''
 
 from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.grafana.grafana.plugins.module_utils.responses import failure
 try:
     import requests
     HAS_REQUESTS = True
@@ -99,7 +100,7 @@ def present_cloud_api_key(module):
     elif result.status_code == 409:
         return module.params['fail_if_already_created'], False, "A Cloud API key with the same name already exists"
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def absent_cloud_api_key(module):
@@ -113,7 +114,7 @@ def absent_cloud_api_key(module):
     if result.status_code == 200:
         return False, True, "Cloud API key is deleted"
     else:
-        return True, False, {"status": result.status_code, 'response': result.json()['message']}
+        return True, False, failure(result)
 
 
 def main():
