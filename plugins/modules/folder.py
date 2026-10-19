@@ -246,7 +246,7 @@ def absent_folder(module):
         else:
             return True, False, {"status": result.status_code, 'response': "Error deleting folder"}
     else:
-        return False, True, {"status": 200, 'response': "Folder does not exist"}
+        return False, False, {"status": 200, 'response': "Folder does not exist"}
 
 
 def main():

@@ -231,7 +231,7 @@ def absent_alert_contact_point(module):
         else:
             return True, False, failure(result)
     else:
-        return True, False, "Alert Contact point does not exist"
+        return False, False, "Alert Contact point does not exist"
 
 
 def main():
