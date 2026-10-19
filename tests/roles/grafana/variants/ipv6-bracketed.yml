@@ -1,0 +1,19 @@
+---
+# A bracketed IPv6 bind address on Grafana 10.4.19 (#189).
+#
+# Measured with GF_SERVER_HTTP_ADDR, one container per version:
+#
+#   Grafana   "::1"     "[::1]"
+#   10.4.19   exits     listens on [::1]:3000
+#   11.0.0    exits     listens on [::1]:3000
+#   11.6.7    listens   exits, invalid IP address
+#   13.2.3    listens   exits, invalid IP address
+#
+# 10.4.19 is the newest 10.x, so it is what a consumer still on 10.x runs, and
+# on it the bracketed form is the only one that starts. The reported defect is
+# the role's "Wait for grafana to start" handing that form to wait_for, which
+# cannot resolve it and times out.
+grafana_version: "10.4.19"
+role_test_http_addr: "[::1]"
+role_test_probe_host: "::1"
+role_test_probe_url_host: "[::1]"

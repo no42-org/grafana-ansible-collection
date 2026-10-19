@@ -1,0 +1,9 @@
+---
+# A bare IPv6 bind address on the Grafana version the role pins (#189).
+#
+# Grafana 11.6 and later accept only this form: given "[::1]" they exit with
+# "invalid IP address". The role's probes have to bracket it themselves where
+# a URL needs brackets, and leave it bare where a socket does.
+role_test_http_addr: "::1"
+role_test_probe_host: "::1"
+role_test_probe_url_host: "[::1]"
