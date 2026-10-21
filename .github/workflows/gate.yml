@@ -147,7 +147,7 @@ jobs:
 
   sanity:
     name: Sanity (Ⓐ${{ matrix.ansible }})
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     # devel is advisory. It tracks unreleased ansible-core and breaks for
     # reasons unrelated to this collection; a release must not stop for that.
@@ -158,9 +158,11 @@ jobs:
         include:
           - ansible: stable-2.17
             python: '3.11'
+            os: ubuntu-24.04
             experimental: false
           - ansible: stable-2.18
             python: '3.11'
+            os: ubuntu-24.04
             experimental: false
           # 3.13, because ansible-core devel declares
           # `requires-python = ">=3.13"`. With 3.12 the leg failed at
@@ -172,8 +174,18 @@ jobs:
           # This pin tracks ansible-core devel's floor and will need raising
           # again. The symptom is a "requires a different Python" error at the
           # install step, not a sanity failure.
+          #
+          # ubuntu-22.04, because runner image ubuntu24/20261018.339 moved
+          # to kernel 7.0, and there ansible-test devel fails its own
+          # container setup before any sanity check runs: `mount -o
+          # remount,rw /sys/fs/cgroup/ && pkill sleep` exits 1. Every devel
+          # job on that image failed, every one on 20261012.334 (kernel 6.17)
+          # passed. stable-2.17 passes on kernel 7.0, so it is the devel
+          # utility container (3.6.0), not the collection. Move this back
+          # to ubuntu-24.04 once ansible-test devel passes there.
           - ansible: devel
             python: '3.13'
+            os: ubuntu-22.04
             experimental: true
     steps:
       - name: Check out code
