@@ -30,7 +30,7 @@ The Ansible Loki Role allows you to effortlessly deploy and manage [Loki](https:
 ### **Default Variables - `defaults/main.yml`**
 
 ```yaml
-loki_version: "3.7.8"
+loki_version: "3.7.9"
 ```
 
 The version of Loki to download and deploy. Supported standard version "3.0.0" format or "latest".
