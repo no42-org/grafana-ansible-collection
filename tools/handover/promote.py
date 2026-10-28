@@ -28,12 +28,18 @@ def assert_not_upstream(url: str) -> None:
         raise SystemExit(f"handover: refusing to write to upstream remote {url}")
 
 
+def _untested_unchanged(s: ChunkState) -> bool:
+    """An unchanged chunk that no run has verified yet, such as one just seeded."""
+    return s.rebase == "unchanged" and not s.verified_at
+
+
 def matrix(loaded: manifest.Manifest, states: dict[str, ChunkState]) -> list[dict]:
-    """One entry per chunk with tests, among chunks that rebased and has not landed."""
+    """One entry per chunk with tests that rebased, or is unchanged but never
+    verified, and has not landed."""
     out = []
     for chunk in loaded.chunks:
         s = states.get(chunk.id)
-        if s is None or s.rebase != "ok" or s.landed:
+        if s is None or s.landed or not (s.rebase == "ok" or _untested_unchanged(s)):
             continue
         if chunk.tests:
             out.append({"chunk": chunk.id, "ref": chunk.candidate, "goals": list(chunk.tests)})
@@ -139,6 +145,13 @@ def promote(loaded: manifest.Manifest, states: dict[str, ChunkState], results: d
         tested_on = s.upstream or upstream_sha
         if s.landed or s.rebase in SETTLED:
             satisfied.add(chunk.id)
+            # Already published as it is, so a pass is recorded, never pushed.
+            if not s.landed and chunk.tests and _untested_unchanged(s):
+                passed = results.get(chunk.id, False)
+                s.tests = "pass" if passed else "fail"
+                if passed:
+                    s.verified_at = {"upstream": tested_on, "date": today}
+                    s.last_good = dict(s.verified_at)
             continue
         if s.rebase != "ok":
             continue
