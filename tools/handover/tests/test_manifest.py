@@ -110,6 +110,14 @@ class TestManifest(Base):
             text = self.doc(self.chunk("T1")).replace("tests: []", f'tests: ["{goal}"]')
             self.fails(text, "tests", "T1")
 
+    def test_rejects_goal_with_trailing_newline(self):
+        for goal in ("role-test ROLE=x\\n", "sanity\\n"):
+            text = self.doc(self.chunk("T1")).replace("tests: []", f'tests: ["{goal}"]')
+            self.fails(text, "tests", "T1")
+
+    def test_rejects_slug_and_id_with_trailing_newline(self):
+        self.fails(self.doc(self.chunk("T1", "ok\\n")).replace("slug: ok\\n", 'slug: "ok\\n"'), "slug")
+
     def test_accepts_allowed_goals(self):
         text = self.doc(self.chunk("T1")).replace(
             "tests: []", 'tests: ["role-test ROLE=grafana DISTRO=rhel", "sanity"]')

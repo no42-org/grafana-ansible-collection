@@ -125,7 +125,7 @@ def _resolve(repo: Path, main: str, sha: object, where: str) -> str:
 
 def _check_goal(goal: object, where: str) -> str:
     words = goal.split(" ") if isinstance(goal, str) else []
-    if not words or words[0] not in GOALS or not all(ARG_RE.match(w) for w in words[1:]):
+    if not words or words[0] not in GOALS or not all(ARG_RE.fullmatch(w) for w in words[1:]):
         raise ManifestError(f"{where}: tests entry {goal!r} is not an allowed make goal")
     return goal
 
@@ -134,11 +134,11 @@ def _parse_chunk(raw: object, index: int, repo: Path, main: str) -> Chunk:
     if not isinstance(raw, dict):
         raise ManifestError(f"chunks[{index}]: must be a mapping")
     cid = raw.get("id")
-    if not isinstance(cid, str) or not ID_RE.match(cid):
+    if not isinstance(cid, str) or not ID_RE.fullmatch(cid):
         raise ManifestError(f"chunks[{index}]: id {cid!r} must match {ID_RE.pattern}")
     where = f"chunk {cid}"
     slug = _text(raw, "slug", where)
-    if not SLUG_RE.match(slug):
+    if not SLUG_RE.fullmatch(slug):
         raise ManifestError(f"{where}: slug {slug!r} must match {SLUG_RE.pattern}")
     group = raw.get("group")
     if group not in GROUPS:
