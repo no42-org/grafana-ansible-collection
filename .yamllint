@@ -20,6 +20,10 @@ ignore:
   # dependency collections, installed into the repository root in CI because
   # ansible.cfg sets `collections_paths = ./`
   - ansible_collections
+  # planning documents: the tracked handover design and plan, and their
+  # untracked scratch
+  - docs/superpowers
+  - .superpowers
 
 extends: default
 

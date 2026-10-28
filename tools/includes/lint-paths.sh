@@ -36,6 +36,10 @@ readonly LINT_EXCLUDED_DIRS=(
   "openspec"
   ".claude"
   ".agent"
+  # Untracked planning scratch. docs/superpowers is not listed: lintFind prunes
+  # by base name, so a nested path cannot be expressed here, and that directory
+  # is tracked prose that holds no shell script.
+  ".superpowers"
 )
 
 # lintFind <find-expression...>
