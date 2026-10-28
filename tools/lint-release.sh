@@ -257,6 +257,15 @@ if ! python3 tools/check-shipped-manifests.py; then
   statusCode=1
 fi
 
+# The upstream handover manifest: schema, stacking and test-goal allowlist.
+# Coverage (every commit assigned) is not checked here, because a squash merge
+# changes shas and a commit cannot list itself. The handover workflow runs it.
+echo "  ‣ handover manifest is valid"
+if ! make --no-print-directory handover-check; then
+  lintError "tools/handover/chunks.yml does not validate"
+  statusCode=1
+fi
+
 echo "  ‣ yaml parse galaxy.yml .github/dependabot.yml"
 if ! python3 -c "
 import sys, yaml
