@@ -7,7 +7,7 @@
 # in code this repository does not own:
 #
 #   .ansible/             29 ansible-lint findings   (ansible-lint installs here)
-#   ansible_collections/  4851 ansible-lint findings (ansible.cfg: collections_paths = ./)
+#   ansible_collections/  4851 ansible-lint findings (ansible.cfg: collections_path = ./)
 #   .venv/                250 yamllint findings      (uv sync)
 #   .venv/, build/src/    shellcheck findings        (ansible_test's own scripts)
 #
