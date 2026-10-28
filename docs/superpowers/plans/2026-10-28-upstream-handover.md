@@ -19,7 +19,7 @@
 - New source files start with an SPDX header after any shebang: `# Copyright 2026 Ronny Trommer <ronny@no42.org>` / `# SPDX-License-Identifier: GPL-3.0-or-later` (HTML: the same in `<!-- -->`). No header on `chunks.yml` data or test fixtures.
 - Python runs as `uv run --frozen --group ansible python …`. No new dependency in `pyproject.toml`.
 - CI steps call `make` targets only. Actions pinned to a full SHA with the full semver in a trailing comment. `persist-credentials: false` on every checkout.
-- Repo markdown is one sentence per line. No em-dashes in prose.
+- Repo Markdown is one sentence per line. No em-dashes in prose.
 - YAML folded scalars: every continuation indent is a multiple of two (AGENTS.md, editorconfig trap).
 - Enabling GitHub Pages is a repository setting change: ask Ronny at the moment it is done.
 
@@ -69,10 +69,12 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 1: Propose the chunk cut (human gate)
 
 **Files:**
+
 - Create: `tools/handover/chunks.yml`
 - Modify: `galaxy.yml` (`build_ignore`: add `docs/superpowers/*`, so the spec and plan never ship in the collection)
 
 **Interfaces:**
+
 - Produces: `chunks.yml` in the schema above, consumed by every later task.
 
 - [ ] **Step 1: Inventory.** List every non-merge commit in `upstream/main..main` (`git log --no-merges --reverse --format='%h %an %s'`), plus the content changes that exist only in merges `b2b92c2`, `1a2e164` and `1a7a20b` (`git diff <merge>^1 <merge>` minus what the second parent brought). Keep the list in the scratchpad, not the tree.
@@ -86,10 +88,12 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 2: Manifest loader and `make handover-check`
 
 **Files:**
+
 - Create: `tools/handover/manifest.py`, `tools/handover/handover.py` (CLI, argparse subcommands), `tools/handover/tests/test_manifest.py`
 - Modify: `Makefile` (targets `handover-check`, `handover-check-coverage`, `handover-unit`; add all to `.PHONY`), `tools/lint-release.sh` (one check block, same shape as the shipped-manifests block, calling `make handover-check`)
 
 **Interfaces:**
+
 - Produces: `@dataclass(frozen=True) class Chunk: id, slug, group, epic, title, summary, commits: tuple[str,...], requires: str|None, closes: tuple[int,...], carries: tuple[int,...], supersedes: tuple[int,...], tests: tuple[str,...]` with properties `branch -> str` and `candidate -> str`.
 - Produces: `load(path: Path, repo: Path) -> Manifest` where `Manifest` has `chunks: tuple[Chunk,...]` in dependency order (parents first, then file order), `fork_only: tuple[ForkOnly,...]`, and `children(id) -> tuple[Chunk,...]` (transitive). Raises `ManifestError(str)` naming the chunk and field.
 - CLI: `handover.py check [--manifest PATH]` exits 0 and prints `N chunks, M fork-only` or exits 1 with the error. `check --coverage` additionally lists commits in `upstream/main..main` that are in no chunk and no `fork_only` entry, and exits 1 if there are any. Coverage is not part of `ci-lint-release`: a squash merge changes shas, so a commit cannot list itself. The handover workflow runs it, and its result shows on the page as a count of unassigned commits.
@@ -113,10 +117,12 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 3: Rebuild candidates in dependency order
 
 **Files:**
+
 - Create: `tools/handover/rebuild.py`, `tools/handover/state.py`, `tools/handover/tests/test_rebuild.py`, `tools/handover/tests/gitfixture.py` (helper that builds a temp repo with an `upstream` and `origin` bare remote)
 - Modify: `Makefile` (`handover-rebuild`)
 
 **Interfaces:**
+
 - Consumes: `load`, `Chunk`, `Manifest.children`.
 - Produces: `state.load(path) -> dict[str, ChunkState]`, `state.save(path, dict)`; `ChunkState` dataclass mirroring the state file schema.
 - Produces: `rebuild(manifest, repo: Path, upstream_ref="upstream/main", origin="origin") -> dict[str, ChunkState]`. For each chunk in order: new base is `upstream_ref` for a root chunk, the parent's candidate for a child; old base is the merge-base with `upstream_ref` for a root chunk, `origin/<parent.branch>` for a child. Runs `git rebase --onto <new> <old> <candidate>` on a candidate branch created from `origin/<branch>`. `rebase` is `unchanged` when the new base equals the old base, `conflict` after `git rebase --abort`, `parent-behind` when the parent is `conflict` or `parent-behind`.
@@ -138,10 +144,12 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 4: Test plan, test runner, promotion
 
 **Files:**
+
 - Create: `tools/handover/promote.py`, `tools/handover/tests/test_promote.py`
 - Modify: `tools/handover/handover.py` (subcommands `matrix`, `test`, `promote`), `Makefile` (`handover-matrix`, `handover-test CHUNK=<id>`, `handover-promote`)
 
 **Interfaces:**
+
 - Consumes: `load`, `state.load/save`.
 - Produces: `matrix(manifest, states) -> list[dict]` with `{"chunk": id, "ref": candidate, "goal": str}` for every chunk whose `rebase == "ok"`, one entry per test goal. Printed as compact JSON by `handover.py matrix` for the workflow.
 - Produces: `run_tests(chunk, repo) -> bool`: runs `make <goal>` for each of the chunk's goals in the checked-out candidate tree, after confirming `make -n <first word>` exists there (a missing target is a failure, never a skip).
@@ -165,15 +173,17 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 5: Facts for the page (git, landed, CLA, board)
 
 **Files:**
+
 - Create: `tools/handover/facts.py`, `tools/handover/tests/test_facts.py`
 - Modify: `tools/handover/handover.py` (subcommand `facts`), `Makefile` (`handover-facts`)
 
 **Interfaces:**
+
 - Consumes: `load`, `state.load/save`.
 - Produces: `chunk_facts(chunk, repo) -> ChunkFacts` with `commits: list[{sha, subject, author}]`, `files: list[str]`, `insertions: int`, `deletions: int`, taken from `<branch>` relative to its base (upstream/main for roots, the parent branch for children).
 - Produces: `is_landed(chunk, repo, merged_prs: set[int]) -> bool`: True when `git cherry upstream/main <branch> <base>` prints no `+` line, or when every PR in `chunk.carries` is in `merged_prs`.
 - Produces: `cla_status(gh: Callable[[list[str]], str], prs: list[int]) -> dict[int, str]` returning `success`/`failure`/`pending`/`unknown` from the `license/cla` context of each upstream PR head (`gh api repos/grafana/grafana-ansible-collection/pulls/<n>` then `/commits/<sha>/status`). Ronny's own commits use PR #510's status. Any other author with no carried PR is `unknown`, shown as such.
-- Produces: `board_rows(gh) -> list[{number, kind, title, decision, epic, target}]` from `gh project item-list 4 --owner no42-org --limit 1000 --format json`; fails if `totalCount` exceeds the limit (same guard as `upstream-tracker.sh`). Upstream title is the tracking issue title with its `[Issue #NNN] ` prefix removed.
+- Produces: `board_rows(gh) -> list[{number, kind, title, decision, epic, target}]` from `gh project item-list 4 --owner no42-org --limit 1000 --format json`; fails if `totalCount` exceeds the limit (same guard as `upstream-tracker.sh`). Upstream title is the tracking issue title with its `[Issue #NNN]` prefix removed.
 - `gh` is injected as a callable so tests never touch the network. The real callable rejects any argument list containing `-X`, `--method`, `-f`, `-F` or `--input` (read-only by construction).
 - CLI: `handover.py facts` writes `build/handover/facts.json`, including `unassigned: [sha…]` from Task 2's coverage check; a failed `gh` call fails the command, never yields an empty appendix.
 
@@ -193,10 +203,12 @@ One object per chunk id: `{"rebase": "ok"|"conflict"|"parent-behind"|"unchanged"
 ### Task 6: Render the page
 
 **Files:**
+
 - Create: `tools/handover/render.py`, `tools/handover/template.html`, `tools/handover/tests/test_render.py`
 - Modify: `tools/handover/handover.py` (subcommand `render`), `Makefile` (`handover-render`)
 
 **Interfaces:**
+
 - Consumes: `Manifest`, `state.json`, `facts.json`.
 - Produces: `render(manifest, states, facts, generated: str) -> str` (the full HTML). `handover.py render` writes `build/handover/site/index.html` and copies `state.json` beside it.
 
@@ -221,10 +233,12 @@ Visual: single file, inline CSS/JS, light and dark via `prefers-color-scheme`, r
 ### Task 7: Workflow and Pages
 
 **Files:**
+
 - Create: `.github/workflows/handover.yml`
 - Modify: `Makefile` (`handover-publish-local`: rebuild + facts + render without pushing, for local inspection)
 
 Jobs, in order:
+
 1. `rebuild` (`contents: write`): checkout with `fetch-depth: 0`, `persist-credentials: false`; add `upstream` remote (fetch only); download the previously deployed `state.json` from the Pages URL (absent on first run is fine); `make handover-check`, `make handover-check-coverage` (recorded, not fatal), `make handover-rebuild`; push `handover-candidate/*` to origin with `GITHUB_TOKEN` passed per command (`git -c http.extraheader=…`), never written to git config; output `make handover-matrix`. Continue on rebuild exit 1 (conflicts are recorded in state, not fatal here); upload `build/handover` as an artifact.
 2. `test` (matrix from job 1, `fail-fast: false`, `contents: read`): checkout the candidate ref, `make handover-test CHUNK=<id>`, write and upload its result file. Uses the same docker/uv setup as `role-test.yml` and `module-test.yml`.
 3. `publish` (`contents: write`, `pages: write`, `id-token: write`, `environment: github-pages`): download artifacts; `make handover-promote`; `make handover-facts` with `GH_TOKEN: secrets.PROJECTS_TOKEN` (the board is private); `make handover-render`; `actions/upload-pages-artifact` and `actions/deploy-pages`; fail the job at the end if any chunk is `conflict` or failed tests, after deploying.
@@ -240,9 +254,11 @@ Triggers: `workflow_dispatch`, and `schedule` weekly on Monday after the upstrea
 ### Task 8: Seed the review branches
 
 **Files:**
+
 - Modify: `tools/handover/handover.py` (subcommand `seed [--chunk ID] [--continue]`), `Makefile` (`handover-seed`), `tools/handover/tests/test_seed.py`
 
 **Interfaces:**
+
 - Produces: `seed(chunk, repo)`: creates `<branch>` locally from its base (upstream/main, or the parent's local branch) and runs `git cherry-pick <commits…>` without `-x` (carried commits already carry their origin line). On conflict it stops and prints what to resolve; `--continue` resumes. Refuses to overwrite an existing local or origin branch.
 
 - [ ] **Step 1: Write failing tests** `test_seed_preserves_author`, `test_seed_stops_on_conflict_and_continues`, `test_seed_refuses_existing_branch`.
@@ -254,8 +270,9 @@ Triggers: `workflow_dispatch`, and `schedule` weekly on Monday after the upstrea
 ### Task 9: Update the fork's own docs
 
 **Files:**
+
 - Modify: `AGENTS.md` (section 3), `RELEASING.md` (the section that says nothing is submitted upstream; add a "Handover" section)
 
 - [ ] **Step 1: Rewrite** the "maintainership is dormant" statements: upstream is maintained again; the fork still never writes there; upstream's maintainer pulls from `review/*` branches listed on the handover page. Add the commands (`make handover-check`, `handover-rebuild`, `handover-render`, `handover-seed`) and the rule that `chunks.yml` is updated after a commit lands on `main` (every commit in exactly one chunk or `fork_only`; `make handover-check-coverage` lists what is missing, and the page shows the count).
-- [ ] **Step 2: Run** `make ci-lint` → markdown, text and editorconfig pass.
+- [ ] **Step 2: Run** `make ci-lint` → Markdown, text and editorconfig pass.
 - [ ] **Step 3: Commit** `docs: describe the upstream handover`.
