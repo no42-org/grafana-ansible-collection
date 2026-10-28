@@ -63,7 +63,9 @@ def status(chunk: manifest.Chunk, s: ChunkState | None, landed: bool) -> tuple[s
     """(css class, status line). Order: landed, behind, no tests, verified."""
     if landed or (s is not None and s.landed):
         return "landed", "landed upstream"
-    behind = s is None or s.rebase in ("conflict", "parent-behind") or s.tests == "fail"
+    # A rebased chunk that was not promoted still has its old review branch.
+    behind = (s is None or s.rebase in ("conflict", "parent-behind") or s.tests == "fail"
+              or (s.rebase == "ok" and not s.promoted))
     if behind and s is not None and s.last_good:
         good = s.last_good
         return "behind", (f"behind upstream since {good['date']} "
