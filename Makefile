@@ -1,7 +1,7 @@
 .DEFAULT_GOAL:= lint
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit handover-rebuild handover-matrix handover-test handover-promote handover-facts handover-render handover-push-candidates handover-publish-local
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit handover-rebuild handover-seed handover-matrix handover-test handover-promote handover-facts handover-render handover-push-candidates handover-publish-local
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -302,6 +302,16 @@ handover-rebuild:
 # The CI test matrix for the rebuilt candidates, as GitHub Actions JSON.
 handover-matrix:
 	@$(HANDOVER_PY) tools/handover/handover.py matrix
+
+# Build one chunk's first review branch by cherry-picking its commits, one
+# chunk at a time. A conflict stops it; resolve, then rerun with CONTINUE=1.
+# Never pushes.
+handover-seed:
+	@if [ -z "$(CHUNK)" ]; then \
+		echo "usage: make handover-seed CHUNK=<chunk id> [CONTINUE=1]"; \
+		exit 1; \
+	fi
+	@$(HANDOVER_PY) tools/handover/handover.py seed --chunk $(CHUNK) $(if $(CONTINUE),--continue)
 
 # Run one chunk's declared tests in TREE (default: this checkout). CI checks
 # the candidate out into a subdirectory, because the candidate is upstream
