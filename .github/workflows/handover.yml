@@ -1,0 +1,340 @@
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+name: Upstream Handover
+
+# Keeps the review/* branches current with upstream and publishes the handover
+# page to GitHub Pages.
+#
+#   rebuild   rebases every review branch onto upstream main into a
+#             handover-candidate/* branch and pushes the candidates
+#   test      runs each candidate's declared make goals, one job per chunk
+#   publish   promotes candidates that passed to review/*, gathers the page's
+#             facts, renders it and deploys it
+#
+# The tooling and the tree under test are different trees. A candidate is
+# upstream main plus one chunk and does not contain tools/handover, so the
+# test job checks out this repository's tooling at the workspace root and the
+# candidate into candidate/.
+#
+# Upstream is read, never written. Every push goes through tools/handover's
+# vetted push URL, which refuses any URL naming the upstream repository, and
+# the upstream remote added below has its push URL disabled as well.
+
+# yamllint disable-line rule:truthy
+on:
+  # Monday, an hour after the upstream tracker.
+  schedule:
+    - cron: '41 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# uv's own version, which tools/lint-release.sh checks against every other
+# workflow that declares it.
+env:
+  UV_VERSION: '0.12.7'
+
+concurrency:
+  group: handover
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    name: Rebuild the candidates
+    # The manifest's commits are resolved against the local main branch, and
+    # the page and the review branches describe main. A run from any other ref
+    # would publish a page about a branch nobody reviews.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write  # push handover-candidate/* for the test jobs
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      conflict: ${{ steps.rebuild.outputs.conflict }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+
+      # Read-only. upstream is fetched and never pushed to (AGENTS.md section
+      # 3); the push URL is set to something that cannot be pushed to, so a
+      # mistaken `git push upstream` fails instead of writing.
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/grafana/grafana-ansible-collection.git
+          git remote set-url --push upstream no-push-to-upstream
+          git fetch --no-tags upstream main
+
+      # last_good and verified_at carry over from the page that is deployed.
+      # A 404 is the first run and means there is nothing to carry. Any other
+      # failure stops the run: rebuilding without the previous state would
+      # silently erase every chunk's last good verification.
+      - name: Download the previous state
+        run: |
+          mkdir -p build/handover
+          url=https://no42-org.github.io/grafana-ansible-collection/state.json
+          if code="$(curl --fail --silent --show-error --location \
+            --output build/handover/previous.json --write-out '%{http_code}' "${url}")"; then
+            echo "previous state downloaded from ${url}"
+          elif [ "${code}" = "404" ]; then
+            rm -f build/handover/previous.json
+            echo "no previous state at ${url} (HTTP 404), treating this as the first run"
+          else
+            echo "::error::cannot download ${url} (HTTP ${code:-none})"
+            exit 1
+          fi
+
+      - name: Check the manifest
+        run: make handover-check
+
+      # Recorded, not fatal: a squash merge changes shas, so a commit on main
+      # can be unassigned until the manifest is edited, and that must not stop
+      # the review branches from being kept current.
+      - name: Check every commit is in a chunk
+        continue-on-error: true
+        run: make handover-check-coverage
+
+      # make turns every failing recipe into exit 2, so rebuild's own 1
+      # (a conflict, recorded in the state) and 2 (could not run) are told
+      # apart by whether the state file was written. The checkout is fresh,
+      # so a state file can only be this run's.
+      - name: Rebuild
+        id: rebuild
+        run: |
+          if make handover-rebuild args="--previous build/handover/previous.json"; then
+            echo "conflict=false" >> "${GITHUB_OUTPUT}"
+          elif [ -f build/handover/state.json ]; then
+            echo "::warning::at least one chunk conflicted; see the state file and the page"
+            echo "conflict=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::rebuild could not run and wrote no state"
+            exit 1
+          fi
+
+      # The token reaches git through GIT_CONFIG_* in this step's environment
+      # only. It is never written to a git config file and never printed. The
+      # add-mask keeps the encoded header out of the log should git ever trace
+      # it.
+      - name: Push the candidates
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          basic="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${basic}"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${basic}"
+          make handover-push-candidates
+
+      - name: Compute the test matrix
+        id: matrix
+        run: |
+          matrix="$(make --no-print-directory handover-matrix)"
+          echo "${matrix}"
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload the state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: handover-state
+          path: build/handover
+          if-no-files-found: error
+          retention-days: 14
+
+  test:
+    name: Test ${{ matrix.chunk }}
+    needs: rebuild
+    # A matrix with no entries is an error in GitHub Actions, not an empty run.
+    if: needs.rebuild.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-24.04
+    # A chunk can declare several goals, each up to a role test's 30 minutes.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.rebuild.outputs.matrix) }}
+    steps:
+      # The tooling, from the ref this workflow runs on. Full history, because
+      # the manifest's commits are resolved against main.
+      - name: Check out the tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The tree under test: upstream main plus this chunk.
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ matrix.ref }}
+          path: candidate
+          persist-credentials: false
+
+      # The same setup as role-test.yml and module-test.yml. The goals run
+      # inside candidate/, so uv resolves the candidate's own uv.lock there.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: handover-test
+
+      - name: Compute the collection cache week
+        run: echo "COLLECTION_WEEK=$(date -u +%G-%V)" >> "${GITHUB_ENV}"
+
+      # As in role-test.yml, so the harness does not contact galaxy on every
+      # job. ansible.cfg puts collections in the candidate's root.
+      - name: Cache the harness collections
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: candidate/ansible_collections
+          key: handover-collections-${{ env.COLLECTION_WEEK }}-${{ hashFiles('candidate/tests/roles/requirements.yml') }}
+
+      - name: Test the chunk
+        env:
+          CHUNK: ${{ matrix.chunk }}
+        run: make handover-test CHUNK="${CHUNK}" TREE=candidate
+
+      # Always: a failed test still wrote its result, and promote reads a
+      # missing result as a failure anyway.
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: handover-result-${{ matrix.chunk }}
+          path: build/handover/results/${{ matrix.chunk }}.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show the logs on failure
+        if: failure()
+        run: |
+          shopt -s nullglob
+          for log in candidate/build/role-test/*/*.log candidate/build/module-test/*/*.log; do
+            echo "::group::${log}"
+            tail -80 "${log}"
+            echo "::endgroup::"
+          done
+
+  publish:
+    name: Promote and publish
+    needs: [rebuild, test]
+    # Runs when tests failed or were skipped for an empty matrix: the page
+    # reports failures too. Not when the rebuild itself failed.
+    if: ${{ !cancelled() && needs.rebuild.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write  # push review/*, delete handover-candidate/*
+      pages: write  # deploy the page
+      id-token: write  # deploy-pages proves the deployment's origin with OIDC
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+
+      # Read-only, as in the rebuild job.
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/grafana/grafana-ansible-collection.git
+          git remote set-url --push upstream no-push-to-upstream
+          git fetch --no-tags upstream main
+
+      # promote pushes the candidate shas recorded in the state, so they must
+      # exist here; facts reads origin/review/*.
+      - name: Fetch the candidates and review branches
+        run: >-
+          git fetch --no-tags origin
+          '+refs/heads/handover-candidate/*:refs/heads/handover-candidate/*'
+          '+refs/heads/review/*:refs/remotes/origin/review/*'
+
+      - name: Download the state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: handover-state
+          path: build/handover
+
+      - name: Download the test results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: handover-result-*
+          merge-multiple: true
+          path: build/handover/results
+
+      # A chunk that was not promoted is reported on the page and fails the
+      # job at the end, after the page is deployed. The exit status is
+      # recorded rather than masked.
+      - name: Promote
+        id: promote
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          basic="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${basic}"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${basic}"
+          if make handover-promote; then
+            echo "promoted=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::at least one chunk was not promoted"
+            echo "promoted=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      # PROJECTS_TOKEN, because the board is private. Read-only against
+      # GitHub: facts.py allowlists the gh calls it makes.
+      - name: Gather the facts
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        run: make handover-facts
+
+      - name: Render the page
+        run: make handover-render
+
+      - name: Upload the page
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: build/handover/site
+
+      - name: Deploy the page
+        id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
+
+      - name: Fail on conflicts or chunks not promoted
+        env:
+          CONFLICT: ${{ needs.rebuild.outputs.conflict }}
+          PROMOTED: ${{ steps.promote.outputs.promoted }}
+        run: |
+          status=0
+          if [ "${CONFLICT}" = "true" ]; then
+            echo "::error::at least one chunk conflicted during the rebuild"
+            status=1
+          fi
+          if [ "${PROMOTED}" != "true" ]; then
+            echo "::error::at least one chunk was not promoted"
+            status=1
+          fi
+          exit "${status}"
