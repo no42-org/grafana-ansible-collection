@@ -107,7 +107,26 @@ chunks:
       - "93262eb4"
       - "c5973b7d"
       - "13106310"
-    requires: []
+    seed_notes: |
+      2e6b5dd1: keep only what the harness needs.
+      That is pyproject.toml with the ansible group, uv.lock, and the .venv line in .gitignore.
+      It also takes the pyproject.toml, uv.lock and .venv lines in galaxy.yml's build_ignore.
+      Keep Pipfile, Pipfile.lock and upstream's lint scripts as they are, because upstream's lint still runs on pipenv at this point.
+      Author the lint-script, tools/setup.sh, tools/includes/lint-paths.sh, .yamllint, .ansible-lint and Makefile lint hunks onto L2.
+      Drop the gate.yml, lint-release.sh and rename-namespace.sh hunks.
+      93262eb4: keep tools/role-test.sh, role-test.yml, ansible.cfg and the Makefile ANSIBLE_GROUP lines.
+      Also keep the ansible-top group in pyproject.toml and uv.lock.
+      Drop release.yml, AGENTS.md, RELEASING.md, README.md and rename-namespace.sh.
+      Move the lint-release.sh and tools/includes/lint-paths.sh hunks to L2.
+      Upstream's requires_ansible floor stays at 2.12; the harness only reads the range in prose, so 0ac8e92's floor change is not needed here.
+      818adcf7: drop the RELEASING.md hunk.
+      It deletes four Molecule workflows (alloy, loki, mimir, opentelemetry-collector).
+      Upstream's #545 modified them, so the cherry-pick stops on modify/delete.
+      Resolve it by deleting them; that is 1a2e164's merge-only content.
+      Take upstream's promtail-molecule.yml as it is, because R1 deletes it.
+      f79318fb and 66165481: Makefile and galaxy.yml stop on context.
+      Add only the role-test targets and the tests/roles build_ignore entry.
+    requires: [P1]
     upstream:
       closes: []
       carries: []
@@ -134,6 +153,10 @@ chunks:
     commits:
       - "b4c0236b"
       - "2f99661b"
+    seed_notes: |
+      b4c0236b: drop the AGENTS.md, RELEASING.md and rename-namespace.sh hunks.
+      Keep the Makefile module-test targets, the tests/modules build_ignore line, and the module-test group in pyproject.toml and uv.lock.
+      Keep the lint-ansible.sh hunk too, which upstream's script can take.
     requires: [T1]
     upstream:
       closes: [537]
@@ -157,6 +180,9 @@ chunks:
       - "f16032b1"
       - "3a4630df"
       - "29a60ce3"
+    seed_notes: |
+      3a4630df: drop the AGENTS.md hunk.
+      3a4630df and 29a60ce3 stop on Makefile context; add only the sanity and units targets.
     requires: [T2]
     upstream:
       closes: []
@@ -172,25 +198,29 @@ chunks:
     epic: grafana-install
     title: Three carried grafana role fixes for plugin install and the yum repository
     summary: |
-      Three small upstream pull requests that the role test needs before the grafana scenario can pass.
+      Three small upstream pull requests to the grafana role.
       #510 runs grafana-cli with chdir set to the Grafana home path, which plugin installs require.
       #534 rewrites the RHSM conditionals on the install tasks so they evaluate to booleans.
       #538 adds module_hotfixes to the yum repository, so yum and dnf do not prefer a system repository's grafana package over Grafana's own.
 
       The original pull requests are the cleanest way to take #534 and #538, because they keep each contributor's attribution and history.
       #510 was closed unmerged by its author, so this branch is its only remaining form.
+
+      This chunk declares no tests.
+      The grafana scenario installs a plugin through grafana-cli, which the pinned Grafana 13 no longer has, so it first passes on G3.
     commits:
       - "3ca217c8"
       - "97df8649"
       - "369a366f"
+    seed_notes: |
+      All three commits are contributor commits and go on whole.
+      Add the grafana package-install retries from e53cfffb as a new commit by Ronny on top (see R1's notes).
     requires: [T1]
     upstream:
       closes: [533, 497]
       carries: [510, 534, 538]
       supersedes: [527]
-    tests:
-      - role-test ROLE=grafana DISTRO=debian
-      - role-test ROLE=grafana DISTRO=rhel
+    tests: []
 
   - id: G2
     slug: grafana-dashboards
@@ -208,19 +238,26 @@ chunks:
 
       Upstream merged #439 for the same loop in a different form.
       This branch keeps the form the role test passes with, so it changes that line again.
+
+      This chunk declares no tests, for the same reason as G1: the grafana scenario first passes on G3, which installs plugins on Grafana 13.
+      G3 runs the scenario on the newest ansible-core as well, which is the run that covers this chunk's 2.19 fix.
     commits:
       - "f5781447"
       - "3ed95b67"
       - "fdae4a80"
       - "f7e10b76"
+    seed_notes: |
+      f5781447 (#448) and f7e10b76 touch the loop line that upstream's #439 (ef0f489) also changed.
+      Merge b2b92c2 settled it: keep the fork's regex_replace loop and the boolean length checks on the removal task.
+      Put that resolution on f7e10b76, which is Ronny's.
+      f5781447 is a contributor commit.
+      If it does not apply cleanly, take it whole and note the conflict in its cherry-pick record.
     requires: [G1]
     upstream:
       closes: [447, 493, 244]
       carries: [448]
       supersedes: [504, 525]
-    tests:
-      - role-test ROLE=grafana DISTRO=debian
-      - role-test ROLE=grafana DISTRO=debian ANSIBLE_GROUP=ansible-top
+    tests: []
 
   - id: G3
     slug: grafana-plugins-grafana-13
@@ -246,6 +283,7 @@ chunks:
     tests:
       - role-test ROLE=grafana DISTRO=debian
       - role-test ROLE=grafana DISTRO=rhel
+      - role-test ROLE=grafana DISTRO=debian ANSIBLE_GROUP=ansible-top
 
   - id: G4
     slug: grafana-ini-booleans
@@ -322,6 +360,11 @@ chunks:
       - "57fff2b6"
       - "e65fd5b0"
       - "f35a5672"
+    seed_notes: |
+      b59fe61f: drop the lint-release.sh hunk, because lint-release.sh is not in this chunk's ancestry.
+      L2 can take the variant check if both are taken.
+      90c13c90: tools/role-test.sh stops on context from e3f02685, which lives in F3.
+      Resolve by hand.
     requires: [G5]
     upstream:
       closes: [189]
@@ -419,6 +462,8 @@ chunks:
       The role now picks the asset name by version, so pinning an older Loki still gets the old name.
     commits:
       - "88ce4103"
+    seed_notes: |
+      88ce4103: drop the AGENTS.md and RELEASING.md hunks.
     requires: [T1]
     upstream:
       closes: []
@@ -439,6 +484,8 @@ chunks:
       This chunk drops both defaults and adds a role test for tempo.
     commits:
       - "612152a5"
+    seed_notes: |
+      612152a5: drop the AGENTS.md and RELEASING.md hunks.
     requires: [T1]
     upstream:
       closes: []
@@ -462,6 +509,10 @@ chunks:
     commits:
       - "263ec78d"
       - "e3f02685"
+    seed_notes: |
+      e3f02685: drop the AGENTS.md hunk.
+      tools/role-test.sh stops on context from 90c13c90, which lives in G6.
+      Resolve by hand.
     requires: [F2]
     upstream:
       closes: [406]
@@ -488,6 +539,10 @@ chunks:
       - "473b90d0"
       - "c62c1ba4"
       - "5b1e0930"
+    seed_notes: |
+      c62c1ba4: drop the gate.yml hunk, because gate.yml only exists in L2.
+      The Makefile stops on context; add only the version-select-test target.
+      5b1e0930: drop the RELEASING.md hunk.
     requires: [C2]
     upstream:
       closes: [530, 452]
@@ -532,6 +587,9 @@ chunks:
     commits:
       - "f05db5f9"
       - "5e46f5ad"
+    seed_notes: |
+      f05db5f9: tests/roles/mimir/converge.yml stops on d18cc3bc's indent fix, which lives in L1.
+      Keep this chunk's lines at the indent the file has here.
     requires: [C2]
     upstream:
       closes: []
@@ -635,6 +693,11 @@ chunks:
       This only matters if upstream keeps the promtail role; R1 removes it.
     commits:
       - "a7e48eb4"
+    seed_notes: |
+      a7e48eb4: drop the AGENTS.md and RELEASING.md hunks.
+      roles/promtail/defaults/main.yml stops on the pin lines d22bb8a4 added in P1.
+      Keep the 3.6.0 pin.
+      role-test.yml stops on context; add only the promtail matrix entries.
     requires: [T1]
     upstream:
       closes: []
@@ -665,6 +728,13 @@ chunks:
       - "0947e0bf"
       - "957cb1ec"
       - "2825f2c3"
+    seed_notes: |
+      5ee70d11: upstream's changelogs/changelog.yaml differs from the fork's.
+      Re-emit upstream's file at an even indent as a new commit instead of picking this one's content.
+      b3e13972: apply the galaxy.yml hunk to upstream's galaxy.yml.
+      2825f2c3: drop the RELEASING.md, changelogs/changelog.yaml and tests/version-selection/verify.yml hunks.
+      The last one lives in F4.
+      Keep .yamllint.
     requires: [T1]
     upstream:
       closes: []
@@ -714,6 +784,18 @@ chunks:
       - "57423941"
       - "80741585"
       - "c8e268cb"
+    seed_notes: |
+      Author these first, as new commits by Ronny.
+      One is tools/lint-release.sh and the ci-lint-release Makefile target from 6a3e6848, without its release.yml checks.
+      The other is the lint parts of 2e6b5dd1 and 93262eb4 that T1 left out (see T1's notes).
+      Drop the fork-only documentation hunks in 2371805e, 27ebab3f, 4f75b50c, 53ed0e18, 9e0a7f80 and 57423941.
+      Those are AGENTS.md, RELEASING.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md and SUPPORT.md.
+      Drop release.yml in a2d3d751, 9335b98b, b2376a6a and 53ed0e18, and rename-namespace.sh in ce156e2b and 6ab44a71.
+      4f75b50c: drop the release hunks too.
+      That is the 6.2.2 entries in CHANGELOG.rst and changelogs/changelog.yaml, and the version line in galaxy.yml.
+      Merge-only content from 1a2e164: delete full-integration-test.yml, modules-test.yml, roles-test.yml and lint.yaml.
+      687a77aa, 7178f218 and a2d3d751 edit those files before this chunk deletes them; resolve their conflicts by taking the deletion.
+      Never delete upstream's release.yml.
     requires: [L1]
     upstream:
       closes: []
@@ -738,6 +820,8 @@ chunks:
       A weekly workflow opens a bump pull request when a pin falls behind.
       make ci-lint-versions checks that the READMEs state the pinned versions.
       The bump commits since then are included, so the pins are current.
+
+      This chunk sits under the harness, so every tested chunk runs on the same pinned versions instead of whatever latest was that day.
     commits:
       - "57aecfe4"
       - "d22bb8a4"
@@ -761,6 +845,16 @@ chunks:
       - "9981fff7"
       - "ce4469a3"
       - "4f44cb7b"
+    seed_notes: |
+      d22bb8a4: drop the AGENTS.md and RELEASING.md hunks, and the .github/zizmor.yml hunk, which lives in L2.
+      Makefile stops on context; add only the role-versions targets.
+      Keep the grafana_agent and promtail pins, because R1 comes after this chunk.
+      fe2e1c01: drop the AGENTS.md and RELEASING.md hunks and the fork prose in README.md.
+      tools/check-role-versions.py was written after e53cfffb removed two roles; resolve it so the tool still handles grafana_agent and promtail.
+      ac39e3bd: drop the gate.yml hunk.
+      README conflicts are on version lines; keep this chunk's values.
+      88393aad and later bumps: roles/alloy/README.md stops on 5b1e0930's wording in F4.
+      Keep the version line only.
     requires: []
     upstream:
       closes: []
@@ -783,6 +877,16 @@ chunks:
       It is a breaking change for anyone who still uses either role.
     commits:
       - "e53cfffb"
+    seed_notes: |
+      e53cfffb: keep the role and example deletions, CODEOWNERS and catalog-info.yaml.
+      Also keep the tools/bump-role-versions.sh and tools/check-role-versions.py hunks, which P1 provides.
+      Delete promtail-molecule.yml; that is also 1a2e164's merge-only content for this file.
+      Drop AGENTS.md, RELEASING.md, SUPPORT.md, the fork prose in README.md, release.yml, rename-namespace.sh, and the role-test.yml hunk.
+      role-test.yml has no promtail entry unless F10 is taken.
+      Drop the grafana package-install retries from this chunk.
+      They are grafana_install_retries and grafana_install_retry_delay in roles/grafana/defaults/main.yml.
+      They also touch roles/grafana/tasks/install.yml and roles/grafana/README.md.
+      Author them onto G1 as a new commit by Ronny, because they make the RHEL runs reliable.
     requires: [P1]
     upstream:
       closes: []
