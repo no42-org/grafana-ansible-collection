@@ -5,6 +5,7 @@
 `matrix` lists the goals CI runs per candidate. `run_tests` runs one chunk's
 goals in the checked-out candidate. `promote` force-pushes passing
 candidates to their `review/*` branch on origin, never to upstream.
+`push_candidates` publishes the rebuilt candidates so CI can test them.
 """
 
 from __future__ import annotations
@@ -85,6 +86,29 @@ def _push(chunk: manifest.Chunk, state: ChunkState, repo: Path, url: str) -> boo
     if done.returncode != 0:
         print(f"handover: {chunk.id}: push refused: {done.stderr.strip()}")
     return done.returncode == 0
+
+
+def push_candidates(loaded: manifest.Manifest, states: dict[str, ChunkState],
+                    origin: str = "origin", repo: Path = Path(".")) -> bool:
+    """Force-push every rebuilt candidate to origin's handover-candidate/*.
+
+    The same vetted URL as promote, so CI's test jobs can check the candidates
+    out. A candidate is scratch: it is overwritten each run and deleted by
+    promote.
+    """
+    repo = Path(repo)
+    url = _push_url(repo, origin)
+    refspecs = [f"{states[c.id].candidate}:refs/heads/{c.candidate}"
+                for c in loaded.chunks if c.id in states and states[c.id].candidate]
+    if not refspecs:
+        print("handover: no candidates to push")
+        return True
+    done = _git(repo, "push", "--force", url, *refspecs)
+    if done.returncode != 0:
+        print(f"handover: cannot push candidates: {done.stderr.strip()}")
+        return False
+    print(f"handover: pushed {len(refspecs)} candidates")
+    return True
 
 
 def _delete_candidates(repo: Path, url: str) -> None:

@@ -229,6 +229,26 @@ class TestPromote(Base):
         self.assertEqual(out["T1"].verified_at["date"], "2026-01-01")
         self.assertEqual(out["T1"].tests, "pass")
 
+    def test_push_candidates_force_pushes_every_candidate(self):
+        loaded, states = self.build()
+        # A stale candidate from an earlier run is overwritten, not leased.
+        self.git("push", "-q", "origin", f"{self.t2}:refs/heads/handover-candidate/t1-a")
+        states["T2"] = dataclasses.replace(states["T2"], candidate=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(promote.push_candidates(loaded, states, repo=self.fx.work))
+        self.assertEqual(self.origin_tip("handover-candidate/t1-a"), states["T1"].candidate)
+        heads = self.git("ls-remote", "--heads", "origin", "handover-candidate/*")
+        self.assertNotIn("handover-candidate/t2-b", heads)
+
+    def test_push_candidates_refuses_upstream(self):
+        loaded, states = self.build()
+        self.git("config", "remote.origin.pushurl",
+                 "git@github.com:grafana/grafana-ansible-collection.git")
+        with self.assertRaises(SystemExit):
+            promote.push_candidates(loaded, states, repo=self.fx.work)
+        self.assertEqual(self.git("ls-remote", "--heads", str(self.fx.origin),
+                                  "handover-candidate/*"), "")
+
     def test_refuses_upstream_origin(self):
         loaded, states = self.build()
         self.git("remote", "set-url", "origin", "https://github.com/grafana/grafana-ansible-collection")
@@ -282,3 +302,35 @@ class TestCli(Base):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads((results / "T1.json").read_text()),
                          {"chunk": "T1", "passed": True})
+
+    def test_test_subcommand_runs_goals_in_tree(self):
+        path = self.fx.manifest(("T1", "a", None))
+        path.write_text(path.read_text().replace("tests: []", "tests: [units]"))
+        # The tooling checkout has no such target; the tree under test does.
+        (self.fx.work / "Makefile").write_text("other:\n\t@true\n")
+        tree = self.fx.root / "candidate"
+        tree.mkdir()
+        (tree / "Makefile").write_text("units:\n\t@touch ran\n")
+        results = self.fx.root / "results"
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = handover.main(["test", "--manifest", str(path), "--repo", str(self.fx.work),
+                                  "--results", str(results), "--chunk", "T1",
+                                  "--tree", str(tree)])
+        self.assertEqual(code, 0)
+        self.assertTrue((tree / "ran").exists())
+        self.assertEqual(json.loads((results / "T1.json").read_text()),
+                         {"chunk": "T1", "passed": True})
+
+    def test_push_candidates_cli(self):
+        self.t1()
+        self.fx.upstream_commit("other", "x\n", "upstream moves")
+        self.git("fetch", "-q", "origin")
+        _, _, state_file = self.run_cli(("T1", "a", None))
+        path = self.fx.manifest(("T1", "a", None))
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = handover.main(["push-candidates", "--manifest", str(path),
+                                  "--repo", str(self.fx.work), "--state", str(state_file)])
+        self.assertEqual(code, 0)
+        candidate = json.loads(state_file.read_text())["T1"]["candidate"]
+        self.assertEqual(self.fx.git(self.fx.root, "--git-dir", str(self.fx.origin),
+                                     "rev-parse", "handover-candidate/t1-a"), candidate)

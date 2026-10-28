@@ -105,11 +105,18 @@ def test(args: argparse.Namespace) -> int:
     if chunk is None:
         print(f"handover: unknown chunk {args.chunk}", file=sys.stderr)
         return 1
-    passed = promoter.run_tests(chunk, args.repo)
+    passed = promoter.run_tests(chunk, args.tree or args.repo)
     args.results.mkdir(parents=True, exist_ok=True)
     (args.results / f"{chunk.id}.json").write_text(
         json.dumps({"chunk": chunk.id, "passed": passed}) + "\n")
     return 0 if passed else 1
+
+
+def push_candidates(args: argparse.Namespace) -> int:
+    loaded, states = _states_and_manifest(args)
+    if loaded is None:
+        return 1
+    return 0 if promoter.push_candidates(loaded, states, args.origin, args.repo) else 1
 
 
 def read_results(directory: Path) -> dict[str, bool]:
@@ -240,9 +247,18 @@ def main(argv: list[str] | None = None, gh=None) -> int:
             p.add_argument("--results", type=Path, default=default_results)
         if name == "test":
             p.add_argument("--chunk", required=True)
+            p.add_argument("--tree", type=Path,
+                           help="the tree whose make goals run (default: --repo)")
         if name == "promote":
             p.add_argument("--upstream", default="upstream/main")
             p.add_argument("--origin", default="origin")
+    p = sub.add_parser("push-candidates", help="force-push rebuilt candidates to origin")
+    p.add_argument("--manifest", type=Path, default=HERE / "chunks.yml")
+    p.add_argument("--repo", type=Path, default=HERE.parent.parent)
+    p.add_argument("--main", default="main")
+    p.add_argument("--state", type=Path, default=default_state)
+    p.add_argument("--origin", default="origin")
+    p.set_defaults(func=push_candidates)
     p = sub.add_parser("facts", help="gather commits, landed state, CLA and board for the page")
     p.add_argument("--manifest", type=Path, default=HERE / "chunks.yml")
     p.add_argument("--repo", type=Path, default=HERE.parent.parent)

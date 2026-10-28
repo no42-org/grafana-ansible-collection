@@ -1,7 +1,7 @@
 .DEFAULT_GOAL:= lint
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit handover-rebuild handover-matrix handover-test handover-promote handover-facts handover-render
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit handover-rebuild handover-matrix handover-test handover-promote handover-facts handover-render handover-push-candidates
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -303,13 +303,21 @@ handover-rebuild:
 handover-matrix:
 	@$(HANDOVER_PY) tools/handover/handover.py matrix
 
-# Run one chunk's declared tests in the current checkout (the candidate).
+# Run one chunk's declared tests in TREE (default: this checkout). CI checks
+# the candidate out into a subdirectory, because the candidate is upstream
+# plus the chunk and does not contain this tooling.
+TREE ?= .
 handover-test:
 	@if [ -z "$(CHUNK)" ]; then \
-		echo "usage: make handover-test CHUNK=<chunk id>"; \
+		echo "usage: make handover-test CHUNK=<chunk id> [TREE=<path>]"; \
 		exit 1; \
 	fi
-	@$(HANDOVER_PY) tools/handover/handover.py test --chunk $(CHUNK)
+	@$(HANDOVER_PY) tools/handover/handover.py test --chunk $(CHUNK) --tree $(TREE)
+
+# Force-push the rebuilt candidates to handover-candidate/* on origin, through
+# the same vetted push URL as promote, so CI can test them.
+handover-push-candidates:
+	@$(HANDOVER_PY) tools/handover/handover.py push-candidates $(args)
 
 # Push candidates that passed to review/* on origin. Never touches upstream.
 handover-promote:
