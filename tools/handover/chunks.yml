@@ -1,0 +1,791 @@
+---
+# The upstream handover manifest: which commits on main make up each
+# reviewable chunk, how the chunks stack, and what each one says on the page.
+# Every commit in upstream/main..main is in exactly one chunk or one
+# fork_only entry. Commits are used to seed the review branches once; after
+# that the review/* branches are the source of their own content.
+
+fork_only:
+  - title: Namespace rename at build time
+    why: Publishes indigo423.grafana; upstream publishes grafana.grafana.
+    commits:
+      - "f0931399"
+      - "c4e5b9ae"
+  - title: Galaxy release pipeline
+    why: Releases this fork to its own Galaxy namespace from a v-prefixed tag. Upstream has its own release workflow.
+    commits:
+      - "6a3e6848"
+      - "ec8bd386"
+      - "d164ee73"
+      - "84e31a10"
+  - title: Fork releases and changelog entries
+    why: Version numbers and changelog entries belong to this fork's release line, not to upstream's.
+    commits:
+      - "0ac8e92e"
+      - "41fd35e6"
+      - "44478532"
+      - "ed8f8c74"
+      - "09ce0cce"
+      - "8d3f998f"
+      - "27ae4390"
+      - "dacbd597"
+      - "07f1a836"
+      - "79f10680"
+      - "4750dec1"
+      - "59d193a0"
+      - "dc863e1f"
+  - title: Carried-contribution report and upstream tracker
+    why: Tools that let this fork follow upstream from the outside. Upstream has no use for a board about itself.
+    commits:
+      - "599b0865"
+      - "a78cbcc4"
+      - "b12a3145"
+      - "9f4611cd"
+      - "b0ea735c"
+      - "3b75fdad"
+      - "7d55b17f"
+  - title: Role-bumper GitHub App wiring
+    why: Opens the weekly bump pull requests as this fork's own GitHub App, with credentials only this fork holds.
+    commits:
+      - "a36891d9"
+  - title: Fork documentation and governance
+    why: README, RELEASING, AGENTS and contributor documents that describe this fork and its policies.
+    commits:
+      - "d929b9e2"
+      - "f3119256"
+      - "f2e73301"
+      - "d2852568"
+      - "311a9b19"
+      - "1f149b85"
+      - "22b0eff5"
+      - "9a5be81d"
+      - "a37d2278"
+      - "cbb2e59c"
+      - "47857b59"
+      - "4d7b63c3"
+      - "9475681a"
+      - "ed6c16bb"
+      - "cdfcc267"
+      - "2b276fa1"
+  - title: Dependency bot bumps on the fork's lock files
+    why: Lock-file updates for a toolchain upstream may not adopt. Upstream's own Dependabot produces its own.
+    commits:
+      - "dc05ba3e"
+      - "2e9b6264"
+      - "9ce0049e"
+  - title: Upstream handover tooling
+    why: Builds this page and the review branches. It exists only to hand work over.
+    commits: []
+
+chunks:
+  # ------------------------------------------------------------- harness
+  - id: T1
+    slug: role-test-harness
+    group: harness
+    epic: cross-role
+    title: Container role tests replacing Molecule
+    summary: |
+      The roles had Molecule scenarios that no workflow could run any more, so no role change was tested against a real host.
+      Several roles had broken against newer releases of the software they install, and nothing noticed.
+
+      This chunk adds tools/role-test.sh and make role-test ROLE=<role> DISTRO=debian|rhel.
+      Each run starts a fresh container and applies the role twice: converge, then an idempotence pass that fails on any changed task, then verify.
+      Scenarios live in tests/roles/<role>/, and mimir gets a three-node topology with a MinIO sidecar.
+      The ansible-core version comes from a uv dependency group in pyproject.toml, so a local run and a CI run use the same engine.
+      Collections are installed once per job with retries, so a job does not depend on galaxy.ansible.com being up.
+
+      It also removes the five per-role Molecule workflows that the harness replaces.
+      The grafana, mimir and opentelemetry_collector scenarios assert carried fixes, so they pass once the chunks that carry those fixes are applied.
+    commits:
+      - "f79318fb"
+      - "66165481"
+      - "81651a2c"
+      - "dcd3d5f5"
+      - "818adcf7"
+      - "81562fda"
+      - "2e6b5dd1"
+      - "93262eb4"
+      - "c5973b7d"
+      - "13106310"
+    requires: []
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=loki DISTRO=debian
+
+  - id: T2
+    slug: module-test-harness
+    group: harness
+    epic: grafana-api-modules
+    title: Module tests against a real Grafana, starting with datasource updates
+    summary: |
+      Grafana 13.0 removed PUT /api/datasources/:id, which is the route the datasource module used for every update.
+      Each update then failed with a bare 404, and no test could have seen it, because nothing ran a module against a live Grafana.
+
+      This chunk adds tools/module-test.sh and make module-test MODULE=<module>.
+      It starts the Grafana version named in roles/grafana/defaults/main.yml, mints a token, and runs a scenario under tests/modules/<module>/.
+      MODULE_TEST_GRAFANA_VERSION runs the same scenario against another Grafana, which is how the route's removal was dated to 13.0.
+
+      The first scenario is the datasource fix itself, which ships here because the scenario is its test.
+      The module now resolves the uid from GET /api/datasources by name.
+      It updates through PUT /api/datasources/uid/:uid, which works on every Grafana from 10.4 to 13.2.
+    commits:
+      - "b4c0236b"
+      - "2f99661b"
+    requires: [T1]
+    upstream:
+      closes: [537]
+      carries: []
+      supersedes: []
+    tests:
+      - module-test MODULE=datasource
+
+  - id: T3
+    slug: ansible-test-staging
+    group: harness
+    epic: cross-role
+    title: ansible-test sanity and units, staged the way CI stages them
+    summary: |
+      ansible-test only runs inside ansible_collections/<namespace>/<name>, so a local run has to copy the tree first.
+      Copying a different subset than CI gives a green local run against files CI does not have.
+
+      This chunk adds make sanity and make units, both through tools/ansible-test.sh, which stages the collection from git's file list.
+      It also fixes the module documentation that ansible-test sanity rejected, so the sanity run is green to begin with.
+    commits:
+      - "f16032b1"
+      - "3a4630df"
+      - "29a60ce3"
+    requires: [T2]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - sanity
+
+  # ------------------------------------------------------- grafana role
+  - id: G1
+    slug: grafana-carried-fixes
+    group: carried
+    epic: grafana-install
+    title: Three carried grafana role fixes for plugin install and the yum repository
+    summary: |
+      Three small upstream pull requests that the role test needs before the grafana scenario can pass.
+      #510 runs grafana-cli with chdir set to the Grafana home path, which plugin installs require.
+      #534 rewrites the RHSM conditionals on the install tasks so they evaluate to booleans.
+      #538 adds module_hotfixes to the yum repository, so yum and dnf do not prefer a system repository's grafana package over Grafana's own.
+
+      The original pull requests are the cleanest way to take #534 and #538, because they keep each contributor's attribution and history.
+      #510 was closed unmerged by its author, so this branch is its only remaining form.
+    commits:
+      - "3ca217c8"
+      - "97df8649"
+      - "369a366f"
+    requires: [T1]
+    upstream:
+      closes: [533, 497]
+      carries: [510, 534, 538]
+      supersedes: [527]
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+      - role-test ROLE=grafana DISTRO=rhel
+
+  - id: G2
+    slug: grafana-dashboards
+    group: fixes
+    epic: grafana-dashboards
+    title: Dashboard provisioning that works on ansible-core 2.19 and is idempotent
+    summary: |
+      Dashboard provisioning had three faults.
+      The folder loop could resolve to a string, which newer ansible-core rejects.
+      The removal of stale dashboards used conditionals that return a list instead of a boolean, which ansible-core 2.19 made fatal.
+      The copy task set owner root while its own handler set owner grafana, so every run reported a change.
+
+      This chunk carries #448 for the loop, makes the conditionals boolean, and aligns the copy with the handler.
+      It also adds an optional prepare phase to the role test, which seeds a stale dashboard once so the removal path is exercised at all.
+
+      Upstream merged #439 for the same loop in a different form.
+      This branch keeps the form the role test passes with, so it changes that line again.
+    commits:
+      - "f5781447"
+      - "3ed95b67"
+      - "fdae4a80"
+      - "f7e10b76"
+    requires: [G1]
+    upstream:
+      closes: [447, 493, 244]
+      carries: [448]
+      supersedes: [504, 525]
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+      - role-test ROLE=grafana DISTRO=debian ANSIBLE_GROUP=ansible-top
+
+  - id: G3
+    slug: grafana-plugins-grafana-13
+    group: fixes
+    epic: grafana-install
+    title: Plugin installation on Grafana 13
+    summary: |
+      Grafana 13 removed the grafana-cli binary, and the role installed plugins as root.
+      It could also pass the CLI a plugin directory the server did not read.
+
+      The role now probes for the grafana cli subcommand and falls back to grafana-cli, so every Grafana from 5.1 up keeps working.
+      After the install, a recursive file task gives the plugin directory to the grafana user.
+      That also repairs plugins an earlier run installed as root.
+      grafana_ini.paths.plugins is derived from paths.data when unset.
+      The directory the role creates, the CLI flag and the creates guard all read that one value.
+    commits:
+      - "64239f47"
+    requires: [G2]
+    upstream:
+      closes: [331, 508, 509]
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+      - role-test ROLE=grafana DISTRO=rhel
+
+  - id: G4
+    slug: grafana-ini-booleans
+    group: fixes
+    epic: grafana-install
+    title: grafana.ini booleans rendered lowercase
+    summary: |
+      A YAML true reached grafana.ini as True.
+      Grafana accepts that in most places, but with auth.ldap enabled = True the server enables LDAP and the login page never shows it.
+
+      The template now renders values Ansible typed as booleans through one macro, as true or false.
+      Strings stay exactly as written, so quoting a value still works as an escape hatch.
+      Five booleans in the role defaults change case, so the first converge on an existing host rewrites grafana.ini and restarts Grafana once.
+    commits:
+      - "04907082"
+    requires: [G3]
+    upstream:
+      closes: [417]
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+
+  - id: G5
+    slug: grafana-db-migration-wait
+    group: carried
+    epic: grafana-install
+    title: Wait for database migrations before the role continues
+    summary: |
+      #528 adds a wait on /api/health so later tasks do not reach Grafana while it is still migrating its database.
+      As submitted, the task cannot run: register, retries and delay sit inside the uri mapping, and the URL renders without ://.
+
+      This chunk carries #528 unchanged and fixes it in a separate commit, then asserts in the role test that the database is ready after a converge.
+      Merging #528 alone would give a task that stops the play, so the follow-up commit is needed either way.
+    commits:
+      - "33b66768"
+      - "c6ccc910"
+      - "af584d04"
+    requires: [G4]
+    upstream:
+      closes: []
+      carries: [528]
+      supersedes: []
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+      - role-test ROLE=grafana DISTRO=rhel
+
+  - id: G6
+    slug: grafana-server-probe
+    group: fixes
+    epic: grafana-install
+    title: Readiness probes for IPv6, h2 and socket servers
+    summary: |
+      The role's two waits reused http_addr, a bind address, as their destination.
+      A bracketed IPv6 address timed out after 300 seconds.
+      With protocol h2 the start wait got no port and slept for its whole timeout, then reported success.
+      socket_h2 got no socket directory and no preflight, and neither socket protocol got the migration wait.
+
+      vars/main.yml now derives the probe target once for both waits: the address, the scheme, and whether to probe over TCP or the socket.
+      A wildcard bind is probed on loopback, and socket_h2 requires root_url in a preflight.
+
+      The role test gains named variants, so one scenario runs once per protocol and address form.
+    commits:
+      - "90c13c90"
+      - "5d174f15"
+      - "9ac5e078"
+      - "d9472690"
+      - "30cb4a48"
+      - "b59fe61f"
+      - "ac68ba0f"
+      - "18f64485"
+      - "3dc569d4"
+      - "f9aab32b"
+      - "57fff2b6"
+      - "e65fd5b0"
+      - "f35a5672"
+    requires: [G5]
+    upstream:
+      closes: [189]
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=grafana DISTRO=debian
+      - role-test ROLE=grafana DISTRO=debian VARIANT=ipv6
+      - role-test ROLE=grafana DISTRO=debian VARIANT=ipv6-bracketed
+      - role-test ROLE=grafana DISTRO=debian VARIANT=h2
+      - role-test ROLE=grafana DISTRO=debian VARIANT=socket
+      - role-test ROLE=grafana DISTRO=debian VARIANT=socket-h2
+
+  # ------------------------------------------------------ other carried
+  - id: C1
+    slug: otel-collector-ownership
+    group: carried
+    epic: otel-collector
+    title: OpenTelemetry Collector binary owned by its service user
+    summary: |
+      The collector archive was extracted as root, so the binary stayed owned by root instead of the service user.
+      #475 sets owner and group on the extraction.
+
+      Merging #475 is the cleanest way to take this, because it keeps the contributor's attribution and history.
+      The chunk holds only the carried commit, and the opentelemetry_collector role test asserts the ownership.
+    commits:
+      - "4f149e9a"
+    requires: [T1]
+    upstream:
+      closes: []
+      carries: [475]
+      supersedes: []
+    tests:
+      - role-test ROLE=opentelemetry_collector DISTRO=debian
+      - role-test ROLE=opentelemetry_collector DISTRO=rhel
+
+  - id: C2
+    slug: mimir-latest-version
+    group: carried
+    epic: mimir
+    title: Mimir latest version resolution
+    summary: |
+      Mimir tags its releases mimir-<version>, so with mimir_version latest the role built a download URL that does not exist.
+      #461 strips the prefix and accepts more than one tag format.
+
+      Merging #461 is the cleanest way to take this, because it keeps the contributor's attribution and history.
+      The chunk holds only the two carried commits, and the mimir role test runs against them.
+    commits:
+      - "d098f98c"
+      - "9c46b446"
+    requires: [T1]
+    upstream:
+      closes: [451]
+      carries: [461]
+      supersedes: []
+    tests:
+      - role-test ROLE=mimir DISTRO=debian
+
+  - id: C3
+    slug: alert-contact-point-update
+    group: carried
+    epic: grafana-api-modules
+    title: alert_contact_point updates an existing contact point
+    summary: |
+      Grafana answers 409 when a contact point already exists, and the module treated that as a failure.
+      So an existing contact point could not be updated.
+      #536 handles 409 like the existing 500 path.
+
+      A follow-up commit fixes the read-back in the same function.
+      When the listing did not contain the uid, it returned None, which the caller unpacks into three values.
+      It now returns the accepted body.
+      Merging #536 upstream is the cleanest way to take the first part; the follow-up is on this branch only.
+    commits:
+      - "77bde107"
+      - "aa63ddb9"
+    requires: [T3]
+    upstream:
+      closes: [335]
+      carries: [536]
+      supersedes: []
+    tests:
+      - sanity
+
+  # ------------------------------------------------------------- fixes
+  - id: F1
+    slug: loki-rpm-asset-name
+    group: fixes
+    epic: "-"
+    title: Loki RPM installs on RHEL
+    summary: |
+      From Loki 3.7.5 on, the RPM asset name carries a release number, loki-<version>-1.<arch>.rpm.
+      The role built the old name, so with loki_version latest every RHEL install got a 404.
+      The .deb names did not change, which is why only RHEL broke.
+
+      The role now picks the asset name by version, so pinning an older Loki still gets the old name.
+    commits:
+      - "88ce4103"
+    requires: [T1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=loki DISTRO=rhel
+
+  - id: F2
+    slug: tempo-3-defaults
+    group: fixes
+    epic: tempo
+    title: Tempo defaults that Tempo 3.0 accepts
+    summary: |
+      Two of the role's defaults referred to things Tempo 3.0 removed: metrics_generator.traces_storage and the local-blocks processor.
+      Tempo rejects the configuration and the service never starts.
+
+      This chunk drops both defaults and adds a role test for tempo.
+    commits:
+      - "612152a5"
+    requires: [T1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=tempo DISTRO=debian
+
+  - id: F3
+    slug: tempo-check-mode
+    group: fixes
+    epic: tempo
+    title: Tempo dry run on a host without Tempo
+    summary: |
+      In check mode on a fresh host, the package install is only predicted, so tempo.service does not exist.
+      The start task and the restart handler then failed.
+      Both now skip in check mode when /usr/bin/tempo is absent, so a dry run on an installed host still reports drift.
+
+      The role test gains a dry run with --check after prepare and before the first converge, for roles that opt in with a check.yml.
+      That is the only phase that sees a host without the role's packages, which is where this failed.
+    commits:
+      - "263ec78d"
+      - "e3f02685"
+    requires: [F2]
+    upstream:
+      closes: [406]
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=tempo DISTRO=debian
+
+  - id: F4
+    slug: latest-version-selection
+    group: fixes
+    epic: cross-role
+    title: latest resolves to a release that is a version
+    summary: |
+      Five roles turned GitHub's releases/latest tag into a version with regex_replace.
+      regex_replace returns its input unchanged when the pattern does not match.
+      When alloy published a Go submodule tag, syntax/v0.1.1, as a release, the role requested a download URL built from it and got a 404.
+
+      The alloy, loki, mimir, opentelemetry_collector and tempo roles now pick the newest release whose tag matches a version pattern.
+      If none matches, they fail with the tags they saw.
+      make version-select-test checks the selection against recorded GitHub payloads, with no network.
+      So the test does not depend on what was published that day.
+    commits:
+      - "473b90d0"
+      - "c62c1ba4"
+      - "5b1e0930"
+    requires: [C2]
+    upstream:
+      closes: [530, 452]
+      carries: []
+      supersedes: []
+    tests:
+      - version-select-test
+
+  - id: F5
+    slug: alloy-config-validation
+    group: fixes
+    epic: alloy
+    title: Alloy config validated, and the service checked after the restart
+    summary: |
+      The role reported success for a configuration Alloy cannot run.
+      The configuration was never checked, and /-/ready answers 200 between two crashes of a service that systemd keeps restarting.
+
+      The template task now runs alloy validate before the file replaces the old one, on Alloy 1.9.0 and later.
+      After a restart, the role compares the unit's restart count across a short settle window, so a crash loop fails the play.
+    commits:
+      - "035aa36d"
+    requires: [F4]
+    upstream:
+      closes: [535]
+      carries: []
+      supersedes: []
+    tests:
+      - role-test ROLE=alloy DISTRO=debian
+      - role-test ROLE=alloy DISTRO=rhel
+
+  - id: F6
+    slug: mimir-config-variables
+    group: fixes
+    epic: mimir
+    title: Mimir target, config mode and extra top-level keys as variables
+    summary: |
+      Several values in the mimir role were literals with no variable: the -target flag, the config file mode, and the retries on the readiness wait.
+      Top-level config keys without a mimir_<section> variable could not be set at all.
+
+      mimir_target, mimir_config_mode, mimir_ready_retries and mimir_ready_delay replace the literals, with defaults equal to the old values.
+      mimir_config_extra renders extra top-level keys, and refuses a key that already has its own section variable.
+    commits:
+      - "f05db5f9"
+      - "5e46f5ad"
+    requires: [C2]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: [462]
+    tests:
+      - role-test ROLE=mimir DISTRO=debian
+
+  - id: F7
+    slug: cloud-plugin-requests
+    group: fixes
+    epic: grafana-api-modules
+    title: cloud_plugin authenticates, reports refusals and stays idempotent
+    summary: |
+      cloud_plugin built its Authorization header for state=present from a parameter the module never declares.
+      So every create and update raised KeyError.
+      Refusals raised KeyError or a decode error instead of reporting the HTTP status.
+      With version latest, it compared the installed version with the string latest, so it reported changed on every run.
+
+      The module now authenticates with cloud_api_key and fails with the status and body of a refusal.
+      It accepts any 2xx, and compares against the latestVersion the lookup returns.
+      grafana.com cannot run in a container, so the module's HTTP calls are mocked in unit tests under tests/unit.
+    commits:
+      - "cc9f2ab0"
+      - "d762acbe"
+      - "14ca20d7"
+      - "f9907849"
+      - "e3050206"
+      - "2095588b"
+      - "04b3ad4c"
+      - "78cd4aab"
+    requires: [C3]
+    upstream:
+      closes: [453]
+      carries: []
+      supersedes: []
+    tests:
+      - units
+
+  - id: F8
+    slug: module-refusals
+    group: fixes
+    epic: grafana-api-modules
+    title: Modules report refusals with their HTTP status
+    summary: |
+      Eight modules built their failure message from result.json()['message'].
+      A refusal without that key raised KeyError, and one that was not JSON raised a decode error, so the status was lost.
+      Seven lookups read the body as data without checking the status first.
+      state=absent failed or reported a change for a resource that did not exist.
+
+      plugins/module_utils/responses.py now holds one rule for turning a response into a failure, and every module uses it.
+      Lookups check the status before reading the body, and only 401 and 403 are treated as not changed yet.
+      state=absent on a missing resource reports ok, and folder matches on uid alone, as its DELETE does.
+    commits:
+      - "1da02d8a"
+      - "3e0d0617"
+      - "cc955a69"
+      - "a8afae19"
+      - "bcf74dd5"
+      - "592f4676"
+      - "b1f60442"
+      - "c78f50b5"
+      - "b44e1091"
+      - "a8d642c8"
+    requires: [F7]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - units
+
+  - id: F9
+    slug: dashboard-api-url
+    group: fixes
+    epic: grafana-api-modules
+    title: dashboard module drops a doubled assignment
+    summary: |
+      The dashboard module assigned api_url twice in one statement.
+      It is harmless, but CodeQL flags it, and the line reads like a bug.
+      This chunk removes the duplicate.
+    commits:
+      - "9ce395c6"
+    requires: []
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests: []
+
+  - id: F10
+    slug: promtail-final-version
+    group: fixes
+    epic: "-"
+    title: Promtail pinned to its final release
+    summary: |
+      Promtail reached end of life on 2026-03-02, and Loki releases after 3.6.0 carry no promtail assets.
+      With promtail_version latest every install got a 404 on both package families.
+
+      The default is pinned to 3.6.0, which is the last version there will be, and the role warns at runtime that promtail is end of life.
+      This only matters if upstream keeps the promtail role; R1 removes it.
+    commits:
+      - "a7e48eb4"
+    requires: [T1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests: []
+
+  # ----------------------------------------------------------- toolchain
+  - id: L1
+    slug: lint-findings
+    group: toolchain
+    epic: cross-role
+    title: Lint findings fixed in inherited files
+    summary: |
+      The linters this collection already configures reported errors on a clean tree, so make ci-lint could never gate anything.
+
+      This chunk fixes the findings: yamllint errors and warnings, editorconfig indentation, and the ansible-lint production profile.
+      Two of the fixes change behaviour.
+      The grafana role now sets mode 0644 on the systemd drop-in it creates.
+      The grafana_agent version detection now sets pipefail and uses command where no shell is needed.
+      The rest is formatting of inherited files, which is why it is a chunk of its own.
+    commits:
+      - "5ee70d11"
+      - "b3e13972"
+      - "d18cc3bc"
+      - "f6da1524"
+      - "4c6c3a29"
+      - "0947e0bf"
+      - "957cb1ec"
+      - "2825f2c3"
+    requires: [T1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests: []
+
+  - id: L2
+    slug: lint-toolchain-and-ci
+    group: toolchain
+    epic: "-"
+    title: Pinned lint toolchain and one shared CI gate
+    summary: |
+      The lint toolchain needed pipenv and Node, and its tools ran different versions locally and in CI.
+      Some gates exited 0 when their tool could not run.
+      The workflows used mutable action tags and broad permissions.
+
+      Every linter is now provisioned through uv or a checksum-verified download, with one version definition per tool.
+      Markdown and text linting run on rumdl and codespell, and the Node toolchain is gone.
+      A gate that cannot run says TOOLCHAIN NOT INSTALLED instead of passing.
+      CI calls one reusable gate workflow, every action is pinned to a SHA, and permissions are least privilege.
+      CodeQL, dependency review and Scorecard scan the repository.
+      The Molecule-era workflows that could no longer run are removed.
+
+      It also stops shipping requirements.txt with this repository's linters in it, and declares requests, the one library the modules import.
+    commits:
+      - "687a77aa"
+      - "54797cea"
+      - "04d6e918"
+      - "7178f218"
+      - "a2d3d751"
+      - "9335b98b"
+      - "ce156e2b"
+      - "4aed834b"
+      - "27a0f81f"
+      - "6ab44a71"
+      - "b2376a6a"
+      - "2371805e"
+      - "449b93db"
+      - "4f75b50c"
+      - "10064777"
+      - "53ed0e18"
+      - "27ebab3f"
+      - "ad07507c"
+      - "76d7f9cb"
+      - "9e0a7f80"
+      - "57423941"
+      - "80741585"
+      - "c8e268cb"
+    requires: [L1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests:
+      - ci-lint
+
+  # ------------------------------------------------------------- pinning
+  - id: P1
+    slug: role-version-pins
+    group: pinning
+    epic: cross-role
+    title: Every role pins its version, and a weekly check moves the pins
+    summary: |
+      Six roles resolved <role>_version latest at run time, so what they installed changed whenever upstream published.
+      opentelemetry_collector sat at 0.90.1 from 2023 because nothing asked anyone to move it.
+
+      Each role now defaults to a concrete version.
+      tools/check-role-versions.py compares each pin with the source its role installs from.
+      That is the release assets for five roles, and the apt and rpm indexes for grafana.
+      A weekly workflow opens a bump pull request when a pin falls behind.
+      make ci-lint-versions checks that the READMEs state the pinned versions.
+      The bump commits since then are included, so the pins are current.
+    commits:
+      - "57aecfe4"
+      - "d22bb8a4"
+      - "deb0f363"
+      - "5605bef8"
+      - "fe2e1c01"
+      - "7e6563ea"
+      - "a68b0609"
+      - "ac39e3bd"
+      - "88393aad"
+      - "b7d8fbe7"
+      - "80f2e0b2"
+      - "62f2f212"
+      - "7628b611"
+      - "e985c7e4"
+      - "5aa19398"
+      - "e0130ad6"
+      - "b30daf23"
+      - "f633ecf4"
+      - "e358dfe7"
+      - "9981fff7"
+      - "ce4469a3"
+      - "4f44cb7b"
+    requires: []
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests: []
+
+  # ------------------------------------------------------------ removals
+  - id: R1
+    slug: remove-agent-and-promtail
+    group: removals
+    epic: "-"
+    title: Remove the grafana_agent and promtail roles
+    summary: |
+      Grafana archived the Agent, and promtail reached end of life on 2026-03-02 with no packages after Loki 3.6.0.
+      Both roles still worked, but they deploy software nobody maintains.
+
+      This chunk removes both roles, their examples and their workflows.
+      The alloy role replaces both.
+      It is a breaking change for anyone who still uses either role.
+    commits:
+      - "e53cfffb"
+    requires: [P1]
+    upstream:
+      closes: []
+      carries: []
+      supersedes: []
+    tests: []
