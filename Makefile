@@ -2,7 +2,7 @@
 PATH := ./node_modules/.bin:$(PATH)
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible role-test role-test-list ci-lint-release
 
 default: all
 
@@ -121,6 +121,12 @@ ci-lint-editorconfig:
 # Ansible Linting
 ci-lint-ansible:
 	@./tools/lint-ansible.sh
+
+# Release machinery linting: tools/*.sh and the galaxy.yml fields a build
+# needs. It needs no provisioned toolchain beyond shellcheck, so it runs in
+# seconds locally.
+ci-lint-release:
+	@./tools/lint-release.sh
 
 # Compares each role's pinned version against the upstream project's latest
 # release. Fails if a pin is unreadable or an upstream lookup does not resolve
