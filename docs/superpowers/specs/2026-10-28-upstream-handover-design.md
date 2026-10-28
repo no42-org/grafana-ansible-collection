@@ -60,20 +60,20 @@ From read-only recon on 2026-10-28:
 
 A single self-contained HTML page: inline CSS and JS, no external fetches at view time, readable with JavaScript off except for the marking feature.
 
-1. **Intro.** Why the fork exists; how chunks are cut and how to consume a branch; the dependency rule (below); the CLA summary; an explicit list of what is fork-only and not offered (namespace rename, release pipeline, upstream tracker, role-bumper app, anything else fork-specific).
-2. **Overview.** Count of chunks per group and a progress line driven by his own marks.
-3. **Chunk catalogue.** One card per chunk, grouped. Each card shows:
-   - chunk id, group, epic/subsystem, title;
-   - what was wrong or missing and what the chunk does, in a few sentences of prose;
-   - upstream issues it closes and upstream PRs it carries or supersedes, linked;
-   - author(s) and CLA status per author;
-   - size: commit count, files, lines;
-   - **requires**: the chunks it depends on, linked;
-   - status: available, or **landed** upstream;
-   - the commit list and touched files behind a fold;
-   - the exact command to fetch its branch;
-   - take / maybe / skip toggles and a free-text note field, for his own use.
-4. **Backlog appendix.** A lookup table of every upstream issue and PR on the fork's board: number, title, fork decision, and a link to the card that addresses it, if any.
+- **Intro.** Why the fork exists; how chunks are cut and how to consume a branch; the dependency rule (below); the CLA summary; an explicit list of what is fork-only and not offered (namespace rename, release pipeline, upstream tracker, role-bumper app, anything else fork-specific).
+- **Overview.** Count of chunks per group and a progress line driven by his own marks.
+- **Chunk catalogue.** One card per chunk, grouped. Each card shows:
+  - chunk id, group, epic/subsystem, title;
+  - what was wrong or missing and what the chunk does, in a few sentences of prose;
+  - upstream issues it closes and upstream PRs it carries or supersedes, linked;
+  - author(s) and CLA status per author;
+  - size: commit count, files, lines;
+  - **requires**: the chunks it depends on, linked;
+  - status: available, or **landed** upstream;
+  - the commit list and touched files behind a fold;
+  - the exact command to fetch its branch;
+  - take / maybe / skip toggles and a free-text note field, for his own use.
+- **Backlog appendix.** A lookup table of every upstream issue and PR on the fork's board: number, title, fork decision, and a link to the card that addresses it, if any.
 
 The marks and notes are stored in the viewer's browser `localStorage` only, keyed per chunk id, wrapped so the page works when storage is unavailable. Nothing is transmitted anywhere.
 

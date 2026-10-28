@@ -218,7 +218,7 @@ Bootstrap it before the next scheduled run: the sync refuses to start when the b
 
 `Fork decision` starts at `Untriaged` and moves to one of `Carry`, `Fix here`, `Not applicable`, `Superseded` or `Done`.
 `Carry` means the upstream pull request gets cherry-picked under **Carrying an upstream contribution** below, after which `make carried-prs` takes over tracking it.
-`Fix here` means the fix is written in this fork, because upstream's maintainership is dormant and there is nowhere to send it.
+`Fix here` means the fix is written in this fork, because this fork opens nothing upstream. Chunks of fork work are offered through the handover instead.
 
 `.github/workflows/upstream-tracker.yml` runs the sync weekly.
 It needs a fine-grained PAT with organization `Projects: read and write`, stored as the repository secret `PROJECTS_TOKEN`.
@@ -253,7 +253,7 @@ Rules, in order of importance:
 5. **Skip merge commits.** Contributors often sync their branch into the pull request. Use `--no-merges`.
 6. **For your own commits that already carry a sign-off, use `-x` alone.** `-s` would duplicate the trailer.
 7. **Read the contribution.** Applying cleanly is not evidence of correctness. See the rejected candidates below.
-8. **Keep it adoptable.** Nothing here is submitted upstream, so adoptability has to survive by construction: one purpose per commit so each can be taken independently, no reformatting or opportunistic tidying of inherited files, and `roles/*/molecule/` left byte-identical. A change upstream could apply unchanged is the goal; a change bundled with three unrelated edits is not.
+8. **Keep it adoptable.** This fork submits nothing upstream, so adoptability has to survive by construction: one purpose per commit so each can be taken independently, no reformatting or opportunistic tidying of inherited files, and `roles/*/molecule/` left byte-identical. A change upstream could apply unchanged is the goal; a change bundled with three unrelated edits is not.
 
 ### Ordering that is not obvious
 
@@ -318,13 +318,16 @@ That is the signal to watch; it is a rename and a re-framing, not a failure.
 The defects are real, not strictness artifacts: `plugins/modules/user.py` had an unterminated quote making `EXAMPLES` invalid YAML, an `orgid` parameter present in `argument_spec` but absent from the documentation, `state` choices that omitted the implemented `update_password`, and an author field that did not match the `Name (@handle)` form every other module uses.
 
 They are fixed here so `sanity` can stay a real blocking gate rather than being skipped or suppressed with `tests/sanity/ignore-*.txt`.
-All of it is written to stay **applicable** upstream, but it is deliberately not submitted.
+All of it is written to stay **applicable** upstream, but this fork does not submit it. The maintainer pulls it from the handover branches instead.
 
-Upstream's maintainership is dormant: the last merge to `main` was 2026-05-22, the last release 2026-04-27, and 32 pull requests sit open, several for over a year. The community is alive — issues and comments continue — but nobody is draining the queue, so adding to it costs effort and buys nothing.
+Until 2026-10-28 upstream's maintainership was dormant: the last merge to `main` was 2026-05-22, the last release 2026-04-27, and 32 pull requests sat open.
+It resumed when a maintainer merged #545 on 2026-10-28.
+The fork still writes nothing upstream, whatever the state of the queue.
 
-The posture is therefore *keep it adoptable, do not push it*. Every change stays small, single-purpose and separable; carried commits keep their original authors and a `cherry picked from` line; upstream files are not reformatted; and nothing under `roles/*/molecule/` is touched.
+The posture is *keep it adoptable, offer it by pull*. Every change stays small, single-purpose and separable; carried commits keep their original authors and a `cherry picked from` line; upstream files are not reformatted; and nothing under `roles/*/molecule/` is touched.
+The offer is the handover below.
 
-**This policy has a premise, and the premise is checkable.** If `make carried-prs` ever reports something as merged upstream, maintainership has resumed and the decision not to submit should be re-examined rather than inherited. That is the one event that would change the answer.
+**The old premise held until it was checked.** `make carried-prs` reporting a merge was the signal that maintainership had resumed. It did, and the handover is the answer.
 
 #### A carried contribution can need a fix, and the fix is a separate commit
 
@@ -381,6 +384,55 @@ The same rule applies as for the roles above: an upstream merge brings them back
 Resolve it by deleting the file again. The rewrite count is unaffected, because `package.json` and `yarn.lock` were already excluded from the rename.
 
 If the files come back, so do the places that referenced them: the `setup-node` step in `gate.yml`, the `npm` block in `dependabot.yml`, the `yarn` lines in `Makefile` and `tools/setup.sh`, and their `build_ignore` entries in `galaxy.yml`.
+
+## Handover
+
+Upstream's maintainer pulls the fork's work as chunks.
+`tools/handover/chunks.yml` lists them.
+Each chunk has a `review/<id>-<slug>` branch rebuilt onto upstream `main`, tested, and listed on the handover page at <https://no42-org.github.io/grafana-ansible-collection/>.
+The fork writes nothing to upstream.
+The maintainer fetches a branch and takes what he wants.
+
+```bash
+make handover-check             # validate the manifest
+make handover-check-coverage    # commits on main in no chunk and not fork_only
+make handover-unit              # the tooling's own tests
+make handover-rebuild           # rebase each branch onto upstream, locally
+make handover-matrix            # the CI test matrix for the candidates
+make handover-test CHUNK=<id>   # one chunk's declared tests
+make handover-push-candidates   # push candidates so CI can test them
+make handover-promote           # push passing candidates to review/*
+make handover-facts             # commits, landed state, CLA, board rows
+make handover-render            # build the page
+make handover-publish-local     # rebuild, facts and render, pushing nothing
+make handover-seed CHUNK=<id>   # first review branch for a new chunk
+```
+
+### How a run behaves
+
+`.github/workflows/handover.yml` runs weekly.
+It goes through these steps in order: rebuild, test, promote, facts, render, deploy.
+
+1. Rebuild rebases every chunk onto upstream `main`, parents first.
+2. Test runs each candidate's declared tests.
+3. Promote force-pushes the candidates that passed to `review/*`.
+4. Facts gathers commits, landed state, CLA status and board rows.
+5. Render builds the page.
+6. Deploy publishes it to GitHub Pages.
+
+A chunk that fails to rebase or test keeps its last good branch.
+The page shows it as "behind upstream".
+The branches are force-pushed, and the page says so.
+
+Enabling GitHub Pages is a one-time repository setting.
+Set the source to GitHub Actions.
+
+### Keeping the manifest true
+
+Every commit on `main` lands in exactly one chunk or in `fork_only`.
+Update `chunks.yml` after a commit lands.
+`make handover-check-coverage` lists what is missing, and the page shows the count.
+Contributor commits go on whole, with their authorship.
 
 ## Releases are cut from `main`
 
