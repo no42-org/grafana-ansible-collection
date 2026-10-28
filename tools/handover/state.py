@@ -19,6 +19,7 @@ class ChunkState:
     verified_at: dict | None = None   # {"upstream": sha, "date": "YYYY-MM-DD"}
     last_good: dict | None = None
     landed: bool = False
+    published: str | None = None      # origin/<branch> sha seen at rebuild
 
 
 def load(path: Path) -> dict[str, ChunkState]:
