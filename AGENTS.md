@@ -88,10 +88,11 @@ It cherry-picks the chunk's commits and never pushes.
 Contributor commits go on whole, with their authorship.
 
 ```bash
-make handover-check    # validate the manifest
-make handover-rebuild  # local candidates, nothing pushed
-make handover-render   # the page, nothing published
+make handover-check          # validate the manifest
+make handover-publish-local  # rebuild, facts and render, nothing pushed
 ```
+
+`make handover-publish-local` switches branches while it rebases, so it refuses a dirty work tree.
 
 `RELEASING.md` has the full run.
 
