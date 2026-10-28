@@ -49,14 +49,21 @@ def _current(repo: Path) -> str:
     return _git(repo, "symbolic-ref", "-q", "--short", "HEAD", check=False).stdout.strip()
 
 
-def _in_progress(repo: Path) -> bool:
+def _picking(repo: Path) -> bool:
     return _git(repo, "rev-parse", "--verify", "--quiet", "CHERRY_PICK_HEAD",
                 check=False).returncode == 0
 
 
+def _in_progress(repo: Path) -> bool:
+    """A pick is stopped, or picks remain queued (the human ran `git commit`)."""
+    todo = _git(repo, "rev-parse", "--git-path", "sequencer/todo").stdout.strip()
+    todo_path = Path(todo) if os.path.isabs(todo) else repo / todo
+    return _picking(repo) or todo_path.exists()
+
+
 def _stopped(chunk: manifest.Chunk, repo: Path) -> int:
     print(f"handover: seeding {chunk.id} stopped on a commit that did not apply cleanly.")
-    if _in_progress(repo):
+    if _picking(repo):
         head = _git(repo, "rev-parse", "CHERRY_PICK_HEAD").stdout.strip()
         subject = _git(repo, "log", "-1", "--format=%s", head).stdout.strip()
         print(f"  stopped at {head[:12]} {subject}")
@@ -79,6 +86,9 @@ def _finish(chunk: manifest.Chunk, repo: Path, base: str) -> int:
     marker.unlink(missing_ok=True)
     if origin and origin != chunk.branch:
         _git(repo, "checkout", "-q", origin)
+    if count != str(len(chunk.commits)):
+        print(f"warning: {chunk.id} lists {len(chunk.commits)} commits but {chunk.branch} "
+              f"has {count} over {base} (skipped or emptied commits are expected)")
     noun = "commit" if count == "1" else "commits"
     print(f"{chunk.branch}: {count} {noun} over {base}")
     return 0
@@ -108,7 +118,7 @@ def seed(chunk: manifest.Chunk, loaded: manifest.Manifest, repo: Path,
                             f"(it is on {_current(repo) or 'a detached HEAD'})")
         if _in_progress(repo):
             done = _git(repo, "cherry-pick", "--continue", check=False)
-            if done.returncode != 0:
+            if done.returncode != 0 and "no cherry-pick" not in done.stderr.lower():
                 print(done.stderr.strip())
                 return _stopped(chunk, repo)
         if _in_progress(repo):

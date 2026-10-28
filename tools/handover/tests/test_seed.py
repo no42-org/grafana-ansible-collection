@@ -91,6 +91,38 @@ class TestSeed(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD"), "main")
         self.assertIn("1 commit", out)
 
+    def conflict_chunk(self):
+        self.fx.upstream_commit("shared", "one\n2\nthree\n", "upstream edit")
+        s1 = self.on_main("a", "a\n", "first", JANE)
+        s2 = self.on_main("shared", "one\nTWO\nthree\n", "second", JANE)
+        s3 = self.on_main("c", "c\n", "third", JANE)
+        path = self.manifest(("T1", "a", None, [s1, s2, s3], ""))
+        code, out = self.seed(path, "T1")
+        self.assertEqual(code, 1, out)
+        self.assertIn(s2[:8], out)
+        (self.fx.work / "shared").write_text("one\nTWO\nthree\n")
+        self.git("add", "shared")
+        return path
+
+    def test_seed_multi_commit_conflict_then_continue(self):
+        path = self.conflict_chunk()
+        code, out = self.seed(path, "T1", "--continue")
+        self.assertEqual(code, 0, out)
+        self.assertIn("3 commits", out)
+        self.assertEqual(self.git("rev-list", "--count", "upstream/main..review/t1-a"), "3")
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD"), "main")
+
+    def test_seed_continue_after_manual_commit(self):
+        path = self.conflict_chunk()
+        self.git("commit", "-q", "-m", "second")
+        code, out = self.seed(path, "T1", "--continue")
+        self.assertEqual(code, 0, out)
+        self.assertIn("3 commits", out)
+        self.assertEqual(self.git("rev-list", "--count", "upstream/main..review/t1-a"), "3")
+        self.assertEqual(self.git("show", "review/t1-a:c"), "c")
+        self.assertFalse((self.fx.work / ".git" / "sequencer").exists())
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD"), "main")
+
     def test_seed_refuses_existing_branch(self):
         sha = self.on_main("a", "a\n", "fix")
         path = self.manifest(("T1", "a", None, [sha], ""))
