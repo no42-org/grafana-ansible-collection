@@ -101,7 +101,7 @@ The marks and notes are stored in the viewer's browser `localStorage` only, keye
 
 ### Other constraints
 
-- Every new or edited source file gets an SPDX header (the `source-headers` skill). Repo markdown is one sentence per line.
+- Every new or edited source file gets an SPDX header (the `source-headers` skill). Repo Markdown is one sentence per line.
 - The new generator, manifest and workflow are fork infrastructure. They are themselves listed as fork-only on the page, not offered as a chunk.
 - AGENTS.md and RELEASING.md say "nothing is submitted upstream (maintainership is dormant)". That is no longer the situation. Both must be updated in the same change to describe the handover: still no writes to upstream, Dominik pulls from `review/*` branches.
 - `.superpowers/` must be added to `.gitignore`.
