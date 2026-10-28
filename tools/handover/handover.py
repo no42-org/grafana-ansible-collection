@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import facts as factory  # noqa: E402
 import manifest  # noqa: E402
 import promote as promoter  # noqa: E402
 import rebuild as rebuilder  # noqa: E402
@@ -134,7 +135,56 @@ def promote(args: argparse.Namespace) -> int:
     return 1 if any(not states[cid].promoted for cid in wanted) else 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def facts(args: argparse.Namespace, gh=None) -> int:
+    gh = gh or factory.real_gh
+    try:
+        loaded = manifest.load(args.manifest, args.repo, args.main)
+        missing = unassigned(loaded, args.repo, args.main, args.upstream)
+        have_state = args.state.exists()
+        states = state.load(args.state) if have_state else {}
+        prs = sorted({n for c in loaded.chunks for n in c.carries} | {factory.RONNY_PR})
+        pr_data = factory.pr_facts(gh, prs)
+        board = factory.board_rows(gh)
+    except (manifest.ManifestError, factory.GhError, OSError, ValueError) as err:
+        print(f"handover: {err}", file=sys.stderr)
+        return 1
+    upstream = manifest.git(args.repo, "rev-parse", "--verify", f"{args.upstream}^{{commit}}")
+    if upstream.returncode != 0:
+        print(f"handover: {args.upstream} does not exist", file=sys.stderr)
+        return 2
+    merged = {n for n, p in pr_data.items() if p["merged"]}
+    chunks = {}
+    for chunk in loaded.chunks:
+        got = factory.chunk_facts(chunk, args.repo, loaded, args.upstream)
+        if not got.found:
+            print(f"handover: {chunk.id}: no branch {chunk.branch}, recording no commits")
+        landed = factory.is_landed(chunk, args.repo, merged, loaded, args.upstream)
+        if chunk.id in states:
+            states[chunk.id].landed = states[chunk.id].landed or landed
+            landed = states[chunk.id].landed
+        seen, authors = set(), []
+        for c in got.commits:
+            if (c["author"], c["email"]) not in seen:
+                seen.add((c["author"], c["email"]))
+                authors.append({"name": c["author"], "email": c["email"],
+                                "cla": factory.author_cla(c["author"], c["email"], pr_data)})
+        chunks[chunk.id] = {"commits": got.commits, "files": got.files,
+                            "insertions": got.insertions, "deletions": got.deletions,
+                            "landed": landed, "authors": authors}
+    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    out = {"generated": today, "upstream": upstream.stdout.strip(), "unassigned": missing,
+           "chunks": chunks,
+           "prs": {str(n): {k: p[k] for k in ("cla", "merged", "title")}
+                   for n, p in pr_data.items()},
+           "board": board}
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(out, indent=2) + "\n")
+    if have_state:
+        state.save(args.state, states)
+    return 0
+
+
+def main(argv: list[str] | None = None, gh=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("check", help="validate the manifest")
@@ -171,7 +221,17 @@ def main(argv: list[str] | None = None) -> int:
         if name == "promote":
             p.add_argument("--upstream", default="upstream/main")
             p.add_argument("--origin", default="origin")
+    p = sub.add_parser("facts", help="gather commits, landed state, CLA and board for the page")
+    p.add_argument("--manifest", type=Path, default=HERE / "chunks.yml")
+    p.add_argument("--repo", type=Path, default=HERE.parent.parent)
+    p.add_argument("--main", default="main")
+    p.add_argument("--upstream", default="upstream/main")
+    p.add_argument("--state", type=Path, default=default_state)
+    p.add_argument("--out", type=Path, default=HERE.parent.parent / "build/handover/facts.json")
+    p.set_defaults(func=facts)
     args = parser.parse_args(argv)
+    if args.command == "facts":
+        return facts(args, gh)
     return args.func(args)
 
 
