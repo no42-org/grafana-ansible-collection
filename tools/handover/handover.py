@@ -26,6 +26,7 @@ import facts as factory  # noqa: E402
 import manifest  # noqa: E402
 import promote as promoter  # noqa: E402
 import rebuild as rebuilder  # noqa: E402
+import render as renderer  # noqa: E402
 import state  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -184,6 +185,27 @@ def facts(args: argparse.Namespace, gh=None) -> int:
     return 0
 
 
+def render(args: argparse.Namespace) -> int:
+    for path in (args.state, args.facts):
+        if not path.is_file():
+            print(f"handover: {path} does not exist; run the earlier handover steps first",
+                  file=sys.stderr)
+            return 2
+    try:
+        loaded = manifest.load(args.manifest, args.repo, args.main)
+    except manifest.ManifestError as err:
+        print(f"handover: {err}", file=sys.stderr)
+        return 1
+    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    page = renderer.render(loaded, state.load(args.state), json.loads(args.facts.read_text()),
+                           today)
+    args.out.mkdir(parents=True, exist_ok=True)
+    (args.out / "index.html").write_text(page)
+    (args.out / "state.json").write_text(args.state.read_text())
+    print(f"wrote {args.out / 'index.html'}")
+    return 0
+
+
 def main(argv: list[str] | None = None, gh=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -229,6 +251,14 @@ def main(argv: list[str] | None = None, gh=None) -> int:
     p.add_argument("--state", type=Path, default=default_state)
     p.add_argument("--out", type=Path, default=HERE.parent.parent / "build/handover/facts.json")
     p.set_defaults(func=facts)
+    p = sub.add_parser("render", help="render the page into build/handover/site")
+    p.add_argument("--manifest", type=Path, default=HERE / "chunks.yml")
+    p.add_argument("--repo", type=Path, default=HERE.parent.parent)
+    p.add_argument("--main", default="main")
+    p.add_argument("--state", type=Path, default=default_state)
+    p.add_argument("--facts", type=Path, default=HERE.parent.parent / "build/handover/facts.json")
+    p.add_argument("--out", type=Path, default=HERE.parent.parent / "build/handover/site")
+    p.set_defaults(func=render)
     args = parser.parse_args(argv)
     if args.command == "facts":
         return facts(args, gh)

@@ -1,0 +1,239 @@
+<!-- Copyright 2026 Ronny Trommer <ronny@no42.org> -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Upstream handover</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --muted: #59636e;
+  --border: #d8dee4;
+  --link: #0b5cad;
+  --code-bg: #f3f4f6;
+  --accent: #0b5cad;
+  --ok-fg: #116329;
+  --ok-bg: #e6f4ea;
+  --warn-fg: #7a4a00;
+  --warn-bg: #fff4d6;
+  --info-fg: #3b3f99;
+  --info-bg: #ebecfb;
+  --plain-fg: #4a525b;
+  --plain-bg: #eef0f2;
+  --take: #116329;
+  --maybe: #7a4a00;
+  --skip: #8a2b2b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #111418;
+    --surface: #171b21;
+    --text: #e3e7ec;
+    --muted: #9aa4af;
+    --border: #2e353e;
+    --link: #79b8ff;
+    --code-bg: #1f252d;
+    --accent: #79b8ff;
+    --ok-fg: #8fdca6;
+    --ok-bg: #14301f;
+    --warn-fg: #f2c46b;
+    --warn-bg: #352a10;
+    --info-fg: #b3b8ff;
+    --info-bg: #23264a;
+    --plain-fg: #b7c0ca;
+    --plain-bg: #232a32;
+    --take: #8fdca6;
+    --maybe: #f2c46b;
+    --skip: #f19999;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+a { color: var(--link); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.88em; }
+code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0.75rem 0; }
+pre code { display: block; padding: 0.6rem 0.75rem; overflow-x: auto; white-space: pre; overflow-wrap: normal; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 0.25rem; }
+h2 { font-size: 1.3rem; margin: 2.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; line-height: 1.35; margin: 0.15rem 0 0.4rem; }
+.lede { color: var(--muted); margin: 0; }
+.stamp { color: var(--muted); font-size: 0.9rem; margin: 0.25rem 0 0; }
+.fork-only li, #intro li { margin: 0.25rem 0; }
+.groups { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.groups li { border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.75rem; background: var(--surface); }
+.groups .count { color: var(--muted); margin-left: 0.25rem; }
+.progress { font-weight: 600; }
+.warn { color: var(--warn-fg); background: var(--warn-bg); padding: 0.4rem 0.6rem; border-radius: 6px; }
+.group > h2 { margin-top: 3rem; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  margin: 1rem 0;
+}
+.card[data-mark="take"] { border-left-color: var(--take); }
+.card[data-mark="maybe"] { border-left-color: var(--maybe); }
+.card[data-mark="skip"] { border-left-color: var(--skip); }
+.card[data-mark="skip"] > :not(header):not(.marks) { opacity: 0.6; }
+.card header .meta { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.status {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.status-verified { color: var(--ok-fg); background: var(--ok-bg); }
+.status-behind { color: var(--warn-fg); background: var(--warn-bg); }
+.status-landed { color: var(--info-fg); background: var(--info-bg); }
+.status-untested { color: var(--plain-fg); background: var(--plain-bg); }
+.note { border-left: 3px solid var(--accent); padding-left: 0.75rem; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin: 0.75rem 0; }
+dt { color: var(--muted); }
+dd { margin: 0; min-width: 0; }
+.cla { color: var(--muted); font-size: 0.85em; }
+.cla-success { color: var(--ok-fg); }
+.cla-failure, .cla-pending, .cla-error, .cla-unknown { color: var(--warn-fg); }
+details { margin: 0.5rem 0; }
+summary { cursor: pointer; color: var(--link); }
+.commits, .files { padding-left: 1.25rem; font-size: 0.92rem; }
+.commits li, .files li { overflow-wrap: anywhere; }
+.author { color: var(--muted); }
+.files { columns: 2 18rem; }
+.marks { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.toggles { display: flex; gap: 0.25rem; }
+.toggles button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.toggles button[aria-pressed="true"][data-mark="take"] { border-color: var(--take); color: var(--take); font-weight: 600; }
+.toggles button[aria-pressed="true"][data-mark="maybe"] { border-color: var(--maybe); color: var(--maybe); font-weight: 600; }
+.toggles button[aria-pressed="true"][data-mark="skip"] { border-color: var(--skip); color: var(--skip); font-weight: 600; }
+.marks label { flex: 1 1 14rem; display: flex; flex-direction: column; gap: 0.2rem; color: var(--muted); font-size: 0.85rem; }
+.marks textarea { font: inherit; font-size: 0.92rem; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.5rem; width: 100%; resize: vertical; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.table { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+td:first-child { white-space: nowrap; }
+@media (max-width: 30rem) {
+  main { padding-top: 1.25rem; }
+  h1 { font-size: 1.5rem; }
+  .card { padding: 0.85rem; }
+  dl { grid-template-columns: 1fr; }
+  dd { margin-bottom: 0.35rem; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Upstream handover</h1>
+<p class="lede">Work from no42-org/grafana-ansible-collection, offered back to grafana/grafana-ansible-collection in chunks.</p>
+<p class="stamp">${generated}</p>
+</header>
+${intro}
+${overview}
+${groups}
+${appendix}
+</main>
+<script>
+(function () {
+  "use strict";
+  var PREFIX = "handover:";
+  // The only access to browser storage. It throws in private windows and on
+  // file:// previews; then marks still toggle but are not kept.
+  function store(id, value) {
+    try {
+      var box = window.localStorage;
+      if (value === undefined) {
+        return JSON.parse(box.getItem(PREFIX + id) || "null");
+      }
+      if (value === null) {
+        box.removeItem(PREFIX + id);
+      } else {
+        box.setItem(PREFIX + id, JSON.stringify(value));
+      }
+      return true;
+    } catch (e) {
+      return null;
+    }
+  }
+  var cards = Array.prototype.slice.call(document.querySelectorAll("[data-chunk]"));
+  var progress = document.getElementById("progress");
+  function count() {
+    var tally = { take: 0, maybe: 0, skip: 0 };
+    cards.forEach(function (card) {
+      var mark = card.getAttribute("data-mark");
+      if (tally.hasOwnProperty(mark)) { tally[mark] += 1; }
+    });
+    var done = tally.take + tally.maybe + tally.skip;
+    progress.textContent = "Marked " + done + " of " + cards.length + ": " +
+      tally.take + " take, " + tally.maybe + " maybe, " + tally.skip + " skip.";
+    progress.hidden = false;
+  }
+  cards.forEach(function (card) {
+    var id = card.getAttribute("data-chunk");
+    var panel = card.querySelector(".marks");
+    var buttons = Array.prototype.slice.call(panel.querySelectorAll("button[data-mark]"));
+    var note = panel.querySelector("textarea");
+    var saved = store(id);
+    var mark = saved && typeof saved.mark === "string" ? saved.mark : "";
+    note.value = saved && typeof saved.note === "string" ? saved.note : "";
+    function paint() {
+      buttons.forEach(function (b) {
+        b.setAttribute("aria-pressed", b.getAttribute("data-mark") === mark ? "true" : "false");
+      });
+      if (mark) { card.setAttribute("data-mark", mark); } else { card.removeAttribute("data-mark"); }
+    }
+    function save() {
+      var value = mark ? { mark: mark, note: note.value } : { note: note.value };
+      store(id, mark || note.value ? value : null);
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        var chosen = b.getAttribute("data-mark");
+        mark = mark === chosen ? "" : chosen;
+        paint();
+        save();
+        count();
+      });
+    });
+    note.addEventListener("input", save);
+    panel.hidden = false;
+    paint();
+  });
+  count();
+})();
+</script>
+</body>
+</html>
