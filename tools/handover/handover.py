@@ -175,7 +175,7 @@ def facts(args: argparse.Namespace, gh=None) -> int:
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     out = {"generated": today, "upstream": upstream.stdout.strip(), "unassigned": missing,
            "chunks": chunks,
-           "prs": {str(n): {k: p[k] for k in ("cla", "merged", "title")}
+           "prs": {str(n): {k: p[k] for k in ("cla", "merged", "state", "title")}
                    for n, p in pr_data.items()},
            "board": board}
     args.out.parent.mkdir(parents=True, exist_ok=True)

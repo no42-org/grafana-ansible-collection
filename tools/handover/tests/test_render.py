@@ -154,6 +154,34 @@ class TestRender(unittest.TestCase):
         self.assertIn("<details", card)
         self.assertIn('data-chunk="C1"', card)
 
+    def test_open_carried_pr_gets_merge_note(self):
+        chunks = [chunk("C1", group="carried", carries=[448]),
+                  chunk("C2", group="carried", carries=[510])]
+        prs = {"448": {"cla": "success", "merged": False, "state": "open", "title": "t"},
+               "510": {"cla": "success", "merged": False, "state": "closed", "title": "t"}}
+        out = page(chunks, prs=prs)
+        note = ("Merging the original upstream pull request "
+                '<a href="https://github.com/grafana/grafana-ansible-collection/issues/448">#448'
+                "</a> is the cleanest way to take this, because it keeps the contributor's "
+                "attribution and history. This branch holds the cherry-pick plus any fork "
+                "follow-up.")
+        c1 = out[out.index('id="card-C1"'):out.index('id="card-C2"')]
+        c2 = out[out.index('id="card-C2"'):]
+        self.assertIn(note, c1)
+        self.assertNotIn("cleanest way", c2)
+        two = page([chunk("C1", group="carried", carries=[448, 449])],
+                   prs={"448": prs["448"], "449": prs["448"]})
+        self.assertIn("pull requests <a", two)
+        self.assertIn("keeps the contributors' attribution", two)
+
+    def test_intro_names_root_chunks(self):
+        chunks = [chunk("P1", group="pinning", tests=()), chunk("T1", group="harness",
+                                                                  requires="P1"),
+                  chunk("F9")]
+        out = page(chunks)
+        self.assertIn("Chunks with no parent (P1, F9) are cut directly from upstream main.", out)
+        self.assertNotIn("sits at the root", out)
+
     def test_cla_summary(self):
         chunks = [chunk("C1", carries=[475]), chunk("C2", carries=[461])]
         ok = {"475": {"cla": "success", "merged": False, "title": "t"},
