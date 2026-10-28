@@ -10,6 +10,9 @@ itself, and `make ci-lint-release` must pass without it.
 `rebuild` rebases each review branch onto its new base into a local
 handover-candidate branch and writes the state file. It exits 1 if any chunk
 conflicted, 2 if it could not run at all (a dirty work tree, a missing ref).
+
+`seed --chunk ID [--continue]` builds one chunk's first review branch by
+cherry-picking its commits. It stops on a conflict for manual resolution.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ import manifest  # noqa: E402
 import promote as promoter  # noqa: E402
 import rebuild as rebuilder  # noqa: E402
 import render as renderer  # noqa: E402
+import seed as seeder  # noqa: E402
 import state  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -213,6 +217,27 @@ def render(args: argparse.Namespace) -> int:
     return 0
 
 
+def seed(args: argparse.Namespace) -> int:
+    if not args.chunk:
+        print("handover: seed takes one chunk at a time: pass --chunk ID", file=sys.stderr)
+        return 2
+    try:
+        loaded = manifest.load(args.manifest, args.repo, args.main)
+    except manifest.ManifestError as err:
+        print(f"handover: {err}", file=sys.stderr)
+        return 1
+    chunk = next((c for c in loaded.chunks if c.id == args.chunk), None)
+    if chunk is None:
+        print(f"handover: unknown chunk {args.chunk}", file=sys.stderr)
+        return 1
+    try:
+        return seeder.seed(chunk, loaded, args.repo, args.upstream, args.origin,
+                           args.resume)
+    except seeder.SeedError as err:
+        print(f"handover: {err}", file=sys.stderr)
+        return 2
+
+
 def main(argv: list[str] | None = None, gh=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -275,6 +300,16 @@ def main(argv: list[str] | None = None, gh=None) -> int:
     p.add_argument("--facts", type=Path, default=HERE.parent.parent / "build/handover/facts.json")
     p.add_argument("--out", type=Path, default=HERE.parent.parent / "build/handover/site")
     p.set_defaults(func=render)
+    p = sub.add_parser("seed", help="build a chunk's first review branch by cherry-picking")
+    p.add_argument("--manifest", type=Path, default=HERE / "chunks.yml")
+    p.add_argument("--repo", type=Path, default=HERE.parent.parent)
+    p.add_argument("--main", default="main")
+    p.add_argument("--upstream", default="upstream/main")
+    p.add_argument("--origin", default="origin")
+    p.add_argument("--chunk", help="the chunk to seed (required; one at a time)")
+    p.add_argument("--continue", dest="resume", action="store_true",
+                   help="resume after resolving a conflict")
+    p.set_defaults(func=seed)
     args = parser.parse_args(argv)
     if args.command == "facts":
         return facts(args, gh)
