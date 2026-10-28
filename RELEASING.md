@@ -423,6 +423,12 @@ It goes through these steps in order: rebuild, test, promote, facts, render, dep
 A chunk that fails to rebase or test keeps its last good branch.
 The page shows it as "behind upstream".
 The branches are force-pushed, and the page says so.
+A run with a chunk that conflicted or was not promoted still deploys the page, and then fails.
+
+Both pushes use a token from the role bumper's GitHub App, `ROLE_BUMP_APP_ID` and `ROLE_BUMP_PRIVATE_KEY`, not `GITHUB_TOKEN`.
+`GITHUB_TOKEN` cannot push a commit that touches `.github/workflows/`, and most chunks do.
+The app therefore needs Contents and Workflows write on this repository.
+Without the app the run fails before its first push.
 
 Enabling GitHub Pages is a one-time repository setting.
 Set the source to GitHub Actions.
@@ -559,7 +565,9 @@ An app is not a first-time contributor, so `role-versions.yml` mints an app toke
 | `ROLE_BUMP_APP_ID` | repository **variable** | the app's ID, which is not a secret |
 | `ROLE_BUMP_PRIVATE_KEY` | repository **secret** | the app's private key |
 
-The app needs `contents: write` and `pull requests: write` on this repository and nothing else. The token is narrowed to those two with `permission-contents` and `permission-pull-requests` regardless, because an app token otherwise carries everything its installation was granted, and a job's own `permissions:` block cannot constrain it.
+The app needs `contents: write` and `pull requests: write` on this repository for the role bumps, and `workflows: write` for the handover pushes (see [Handover](#handover)).
+Each workflow narrows its token to what it does.
+The role bumper's token is narrowed to the first two with `permission-contents` and `permission-pull-requests`, because an app token otherwise carries everything its installation was granted, and a job's own `permissions:` block cannot constrain it.
 
 With neither set the step is skipped and the job runs exactly as it did before, opening correct pull requests that wait for approval. That is the fallback, not a second code path: the same expression selects `GITHUB_TOKEN`.
 
