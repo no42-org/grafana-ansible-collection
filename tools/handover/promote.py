@@ -134,6 +134,9 @@ def promote(loaded: manifest.Manifest, states: dict[str, ChunkState], results: d
     satisfied: set[str] = set()
     for chunk in loaded.chunks:
         s = states[chunk.id]
+        # The upstream the candidate was rebased and tested on, not where the
+        # ref points now.
+        tested_on = s.upstream or upstream_sha
         if s.landed or s.rebase in SETTLED:
             satisfied.add(chunk.id)
             continue
@@ -152,7 +155,7 @@ def promote(loaded: manifest.Manifest, states: dict[str, ChunkState], results: d
         s.promoted = True
         satisfied.add(chunk.id)
         if chunk.tests:
-            s.verified_at = {"upstream": upstream_sha, "date": today}
+            s.verified_at = {"upstream": tested_on, "date": today}
             s.last_good = dict(s.verified_at)
     _delete_candidates(repo, url)
     return states

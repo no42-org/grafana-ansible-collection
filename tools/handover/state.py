@@ -21,6 +21,7 @@ class ChunkState:
     landed: bool = False
     published: str | None = None      # origin/<branch> sha seen at rebuild
     reason: str | None = None         # why the rebuild failed, from git's own output
+    upstream: str | None = None       # the upstream sha this rebuild rebased onto
 
 
 def load(path: Path) -> dict[str, ChunkState]:

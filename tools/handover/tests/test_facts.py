@@ -200,6 +200,23 @@ class TestCli(Base):
         self.assertEqual(data["prs"]["510"]["state"], "open")
         self.assertTrue(json.loads(state_path.read_text())["T1"]["landed"])
 
+    def test_upstream_is_the_rebuilds_when_state_has_it(self):
+        self.t1()
+        manifest_path = self.fx.manifest(("T1", "a", None))
+        state_path = self.fx.root / "state.json"
+        state_path.write_text(json.dumps({"T1": {
+            "rebase": "ok", "candidate": None, "base": None, "tests": "pass",
+            "upstream": "r" * 40}}))
+        out_file = self.fx.root / "facts.json"
+        gh = fake_gh({**pr_routes(510, "c" * 40, "success"),
+                      "project item-list": {"totalCount": 0, "items": []}})
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = handover.main(["facts", "--manifest", str(manifest_path), "--repo",
+                                  str(self.fx.work), "--state", str(state_path),
+                                  "--out", str(out_file)], gh=gh)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out_file.read_text())["upstream"], "r" * 40)
+
     def test_failed_gh_call_fails_and_writes_nothing(self):
         manifest_path = self.fx.manifest(("T1", "a", None))
         state_path = self.fx.root / "state.json"

@@ -109,6 +109,7 @@ def rebuild(loaded: manifest.Manifest, repo: Path, upstream_ref: str = "upstream
         for chunk in loaded.chunks:
             parent = states[chunk.requires] if chunk.requires else None
             result, reason = _rebase_one(chunk, parent, repo, upstream, origin, by_id)
+            result.upstream = upstream
             if result.rebase in FAILED:
                 result.reason = reason
             states[chunk.id] = result

@@ -167,6 +167,13 @@ class TestRebuild(Base):
         self.assertEqual(self.git("status", "--porcelain"), "")
         self.assertFalse((self.fx.work / ".git" / "rebase-merge").exists())
 
+    def test_upstream_sha_recorded_per_chunk(self):
+        self.t1()
+        new = self.fx.upstream_commit("up", "up\n", "upstream moves")
+        result, _ = self.run_rebuild(("T1", "a", None), ("T2", "b", "T1"))
+        self.assertEqual({s.upstream for s in result.values()}, {new})
+        self.assertIsNone(result["T1"].reason)
+
     def test_child_of_conflict_is_parent_behind(self):
         t1_tip = self.t1(("shared", "one\nfork\nthree\n", "fork edits two"))
         f1_tip = self.fx.review_branch("review/f1-b", t1_tip, ("f1", "f1\n", "f1 change"))
@@ -278,8 +285,16 @@ class TestState(unittest.TestCase):
             self.assertEqual(list(json.loads(path.read_text())["T1"]),
                              ["rebase", "candidate", "base", "tests", "promoted",
                               "verified_at", "last_good", "landed", "published",
-                              "reason"])
+                              "reason", "upstream"])
 
+    def test_state_without_new_fields_still_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            path.write_text(json.dumps({"T1": {"rebase": "ok", "candidate": None,
+                                               "base": None, "tests": "pass"}}))
+            loaded = state.load(path)["T1"]
+            self.assertIsNone(loaded.reason)
+            self.assertIsNone(loaded.upstream)
 
 
 if __name__ == "__main__":

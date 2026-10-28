@@ -117,9 +117,17 @@ class TestPromote(Base):
         out = self.go(loaded, states, {"T1": True, "T2": True})
         self.assertTrue(out["T1"].promoted and out["T2"].promoted)
         self.assertEqual(self.origin_tip("review/t1-a"), out["T1"].candidate)
-        want = {"upstream": "u" * 40, "date": TODAY}
+        # The upstream the rebuild used, not the argument promote was given.
+        want = {"upstream": self.rev("upstream/main"), "date": TODAY}
         self.assertEqual(out["T2"].verified_at, want)
         self.assertEqual(out["T2"].last_good, want)
+
+    def test_state_without_upstream_falls_back_to_argument(self):
+        loaded, states = self.build(T1=["a"])
+        for s in states.values():
+            s.upstream = None
+        out = self.go(loaded, states, {"T1": True, "T2": True})
+        self.assertEqual(out["T1"].verified_at["upstream"], "u" * 40)
 
     def test_no_tests_promotes_without_verified_at(self):
         loaded, states = self.build()
@@ -288,6 +296,28 @@ class TestCli(Base):
         self.assertTrue(saved["T1"]["promoted"])
         self.assertNotEqual(self.fx.git(self.fx.root, "--git-dir", str(self.fx.origin),
                                         "rev-parse", "review/t1-a"), t1)
+
+    def test_moved_upstream_does_not_change_the_stamped_sha(self):
+        self.t1()
+        rebuilt_on = self.fx.upstream_commit("other", "x\n", "upstream moves")
+        self.git("fetch", "-q", "origin")
+        path = self.fx.manifest(("T1", "a", None))
+        path.write_text(path.read_text().replace("tests: []", "tests: [units]"))
+        state_file = self.fx.root / "out" / "state.json"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(handover.main(["rebuild", "--manifest", str(path), "--repo",
+                                            str(self.fx.work), "--out", str(state_file)]), 0)
+        moved = self.fx.upstream_commit("later", "y\n", "upstream moves again")
+        self.assertNotEqual(moved, rebuilt_on)
+        results = self.fx.root / "results"
+        results.mkdir()
+        (results / "T1.json").write_text(json.dumps({"chunk": "T1", "passed": True}))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(handover.main(["promote", "--manifest", str(path), "--repo",
+                                            str(self.fx.work), "--state", str(state_file),
+                                            "--results", str(results)]), 0)
+        saved = json.loads(state_file.read_text())["T1"]
+        self.assertEqual(saved["verified_at"]["upstream"], rebuilt_on)
 
     def test_test_subcommand_writes_result(self):
         (self.fx.work / "Makefile").write_text("bad:\n\t@false\n")
