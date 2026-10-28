@@ -1,7 +1,7 @@
 .DEFAULT_GOAL:= lint
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit handover-rebuild
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -293,3 +293,8 @@ handover-check-coverage:
 
 handover-unit:
 	@$(HANDOVER_PY) -m unittest discover -s tools/handover/tests -t tools/handover -v
+
+# Rebase each review branch onto upstream into a local handover-candidate
+# branch, parents first, and write build/handover/state.json. Never pushes.
+handover-rebuild:
+	@$(HANDOVER_PY) tools/handover/handover.py rebuild $(args)
