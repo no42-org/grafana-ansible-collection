@@ -18,3 +18,12 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+
+  # Keeps the SHA pins in .github/workflows current. Dependabot rewrites both
+  # the SHA and the trailing full-semver comment.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
