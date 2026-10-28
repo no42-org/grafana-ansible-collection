@@ -1,7 +1,7 @@
 .DEFAULT_GOAL:= lint
 SHELL := /bin/bash
 args = $(filter-out $@, $(MAKECMDGOALS))
-.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean
+.PHONY: all setup install clean reinstall build compile pdfs lint lint-sh lint-shell lint-md lint-markdown lint-txt lint-text pdf lint-yaml lint-yml lint-editorconfig lint-ec ci-lint ci-lint-shell ci-lint-markdown ci-lint-text ci-lint-yaml ci-lint-editorconfig lint-ansible ci-lint-ansible ci-lint-release carried-prs upstream-bootstrap upstream-sync upstream-status upstream-check-token role-test role-test-list module-test module-test-list sanity units version-select-test dist dist-clean handover-check handover-check-coverage handover-unit
 
 # Galaxy namespace this fork publishes to. The working tree keeps saying
 # "grafana", and the rename happens in build/src at dist time.
@@ -277,3 +277,19 @@ role-versions-bump:
 # locally.
 ci-lint-release:
 	@./tools/lint-release.sh
+
+####################################################################
+#                   Upstream handover                              #
+####################################################################
+# The manifest in tools/handover/chunks.yml, validated. Coverage is separate
+# because a squash merge changes shas and a commit cannot list itself.
+HANDOVER_PY := uv run --frozen --group ansible python
+
+handover-check:
+	@$(HANDOVER_PY) tools/handover/handover.py check
+
+handover-check-coverage:
+	@$(HANDOVER_PY) tools/handover/handover.py check --coverage
+
+handover-unit:
+	@$(HANDOVER_PY) -m unittest discover -s tools/handover/tests -t tools/handover -v
