@@ -46,6 +46,22 @@ def _rev(repo: Path, ref: str) -> str | None:
     return done.stdout.strip() if done.returncode == 0 else None
 
 
+def _failure(repo: Path, rebased: subprocess.CompletedProcess) -> str:
+    """Why a rebase failed. Only git's own conflict report counts as a conflict.
+
+    Anything else, such as a missing committer identity, is still recorded as
+    rebase "conflict", so it fails closed, but with git's message as the reason.
+    """
+    output = rebased.stdout + rebased.stderr
+    unmerged = _git(repo, "diff", "--name-only", "--diff-filter=U", check=False).stdout.strip()
+    if "CONFLICT" in output or unmerged:
+        return "rebase conflict, aborted"
+    lines = [ln.strip() for ln in rebased.stderr.splitlines() if ln.strip()]
+    first = next((ln for ln in lines if ln.startswith(("fatal:", "error:"))),
+                 lines[0] if lines else f"exit {rebased.returncode}")
+    return f"rebase failed: {first}"
+
+
 def _rebase_one(chunk: manifest.Chunk, parent: ChunkState | None, repo: Path,
                 upstream: str, origin: str, by_id: dict) -> tuple[ChunkState, str]:
     published = f"{origin}/{chunk.branch}"
@@ -59,10 +75,12 @@ def _rebase_one(chunk: manifest.Chunk, parent: ChunkState | None, repo: Path,
     _git(repo, "branch", "-f", chunk.candidate, published)
     rebased = _git(repo, "rebase", new, chunk.candidate, check=False)
     if rebased.returncode != 0:
-        _git(repo, "rebase", "--abort")
+        reason = _failure(repo, rebased)
+        # A rebase that failed before it started leaves nothing to abort.
+        _git(repo, "rebase", "--abort", check=False)
         _git(repo, "checkout", "-q", "--detach")
         _git(repo, "branch", "-D", chunk.candidate)
-        return ChunkState("conflict", None, new, "none", published=tip), "rebase conflict, aborted"
+        return ChunkState("conflict", None, new, "none", published=tip), reason
     _git(repo, "checkout", "-q", "--detach")
     candidate = _rev(repo, chunk.candidate)
     ahead = _git(repo, "rev-list", "--count", f"{new}..{candidate}").stdout.strip()
@@ -91,6 +109,8 @@ def rebuild(loaded: manifest.Manifest, repo: Path, upstream_ref: str = "upstream
         for chunk in loaded.chunks:
             parent = states[chunk.requires] if chunk.requires else None
             result, reason = _rebase_one(chunk, parent, repo, upstream, origin, by_id)
+            if result.rebase in FAILED:
+                result.reason = reason
             states[chunk.id] = result
             line = f"{chunk.id} {result.rebase} {result.candidate or '-'}"
             print(f"{line} ({reason})" if reason else line, flush=True)

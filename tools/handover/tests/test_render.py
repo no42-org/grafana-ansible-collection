@@ -103,6 +103,17 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cards.count("behind upstream (never verified)"), 2)
         self.assertNotIn("verified on upstream main", cards)
 
+    def test_failure_reason_shown_escaped(self):
+        chunks = [chunk("F1"), chunk("F2")]
+        states = {"F1": st("conflict", "none", reason="rebase failed: fatal: <bad> & co"),
+                  "F2": st(promoted=True, verified_at={"upstream": UP, "date": "2026-10-27"},
+                           reason="stale")}
+        out = page(chunks, states)
+        self.assertIn('<p class="status-detail">rebase failed: fatal: &lt;bad&gt; &amp; co</p>',
+                      out)
+        self.assertNotIn("<bad>", out)
+        self.assertNotIn("stale", out)
+
     def test_landed_from_facts(self):
         chunks = [chunk("F1")]
         m = Manifest(tuple(chunks), FORK_ONLY)
