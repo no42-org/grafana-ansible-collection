@@ -77,6 +77,7 @@ fork_only:
     why: "Upstream merged #439 for the same issue; main resolved to upstream's form in b2b92c2."
     commits:
       - "f5781447"
+      - "3ed95b67"
   - title: Gate units job
     why: Needs both L2 and T3, and a chunk has at most one parent.
     commits:
@@ -248,7 +249,6 @@ chunks:
       This chunk declares no tests, for the same reason as G1: the grafana scenario first passes on G3, which installs plugins on Grafana 13.
       G3 runs the scenario on the newest ansible-core as well, which is the run that covers this chunk's 2.19 fix.
     commits:
-      - "3ed95b67"
       - "fdae4a80"
       - "f7e10b76"
     seed_notes: |
