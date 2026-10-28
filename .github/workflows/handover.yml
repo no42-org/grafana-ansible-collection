@@ -20,6 +20,14 @@ name: Upstream Handover
 # Upstream is read, never written. Every push goes through tools/handover's
 # vetted push URL, which refuses any URL naming the upstream repository, and
 # the upstream remote added below has its push URL disabled as well.
+#
+# Both pushes use a GitHub App token, the role bumper's app, not GITHUB_TOKEN.
+# GITHUB_TOKEN cannot push a ref whose commits touch .github/workflows/, and
+# most chunks do, so it would refuse those pushes. The app needs Contents and
+# Workflows write on this repository. A push with an app token triggers the
+# pushed tree's workflows, unlike one with GITHUB_TOKEN. The candidates are
+# upstream's workflows plus a chunk's, and those trigger on push only to main,
+# so pushing review/* and handover-candidate/* starts nothing.
 
 # yamllint disable-line rule:truthy
 on:
@@ -50,7 +58,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write  # push handover-candidate/* for the test jobs
+      contents: read  # the app token pushes, not GITHUB_TOKEN
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       conflict: ${{ steps.rebuild.outputs.conflict }}
@@ -109,8 +117,15 @@ jobs:
       # (a conflict, recorded in the state) and 2 (could not run) are told
       # apart by whether the state file was written. The checkout is fresh,
       # so a state file can only be this run's.
+      #
+      # A runner has no committer identity, and a rebase that replays a
+      # commit needs one. Without it every such rebase fails. The authors are
+      # kept; only the committer is the bot.
       - name: Rebuild
         id: rebuild
+        env:
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           if make handover-rebuild args="--previous build/handover/previous.json"; then
             echo "conflict=false" >> "${GITHUB_OUTPUT}"
@@ -122,15 +137,34 @@ jobs:
             exit 1
           fi
 
+      # The pin role-versions.yml uses. Narrowed to what the push needs:
+      # contents for the refs, workflows for commits that touch
+      # .github/workflows/. There is no fallback to GITHUB_TOKEN, which
+      # cannot push those commits.
+      - name: Mint a GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ vars.ROLE_BUMP_APP_ID }}
+          private-key: ${{ secrets.ROLE_BUMP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Explain a missing app token
+        if: ${{ failure() && steps.app-token.outcome == 'failure' }}
+        run: |
+          echo "::error::no GitHub App token: set ROLE_BUMP_APP_ID and ROLE_BUMP_PRIVATE_KEY, and give the app Contents and Workflows write on this repository"
+          exit 1
+
       # The token reaches git through GIT_CONFIG_* in this step's environment
       # only. It is never written to a git config file and never printed. The
       # add-mask keeps the encoded header out of the log should git ever trace
       # it.
       - name: Push the candidates
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          basic="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 -w0)"
+          basic="$(printf 'x-access-token:%s' "${APP_TOKEN}" | base64 -w0)"
           echo "::add-mask::${basic}"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
@@ -237,7 +271,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write  # push review/*, delete handover-candidate/*
+      contents: read  # the app token pushes review/* and deletes candidates
       pages: write  # deploy the page
       id-token: write  # deploy-pages proves the deployment's origin with OIDC
     environment:
@@ -284,15 +318,35 @@ jobs:
           merge-multiple: true
           path: build/handover/results
 
+      # The pin role-versions.yml uses. Narrowed to what the push needs:
+      # contents for the refs, workflows for commits that touch
+      # .github/workflows/. There is no fallback to GITHUB_TOKEN, which
+      # cannot push those commits.
+      - name: Mint a GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ vars.ROLE_BUMP_APP_ID }}
+          private-key: ${{ secrets.ROLE_BUMP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Explain a missing app token
+        if: ${{ failure() && steps.app-token.outcome == 'failure' }}
+        run: |
+          echo "::error::no GitHub App token: set ROLE_BUMP_APP_ID and ROLE_BUMP_PRIVATE_KEY, and give the app Contents and Workflows write on this repository"
+          exit 1
+
       # A chunk that was not promoted is reported on the page and fails the
       # job at the end, after the page is deployed. The exit status is
-      # recorded rather than masked.
+      # recorded rather than masked. The token reaches git as in the rebuild
+      # job's push.
       - name: Promote
         id: promote
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          basic="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 -w0)"
+          basic="$(printf 'x-access-token:%s' "${APP_TOKEN}" | base64 -w0)"
           echo "::add-mask::${basic}"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
@@ -304,7 +358,15 @@ jobs:
             echo "promoted=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      # PROJECTS_TOKEN, because the board is private. Read-only against
+      # promote just moved review/*. The page's commit lists must match what
+      # `git fetch` of a review branch returns now, not before the promote.
+      - name: Fetch the promoted review branches
+        run: >-
+          git fetch --no-tags origin
+          '+refs/heads/review/*:refs/remotes/origin/review/*'
+
+      # PROJECTS_TOKEN reads the board. The board is public, but gh's project
+      # commands need a token with the project scope. Read-only against
       # GitHub: facts.py allowlists the gh calls it makes.
       - name: Gather the facts
         env:
