@@ -253,7 +253,7 @@ class TestState(unittest.TestCase):
             self.assertEqual(state.load(path), states)
             self.assertEqual(list(json.loads(path.read_text())["T1"]),
                              ["rebase", "candidate", "base", "tests", "promoted",
-                              "verified_at", "last_good", "landed"])
+                              "verified_at", "last_good", "landed", "published"])
 
 
 if __name__ == "__main__":

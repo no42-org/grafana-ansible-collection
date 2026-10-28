@@ -62,15 +62,15 @@ def _rebase_one(chunk: manifest.Chunk, parent: ChunkState | None, repo: Path,
         _git(repo, "rebase", "--abort")
         _git(repo, "checkout", "-q", "--detach")
         _git(repo, "branch", "-D", chunk.candidate)
-        return ChunkState("conflict", None, new, "none"), "rebase conflict, aborted"
+        return ChunkState("conflict", None, new, "none", published=tip), "rebase conflict, aborted"
     _git(repo, "checkout", "-q", "--detach")
     candidate = _rev(repo, chunk.candidate)
     ahead = _git(repo, "rev-list", "--count", f"{new}..{candidate}").stdout.strip()
     if ahead == "0":
-        return ChunkState("ok", candidate, new, "none", landed=True), "landed upstream"
+        return ChunkState("ok", candidate, new, "none", landed=True, published=tip), "landed upstream"
     if candidate == tip:
-        return ChunkState("unchanged", candidate, new, "none"), ""
-    return ChunkState("ok", candidate, new, "pending"), ""
+        return ChunkState("unchanged", candidate, new, "none", published=tip), ""
+    return ChunkState("ok", candidate, new, "pending", published=tip), ""
 
 
 def rebuild(loaded: manifest.Manifest, repo: Path, upstream_ref: str = "upstream/main",

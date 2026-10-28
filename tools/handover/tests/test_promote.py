@@ -51,9 +51,8 @@ class TestMatrix(unittest.TestCase):
                   "T5": st("ok")}
         got = promote.matrix(self.loaded, states)
         self.assertEqual(got, [
-            {"chunk": "T1", "ref": "handover-candidate/t1-a", "goal": "ci-lint"},
-            {"chunk": "T1", "ref": "handover-candidate/t1-a", "goal": "units"},
-            {"chunk": "T5", "ref": "handover-candidate/t5-e", "goal": "sanity"},
+            {"chunk": "T1", "ref": "handover-candidate/t1-a", "goals": ["ci-lint", "units"]},
+            {"chunk": "T5", "ref": "handover-candidate/t5-e", "goals": ["sanity"]},
         ])
 
     def test_landed_chunk_not_in_matrix_and_not_pushed(self):
@@ -149,13 +148,51 @@ class TestPromote(Base):
         self.fx.commit(self.fx.work, "late", "late\n", "late push")
         self.git("push", "-q", "origin", "HEAD:refs/heads/review/t2-b")
         self.git("checkout", "-q", "main")
-        # Forget the push locally: this is another clone's push, unseen since the rebuild.
-        self.git("update-ref", "refs/remotes/origin/review/t2-b", self.t2)
         moved = self.origin_tip("review/t2-b")
         out = self.go(loaded, states, {"T1": True, "T2": True})
         self.assertTrue(out["T1"].promoted)
         self.assertFalse(out["T2"].promoted)
         self.assertEqual(self.origin_tip("review/t2-b"), moved)
+
+    def test_promote_in_fresh_clone_without_tracking_refs(self):
+        loaded, states = self.build(T1=["a"])
+        for ref in self.git("for-each-ref", "--format=%(refname)", "refs/remotes/origin").split():
+            self.git("update-ref", "-d", ref)
+        out = self.go(loaded, states, {"T1": True})
+        self.assertTrue(out["T1"].promoted)
+
+    def test_refuses_upstream_pushurl(self):
+        loaded, states = self.build()
+        self.git("config", "remote.origin.pushurl",
+                 "https://github.com/grafana/grafana-ansible-collection.git")
+        with self.assertRaises(SystemExit):
+            self.go(loaded, states, {})
+        self.assertEqual(self.origin_tip("review/t1-a"), self.t1)
+
+    def test_refuses_upstream_push_insteadof(self):
+        loaded, states = self.build()
+        url = self.git("remote", "get-url", "origin")
+        self.git("config", "url.https://github.com/grafana/grafana-ansible-collection.pushInsteadOf", url)
+        with self.assertRaises(SystemExit):
+            self.go(loaded, states, {})
+        self.assertEqual(self.origin_tip("review/t1-a"), self.t1)
+
+    def test_refuses_two_push_urls(self):
+        loaded, states = self.build()
+        self.git("remote", "set-url", "--add", "--push", "origin", str(self.fx.origin))
+        self.git("remote", "set-url", "--add", "--push", "origin", str(self.fx.upstream))
+        with self.assertRaises(SystemExit):
+            self.go(loaded, states, {})
+
+    def test_candidate_cleanup_only_matches_the_prefix(self):
+        loaded, states = self.build()
+        sha = states["T1"].candidate
+        self.git("push", "-q", "origin", f"{sha}:refs/heads/x/handover-candidate/y",
+                 f"{sha}:refs/heads/handover-candidate/t1-a")
+        self.go(loaded, states, {})
+        heads = self.git("ls-remote", "--heads", "origin", "*handover-candidate*")
+        self.assertIn("refs/heads/x/handover-candidate/y", heads)
+        self.assertNotIn("refs/heads/handover-candidate/t1-a", heads)
 
     def test_candidates_deleted_after_promote(self):
         loaded, states = self.build()
