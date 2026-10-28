@@ -103,6 +103,30 @@ class TestRender(unittest.TestCase):
         self.assertEqual(cards.count("behind upstream (never verified)"), 2)
         self.assertNotIn("verified on upstream main", cards)
 
+    def test_rebased_but_not_promoted_is_behind(self):
+        good = {"upstream": OLD, "date": "2026-10-01"}
+        chunks = [chunk("F1"), chunk("F2"), chunk("D1", group="docs", tests=()),
+                  chunk("U1"), chunk("U2", tests=())]
+        states = {
+            # Tests passed but the push was refused: the old branch stands.
+            "F1": st(verified_at=good, last_good=good),
+            "F2": st(tests="pass"),
+            "D1": st(tests="none"),
+            # Unchanged chunks keep their status: the branch is what was published.
+            "U1": st("unchanged", verified_at=good, last_good=good),
+            "U2": st("unchanged", tests="none"),
+        }
+        out = page(chunks, states)
+
+        def line(cid):
+            card = out[out.index(f'id="card-{cid}"'):]
+            return re.search(r'<p class="status [^"]*">([^<]*)</p>', card).group(1)
+        self.assertEqual(line("F1"), "behind upstream since 2026-10-01 (last applied to bbbbbbb)")
+        self.assertEqual(line("F2"), "behind upstream (never verified)")
+        self.assertEqual(line("D1"), "behind upstream (never verified)")
+        self.assertEqual(line("U1"), "verified on upstream main at bbbbbbb, 2026-10-01")
+        self.assertEqual(line("U2"), "no tests of its own")
+
     def test_failure_reason_shown_escaped(self):
         chunks = [chunk("F1"), chunk("F2")]
         states = {"F1": st("conflict", "none", reason="rebase failed: fatal: <bad> & co"),
