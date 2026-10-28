@@ -20,11 +20,11 @@ The rewrite uses a negative lookbehind because `community.grafana.grafana_dataso
 
 `6.2.0` is not upstream's `6.2.0`. Provenance is the upstream base commit recorded in each GitHub release, never the version number. Do not "align versions with upstream".
 
-## 3. Carried contributions keep their authors, and are never submitted
+## 3. Carried contributions keep their authors, and are never submitted by this fork
 
 Upstream fixes are cherry-picked with `-x -s`: the contributor stays the author, you become the committer. Never amend a contributor's commit — fix it in a separate commit of your own. Never add a `Signed-off-by` for someone else.
 
-Nothing is submitted upstream (maintainership is dormant), so changes must stay **adoptable by construction**: one purpose per commit, no reformatting of inherited files, `roles/*/molecule/` byte-identical.
+Upstream is maintained again (a merge on 2026-10-28), but this fork still opens nothing there. The maintainer pulls from `review/*` branches instead (see the handover subsection below), so changes must stay **adoptable by construction**: one purpose per commit, no reformatting of inherited files, `roles/*/molecule/` byte-identical.
 
 ### `grafana/grafana-ansible-collection` is read-only, always
 
@@ -69,6 +69,31 @@ That is the mechanism working. It happened three times on 2026-09-21, twice with
 - Use the **fork's** issue number, never upstream's. Commit `64239f4` wrote `Closes #509`, `#508` and `#331`, which are upstream numbers; fork issues do not run that high, so it closed nothing and three issues sat open for a day.
 
 The same rule explains an issue reopening itself after you thought you had finished with it: the fix shipped, the decision never moved off `Untriaged` or `Fix here`.
+
+### The handover: chunks the maintainer pulls
+
+`tools/handover/chunks.yml` is the source of truth for what the fork offers.
+Every commit on `main` must land in exactly one chunk or in `fork_only`.
+After a commit lands on `main`, update the manifest.
+`make handover-check-coverage` lists the commits still missing, and the page shows the count.
+A squash merge changes shas, which is why coverage is a separate check.
+
+Each chunk has a `review/<id>-<slug>` branch.
+`.github/workflows/handover.yml` rebuilds them weekly onto upstream `main`, tests them, and force-pushes the ones that pass.
+Never edit a `review/*` branch by hand, except once to resolve a rebase conflict.
+A chunk that fails to rebase or test keeps its last good branch and the page marks it "behind upstream".
+
+Seed a new chunk with `make handover-seed CHUNK=<id>`.
+It cherry-picks the chunk's commits and never pushes.
+Contributor commits go on whole, with their authorship.
+
+```bash
+make handover-check    # validate the manifest
+make handover-rebuild  # local candidates, nothing pushed
+make handover-render   # the page, nothing published
+```
+
+`RELEASING.md` has the full run.
 
 ## 4. `roles/*/molecule/` is dormant, not live
 
