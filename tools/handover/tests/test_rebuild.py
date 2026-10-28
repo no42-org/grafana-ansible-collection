@@ -80,6 +80,45 @@ class TestRebuild(Base):
         subjects = self.git("log", "--format=%s", f"upstream/main..{result['F1'].candidate}")
         self.assertEqual(sorted(subjects.splitlines()), ["f1 change", "t1 one", "t1 two"])
 
+    def republish_t1_on_upstream(self):
+        """Move origin/review/t1-a to the same change on a newer upstream."""
+        self.fx.upstream_commit("up", "up\n", "upstream moves")
+        return self.fx.review_branch("review/t1-a", "upstream/main", ("t1", "t1\n", "t1 change"))
+
+    def assert_t1_once(self, ref):
+        subjects = self.git("log", "--format=%s", f"upstream/main..{ref}").splitlines()
+        self.assertEqual(subjects.count("t1 change"), 1, subjects)
+
+    def test_child_stale_on_old_parent_restacks(self):
+        t1_old = self.t1()
+        self.fx.review_branch("review/f1-b", t1_old, ("f1", "f1\n", "f1 change"))
+        self.republish_t1_on_upstream()
+        self.fx.upstream_commit("up2", "up2\n", "upstream moves again")
+        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        self.assertEqual(result["T1"].rebase, "ok")
+        self.assertEqual(result["F1"].rebase, "ok")
+        self.git("merge-base", "--is-ancestor", result["T1"].candidate, result["F1"].candidate)
+        self.assert_t1_once(result["F1"].candidate)
+
+    def test_child_not_on_current_parent_is_not_unchanged(self):
+        t1_old = self.t1()
+        self.fx.review_branch("review/f1-b", t1_old, ("f1", "f1\n", "f1 change"))
+        t1_new = self.republish_t1_on_upstream()
+        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        self.assertEqual(result["T1"].rebase, "unchanged")
+        self.assertEqual(result["F1"].rebase, "ok")
+        self.assertEqual(result["F1"].base, t1_new)
+        self.git("merge-base", "--is-ancestor", t1_new, result["F1"].candidate)
+        self.assert_t1_once(result["F1"].candidate)
+
+    def test_fully_landed_chunk_is_marked_landed(self):
+        self.t1()
+        new = self.fx.upstream_commit("t1", "t1\n", "upstream takes t1")
+        result, _ = self.run_rebuild(("T1", "a", None))
+        t1 = result["T1"]
+        self.assertEqual((t1.rebase, t1.tests, t1.landed), ("ok", "none", True))
+        self.assertEqual(t1.candidate, new)
+
     def test_unchanged_when_base_did_not_move(self):
         t1_tip = self.t1()
         f1_tip = self.fx.review_branch("review/f1-b", t1_tip, ("f1", "f1\n", "f1 change"))

@@ -63,7 +63,7 @@ class Fixture:
         self.git(self.work, "checkout", "-q", "--detach", base)
         for entry in commits:
             self.commit(self.work, *entry)
-        self.git(self.work, "push", "-q", "origin", f"HEAD:refs/heads/{branch}")
+        self.git(self.work, "push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}")
         self.git(self.work, "fetch", "-q", "origin")
         self.git(self.work, "checkout", "-q", "main")
         return self.git(self.work, "rev-parse", f"origin/{branch}")
