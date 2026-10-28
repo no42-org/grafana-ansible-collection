@@ -3,10 +3,13 @@
 """Rebase every published review branch onto its new base, parents first.
 
 Each chunk's `origin/review/<...>` is copied to a local
-`handover-candidate/<...>` and rebased. A root chunk moves from its
-merge-base with upstream to the upstream tip. A child moves from its
-parent's published branch to its parent's candidate, so it stacks on what
-the parent became. A child of a chunk that failed does not move at all.
+`handover-candidate/<...>` and rebased with a plain `git rebase` onto the
+upstream tip (a root) or the parent's candidate (a child). Git skips
+commits patch-equivalent to ones already in the new base, so a child still
+carrying an older copy of its parent drops those copies; a copy that was
+altered conflicts instead. `unchanged` means the rebase left the published
+tip as it was. A chunk with no commits left over its base has landed.
+A child of a chunk that failed does not move at all.
 
 Nothing is pushed or fetched here. The work tree must be clean because the
 rebase switches branches; the branch that was checked out is restored.
@@ -46,28 +49,28 @@ def _rev(repo: Path, ref: str) -> str | None:
 def _rebase_one(chunk: manifest.Chunk, parent: ChunkState | None, repo: Path,
                 upstream: str, origin: str, by_id: dict) -> tuple[ChunkState, str]:
     published = f"{origin}/{chunk.branch}"
-    parent_branch = f"{origin}/{by_id[chunk.requires].branch}" if chunk.requires else None
     if parent is not None and parent.rebase in FAILED:
-        old = _rev(repo, parent_branch)
-        return ChunkState("parent-behind", None, old, "none"), f"parent {chunk.requires} failed"
+        behind = _rev(repo, f"{origin}/{by_id[chunk.requires].branch}")
+        return ChunkState("parent-behind", None, behind, "none"), f"parent {chunk.requires} failed"
     new = parent.candidate if parent is not None else upstream
-    if _rev(repo, published) is None:
+    tip = _rev(repo, published)
+    if tip is None:
         return ChunkState("conflict", None, new, "none"), f"no origin branch {published}"
-    if parent_branch is None:
-        old = _git(repo, "merge-base", upstream, published).stdout.strip()
-    else:
-        old = _rev(repo, parent_branch)
     _git(repo, "branch", "-f", chunk.candidate, published)
-    if new == old:
-        return ChunkState("unchanged", _rev(repo, published), old, "none"), ""
-    rebased = _git(repo, "rebase", "--onto", new, old, chunk.candidate, check=False)
+    rebased = _git(repo, "rebase", new, chunk.candidate, check=False)
     if rebased.returncode != 0:
         _git(repo, "rebase", "--abort")
         _git(repo, "checkout", "-q", "--detach")
         _git(repo, "branch", "-D", chunk.candidate)
         return ChunkState("conflict", None, new, "none"), "rebase conflict, aborted"
     _git(repo, "checkout", "-q", "--detach")
-    return ChunkState("ok", _rev(repo, chunk.candidate), new, "pending"), ""
+    candidate = _rev(repo, chunk.candidate)
+    ahead = _git(repo, "rev-list", "--count", f"{new}..{candidate}").stdout.strip()
+    if ahead == "0":
+        return ChunkState("ok", candidate, new, "none", landed=True), "landed upstream"
+    if candidate == tip:
+        return ChunkState("unchanged", candidate, new, "none"), ""
+    return ChunkState("ok", candidate, new, "pending"), ""
 
 
 def rebuild(loaded: manifest.Manifest, repo: Path, upstream_ref: str = "upstream/main",
