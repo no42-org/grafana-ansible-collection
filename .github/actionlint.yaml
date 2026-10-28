@@ -1,0 +1,10 @@
+---
+# actionlint configuration, read from this path by `make ci-lint-release`.
+paths:
+  # upstream's Galaxy workflow, owned upstream. Its findings are left to
+  # upstream to fix, and each kind is listed so that a new kind still fails.
+  .github/workflows/release.yml:
+    ignore:
+      - 'label "ubuntu-20\.04" is unknown'
+      - 'undefined variable "variables"'
+      - 'shellcheck reported issue in this script'

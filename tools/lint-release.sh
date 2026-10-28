@@ -185,7 +185,11 @@ if [[ -n "${unpinnedRefs}" ]]; then
   statusCode=1
 fi
 
+# release.yml is exempt from the comment check only: upstream's Galaxy
+# workflow, owned upstream. Its pins are SHAs, which the check above still
+# enforces, but its comments name a tag such as `get-vault-secrets/v2.1`.
 missingVersionComments="$(grep -rnE '@(sha256:)?[0-9a-f]{40}' .github/workflows/ \
+  | grep -v '^\.github/workflows/release\.yml:' \
   | grep -vE '#[[:space:]]*v[0-9]+\.[0-9]+\.[0-9]+' || true)"
 if [[ -n "${missingVersionComments}" ]]; then
   echo "${missingVersionComments}"
