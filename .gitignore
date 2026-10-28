@@ -277,3 +277,6 @@ ansible_collections/
 openspec/
 .claude/
 .agent/
+
+# Brainstorming companion scratch
+.superpowers/
