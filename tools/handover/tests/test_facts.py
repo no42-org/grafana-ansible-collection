@@ -31,10 +31,11 @@ def fake_gh(routes):
     return gh
 
 
-def pr_routes(n, sha, state, merged=False, authors=(), title="t"):
+def pr_routes(n, sha, state, merged=False, authors=(), title="t", pr_state="open"):
     routes = {f"pulls/{n}/commits": [{"commit": {"author": {"name": a, "email": e}}}
                                      for a, e in authors],
-              f"pulls/{n}": {"head": {"sha": sha}, "merged": merged, "title": title},
+              f"pulls/{n}": {"head": {"sha": sha}, "merged": merged, "title": title,
+                              "state": pr_state},
               f"commits/{sha}/status": {"state": state or "pending",
                                         "statuses": [{"context": "license/cla", "state": state}]
                                         if state else []}}
@@ -105,6 +106,12 @@ class TestGh(unittest.TestCase):
     def test_cla_reads_license_cla_context(self):
         gh = fake_gh({**pr_routes(528, "a" * 40, "success"), **pr_routes(530, "b" * 40, None)})
         self.assertEqual(facts.cla_status(gh, [528, 530]), {528: "success", 530: "unknown"})
+
+    def test_pr_facts_records_open_or_closed(self):
+        gh = fake_gh({**pr_routes(528, "a" * 40, "success"),
+                      **pr_routes(510, "b" * 40, "success", pr_state="closed")})
+        got = facts.pr_facts(gh, [528, 510])
+        self.assertEqual((got[528]["state"], got[510]["state"]), ("open", "closed"))
 
     def test_gh_wrapper_rejects_mutating_flags(self):
         for bad in (["api", "-X", "PATCH", PR_PATH + "issues/1"],
@@ -190,6 +197,7 @@ class TestCli(Base):
                          [{"name": "Jane Contributor", "email": "jane@example.net",
                            "cla": "unknown"}])
         self.assertEqual(data["prs"]["510"]["cla"], "success")
+        self.assertEqual(data["prs"]["510"]["state"], "open")
         self.assertTrue(json.loads(state_path.read_text())["T1"]["landed"])
 
     def test_failed_gh_call_fails_and_writes_nothing(self):

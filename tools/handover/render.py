@@ -103,6 +103,7 @@ def cla_summary(loaded: manifest.Manifest, prs: dict) -> str:
 
 
 def intro(loaded: manifest.Manifest, facts: dict) -> str:
+    roots = ", ".join(esc(c.id) for c in loaded.chunks if c.requires is None)
     fork_only = "\n".join(f"<li><strong>{esc(f.title)}.</strong> {esc(f.why)}</li>"
                           for f in loaded.fork_only)
     return f"""<section id="intro">
@@ -120,10 +121,9 @@ Only Ronny's own commits were split, where one commit served two purposes.</p>
 
 <h2>Dependency rule</h2>
 <p>Chunks stack.
-P1, which pins every role's version, sits at the root.
-The test harness stacks on P1, and a fix with tests stacks on the harness that runs them.
+Chunks with no parent ({roots}) are cut directly from upstream main.
+The test harness sits on the version pins, and a fix with tests stacks on the harness that runs them.
 A card's <em>Requires</em> line names its parent.
-A chunk with no parent is cut directly from upstream main.
 Each branch is cut from its parent's branch, so when you fetch a chunk you get its parents too.</p>
 
 <h2>Taking a chunk</h2>
@@ -177,7 +177,7 @@ def overview(loaded: manifest.Manifest, facts: dict) -> str:
 </section>"""
 
 
-def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict) -> str:
+def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str:
     kind, line = status(chunk, s, bool(f.get("landed")))
     meta = [esc(chunk.id), esc(GROUP_LABELS[chunk.group])]
     if chunk.epic != "-":
@@ -203,6 +203,18 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict) -> str:
         size = "no commits recorded"
     facts_rows.append(("Size", size))
     dl = "\n".join(f"<dt>{label}</dt><dd>{value}</dd>" for label, value in facts_rows)
+    open_prs = [n for n in chunk.carries if prs.get(str(n), {}).get("state") == "open"
+                and not prs.get(str(n), {}).get("merged")]
+    merge_note = ""
+    if open_prs:
+        many = len(open_prs) > 1
+        prs_word = "pull requests" if many else "pull request"
+        whose = "contributors'" if many else "contributor's"
+        merge_note = (
+            f'<p class="note">Merging the original upstream {prs_word} '
+            f'{", ".join(upstream_link(n) for n in open_prs)} is the cleanest way to take this, '
+            f"because it keeps the {whose} attribution and history. "
+            "This branch holds the cherry-pick plus any fork follow-up.</p>")
     fold = ""
     if commits or files:
         commit_items = "\n".join(
@@ -227,6 +239,7 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict) -> str:
 <p class="status status-{kind}">{esc(line)}</p>
 </header>
 {prose(chunk.summary)}
+{merge_note}
 <dl>
 {dl}
 </dl>
@@ -244,13 +257,13 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict) -> str:
 
 
 def groups(loaded: manifest.Manifest, states: dict, facts: dict) -> str:
-    per = facts.get("chunks", {})
+    per, prs = facts.get("chunks", {}), facts.get("prs", {})
     out = []
     for group in GROUP_ORDER:
         members = [c for c in loaded.chunks if c.group == group]
         if not members:
             continue
-        cards = "\n".join(card(c, states.get(c.id), per.get(c.id, {})) for c in members)
+        cards = "\n".join(card(c, states.get(c.id), per.get(c.id, {}), prs) for c in members)
         out.append(f'<section class="group" id="group-{group}">\n'
                    f"<h2>{esc(GROUP_LABELS[group])}</h2>\n{cards}\n</section>")
     return "\n".join(out)

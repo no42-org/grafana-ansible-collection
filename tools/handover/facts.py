@@ -134,7 +134,7 @@ def _json(gh: Gh, args: list[str]):
 
 
 def pr_facts(gh: Gh, prs: list[int]) -> dict[int, dict]:
-    """Per PR: cla (license/cla context of the head), merged, title, authors."""
+    """Per PR: cla (license/cla context of the head), merged, state, title, authors."""
     out = {}
     for n in prs:
         pr = _json(gh, ["api", f"{REPO_API}pulls/{n}"])
@@ -145,8 +145,8 @@ def pr_facts(gh: Gh, prs: list[int]) -> dict[int, dict]:
         commits = _json(gh, ["api", f"{REPO_API}pulls/{n}/commits?per_page=100"])
         authors = [(c["commit"]["author"].get("name", ""), c["commit"]["author"].get("email", ""))
                    for c in commits]
-        out[n] = {"cla": cla, "merged": bool(pr.get("merged")), "title": pr.get("title", ""),
-                  "authors": authors}
+        out[n] = {"cla": cla, "merged": bool(pr.get("merged")), "state": pr.get("state", ""),
+                  "title": pr.get("title", ""), "authors": authors}
     return out
 
 
