@@ -184,7 +184,10 @@ def facts(args: argparse.Namespace, gh=None) -> int:
                             "insertions": got.insertions, "deletions": got.deletions,
                             "landed": landed, "authors": authors}
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-    out = {"generated": today, "upstream": upstream.stdout.strip(), "unassigned": missing,
+    # The upstream the rebuild used, which is what the page describes.
+    rebuilt_on = next((s.upstream for s in states.values() if s.upstream), None)
+    out = {"generated": today, "upstream": rebuilt_on or upstream.stdout.strip(),
+           "unassigned": missing,
            "chunks": chunks,
            "prs": {str(n): {k: p[k] for k in ("cla", "merged", "state", "title")}
                    for n, p in pr_data.items()},
