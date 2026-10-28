@@ -73,6 +73,14 @@ fork_only:
       - "dc05ba3e"
       - "2e9b6264"
       - "9ce0049e"
+  - title: Absorbed upstream
+    why: "Upstream merged #439 for the same issue; main resolved to upstream's form in b2b92c2."
+    commits:
+      - "f5781447"
+  - title: Gate units job
+    why: Needs both L2 and T3, and a chunk has at most one parent.
+    commits:
+      - "80741585"
   - title: Upstream handover tooling
     why: Builds this page and the review branches. It exists only to hand work over.
     commits: []
@@ -228,34 +236,28 @@ chunks:
     epic: grafana-dashboards
     title: Dashboard provisioning that works on ansible-core 2.19 and is idempotent
     summary: |
-      Dashboard provisioning had three faults.
-      The folder loop could resolve to a string, which newer ansible-core rejects.
+      Dashboard provisioning had two faults.
       The removal of stale dashboards used conditionals that return a list instead of a boolean, which ansible-core 2.19 made fatal.
       The copy task set owner root while its own handler set owner grafana, so every run reported a change.
 
-      This chunk carries #448 for the loop, makes the conditionals boolean, and aligns the copy with the handler.
+      This chunk makes the conditionals boolean and aligns the copy with the handler.
       It also adds an optional prepare phase to the role test, which seeds a stale dashboard once so the removal path is exercised at all.
 
-      Upstream merged #439 for the same loop in a different form.
-      This branch keeps the form the role test passes with, so it changes that line again.
+      The folder loop is upstream's, as #439 fixed it, so this chunk does not change that line.
 
       This chunk declares no tests, for the same reason as G1: the grafana scenario first passes on G3, which installs plugins on Grafana 13.
       G3 runs the scenario on the newest ansible-core as well, which is the run that covers this chunk's 2.19 fix.
     commits:
-      - "f5781447"
       - "3ed95b67"
       - "fdae4a80"
       - "f7e10b76"
     seed_notes: |
-      f5781447 (#448) and f7e10b76 touch the loop line that upstream's #439 (ef0f489) also changed.
-      Merge b2b92c2 settled it: keep the fork's regex_replace loop and the boolean length checks on the removal task.
-      Put that resolution on f7e10b76, which is Ronny's.
-      f5781447 is a contributor commit.
-      If it does not apply cleanly, take it whole and note the conflict in its cherry-pick record.
+      f7e10b76 touches the loop line that upstream's #439 (ef0f489) changed.
+      Merge b2b92c2 settled it: keep upstream's loop line and the boolean length checks on the removal task.
     requires: [G1]
     upstream:
-      closes: [447, 493, 244]
-      carries: [448]
+      closes: [493, 244]
+      carries: []
       supersedes: [504, 525]
     tests: []
 
@@ -719,6 +721,9 @@ chunks:
       The grafana role now sets mode 0644 on the systemd drop-in it creates.
       The grafana_agent version detection now sets pipefail and uses command where no shell is needed.
       The rest is formatting of inherited files, which is why it is a chunk of its own.
+      A last commit fixes three findings that L2's gate also needs.
+      It removes a trailing blank line in roles/mimir/defaults/main.yml and fixes the spacing of disable_gpg_check in the grafana yum task.
+      It also raises requires_ansible to >=2.17.0, the lowest floor ansible-lint accepts.
     commits:
       - "5ee70d11"
       - "b3e13972"
@@ -782,7 +787,6 @@ chunks:
       - "76d7f9cb"
       - "9e0a7f80"
       - "57423941"
-      - "80741585"
       - "c8e268cb"
     seed_notes: |
       Author these first, as new commits by Ronny.
