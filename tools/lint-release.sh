@@ -260,10 +260,18 @@ fi
 # The upstream handover manifest: schema, stacking and test-goal allowlist.
 # Coverage (every commit assigned) is not checked here, because a squash merge
 # changes shas and a commit cannot list itself. The handover workflow runs it.
-echo "  ‣ handover manifest is valid"
-if ! make --no-print-directory handover-check; then
-  lintError "tools/handover/chunks.yml does not validate"
-  statusCode=1
+#
+# The check runs in the project's uv environment, probed the way yamllint's is
+# above. Without uv, or with an environment uv cannot provide, it cannot run,
+# which is a skip, not a manifest that does not validate.
+if ! uv run --frozen --group ansible python -c pass >/dev/null 2>&1; then
+  skipCheck "handover manifest is valid: uv environment not available, run \"make install\""
+else
+  echo "  ‣ handover manifest is valid"
+  if ! make --no-print-directory handover-check; then
+    lintError "tools/handover/chunks.yml does not validate"
+    statusCode=1
+  fi
 fi
 
 echo "  ‣ yaml parse galaxy.yml .github/dependabot.yml"
