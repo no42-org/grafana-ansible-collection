@@ -20,6 +20,7 @@ class ChunkState:
     last_good: dict | None = None
     landed: bool = False
     published: str | None = None      # origin/<branch> sha seen at rebuild
+    reason: str | None = None         # why the rebuild failed, from git's own output
 
 
 def load(path: Path) -> dict[str, ChunkState]:

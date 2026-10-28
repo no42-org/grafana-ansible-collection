@@ -138,10 +138,34 @@ class TestRebuild(Base):
         self.assertEqual(result["T1"].rebase, "conflict")
         self.assertIsNone(result["T1"].candidate)
         self.assertEqual(result["T1"].tests, "none")
+        self.assertEqual(result["T1"].reason, "rebase conflict, aborted")
         self.assertEqual(self.git("status", "--porcelain"), "")
         self.assertFalse((self.fx.work / ".git" / "rebase-merge").exists())
         self.assertFalse((self.fx.work / ".git" / "rebase-apply").exists())
         self.assertIn("T1", out)
+
+    def test_missing_committer_identity_is_reported_not_passed(self):
+        # A GitHub runner has no committer identity. The rebase then fails for
+        # a reason that is not a conflict, and the state must say which.
+        self.t1()
+        self.fx.upstream_commit("up", "up\n", "upstream moves")
+        bare = {k: v for k, v in os.environ.items()
+                if k not in ("GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL")}
+        bare.update(HOME=str(self.fx.root / "nohome"), GIT_CONFIG_GLOBAL="/dev/null",
+                    # Auto-detection succeeds on a host with a dotted name; a
+                    # runner's does not. Refuse it so every host behaves alike.
+                    GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="user.useConfigOnly",
+                    GIT_CONFIG_VALUE_0="true")
+        with mock.patch.dict(os.environ, bare, clear=True):
+            result, out = self.run_rebuild(("T1", "a", None))
+        t1 = result["T1"]
+        self.assertEqual(t1.rebase, "conflict")
+        self.assertIsNone(t1.candidate)
+        self.assertTrue(t1.reason.startswith("rebase failed: fatal:"), t1.reason)
+        self.assertNotIn("conflict", t1.reason)
+        self.assertIn(t1.reason, out)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertFalse((self.fx.work / ".git" / "rebase-merge").exists())
 
     def test_child_of_conflict_is_parent_behind(self):
         t1_tip = self.t1(("shared", "one\nfork\nthree\n", "fork edits two"))
@@ -253,7 +277,9 @@ class TestState(unittest.TestCase):
             self.assertEqual(state.load(path), states)
             self.assertEqual(list(json.loads(path.read_text())["T1"]),
                              ["rebase", "candidate", "base", "tests", "promoted",
-                              "verified_at", "last_good", "landed", "published"])
+                              "verified_at", "last_good", "landed", "published",
+                              "reason"])
+
 
 
 if __name__ == "__main__":

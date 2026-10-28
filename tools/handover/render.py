@@ -179,6 +179,9 @@ def overview(loaded: manifest.Manifest, facts: dict) -> str:
 
 def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str:
     kind, line = status(chunk, s, bool(f.get("landed")))
+    detail = ""
+    if kind == "behind" and s is not None and s.reason:
+        detail = f'<p class="status-detail">{esc(s.reason)}</p>'
     meta = [esc(chunk.id), esc(GROUP_LABELS[chunk.group])]
     if chunk.epic != "-":
         meta.append(esc(chunk.epic))
@@ -237,6 +240,7 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
 <p class="meta">{" · ".join(meta)}</p>
 <h3>{esc(chunk.title)}</h3>
 <p class="status status-{kind}">{esc(line)}</p>
+{detail}
 </header>
 {prose(chunk.summary)}
 {merge_note}
