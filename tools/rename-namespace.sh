@@ -72,6 +72,12 @@ readonly EXCLUDE_DIRS=(
   "ansible_collections"
   # uv's project virtualenv.
   ".venv"
+  # Planning documents. docs/superpowers holds the tracked handover design and
+  # plan, which quote "grafana.grafana" in prose, and .superpowers is the
+  # untracked scratch beside them. rsync copies the working tree, so an
+  # ignored directory still reaches the count unless it is listed here.
+  "docs/superpowers"
+  ".superpowers"
 )
 
 readonly EXCLUDE_FILES=(
@@ -170,7 +176,9 @@ readonly RENAME_EXCLUDES=(
 grepExcludes() {
   local entry
   for entry in "${EXCLUDE_DIRS[@]}"; do
-    echo "--exclude-dir=${entry}"
+    # GNU grep matches --exclude-dir against a directory's base name only, so
+    # a nested entry such as docs/superpowers is passed as its last segment.
+    echo "--exclude-dir=${entry##*/}"
   done
   for entry in "${EXCLUDE_FILES[@]}"; do
     echo "--exclude=${entry}"

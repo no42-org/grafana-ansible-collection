@@ -14,6 +14,10 @@ exclude_paths:
   # dependency collections into the repository root in CI. 4851 findings, all
   # of them in ansible.posix and community.general, none here.
   - ansible_collections/
+  # Planning documents: the tracked handover design and plan, and their
+  # untracked scratch.
+  - docs/superpowers/
+  - .superpowers/
   # roles/*/molecule/ is byte-identical to upstream by rule: the scenarios ship
   # in the collection and are never invoked, and keeping them unmodified is
   # what makes an upstream merge conflict-free. See RELEASING.md and
