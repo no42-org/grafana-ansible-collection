@@ -9,6 +9,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import handover
 import manifest
@@ -47,13 +48,24 @@ class TestMatrix(unittest.TestCase):
 
     def test_matrix_skips_conflict_and_parent_behind(self):
         states = {"T1": st("ok"), "T2": st("parent-behind", candidate=None),
-                  "T3": st("conflict", candidate=None), "T4": st("unchanged"),
+                  "T3": st("conflict", candidate=None),
+                  "T4": st("unchanged", verified_at={"upstream": "o" * 40, "date": "2026-01-01"}),
                   "T5": st("ok")}
         got = promote.matrix(self.loaded, states)
         self.assertEqual(got, [
             {"chunk": "T1", "ref": "handover-candidate/t1-a", "goals": ["ci-lint", "units"]},
             {"chunk": "T5", "ref": "handover-candidate/t5-e", "goals": ["sanity"]},
         ])
+
+    def test_unchanged_never_verified_is_tested(self):
+        # A branch seeded on the current upstream tip is unchanged at every
+        # rebuild until upstream moves, and would otherwise never be tested.
+        verified = {"upstream": "o" * 40, "date": "2026-01-01"}
+        states = {"T1": st("unchanged"), "T2": st("ok"),
+                  "T3": st("unchanged", verified_at=verified),
+                  "T4": st("unchanged", landed=True), "T5": st("conflict", candidate=None)}
+        got = {e["chunk"] for e in promote.matrix(self.loaded, states)}
+        self.assertEqual(got, {"T1", "T2"})
 
     def test_landed_chunk_not_in_matrix_and_not_pushed(self):
         states = {"T1": st("ok", landed=True, tests="none"), "T2": st("ok"),
@@ -128,6 +140,25 @@ class TestPromote(Base):
             s.upstream = None
         out = self.go(loaded, states, {"T1": True, "T2": True})
         self.assertEqual(out["T1"].verified_at["upstream"], "u" * 40)
+
+    def test_unchanged_never_verified_records_pass_without_pushing(self):
+        loaded, states = self.build(T1=["a"])
+        states["T1"] = st("unchanged", candidate=self.t1, upstream="s" * 40)
+        states["T2"] = st("unchanged", candidate=self.t2, upstream="s" * 40)
+        with mock.patch.object(promote, "_push", side_effect=AssertionError("pushed")):
+            out = self.go(loaded, states, {"T1": True})
+        self.assertEqual(out["T1"].tests, "pass")
+        self.assertEqual(out["T1"].verified_at, {"upstream": "s" * 40, "date": TODAY})
+        self.assertEqual(out["T1"].last_good, out["T1"].verified_at)
+        self.assertFalse(out["T1"].promoted)
+        self.assertEqual(self.origin_tip("review/t1-a"), self.t1)
+
+    def test_unchanged_never_verified_failure_is_recorded(self):
+        loaded, states = self.build(T1=["a"])
+        states["T1"] = st("unchanged", candidate=self.t1)
+        out = self.go(loaded, states, {"T1": False})
+        self.assertEqual(out["T1"].tests, "fail")
+        self.assertIsNone(out["T1"].verified_at)
 
     def test_no_tests_promotes_without_verified_at(self):
         loaded, states = self.build()
