@@ -7,6 +7,7 @@ import dataclasses
 import io
 import json
 import unittest
+from unittest import mock
 
 import facts
 import handover
@@ -82,6 +83,17 @@ class TestGit(Base):
         self.fx.upstream_commit("a.txt", "x\n", "add a upstream")
         self.assertFalse(facts.is_landed(loaded.chunks[0], self.fx.work, set(), loaded))
 
+    def test_landed_by_multi_commit_squash(self):
+        self.t1(("a.txt", "x\n", "add a"), ("b.txt", "y\n", "add b"))
+        loaded = self.chunk(("T1", "a", None))
+        self.fx.commit(self.fx.up, "a.txt", "x\n", "squash part")
+        self.fx.commit(self.fx.up, "b.txt", "y\n", "squash all")
+        self.fx.git(self.fx.up, "reset", "-q", "--soft", "HEAD~2")
+        self.fx.git(self.fx.up, "commit", "-q", "-m", "squash a and b")
+        self.fx.git(self.fx.up, "push", "-q", "origin", "HEAD:main")
+        self.fx.git(self.fx.work, "fetch", "-q", "upstream")
+        self.assertTrue(facts.is_landed(loaded.chunks[0], self.fx.work, set(), loaded))
+
     def test_landed_by_merged_pr(self):
         loaded = self.chunk(("T1", "a", None), carries=(528, 529))
         chunk = loaded.chunks[0]
@@ -101,6 +113,24 @@ class TestGh(unittest.TestCase):
                     ["api", PR_PATH + "issues/1", "--input", "x.json"]):
             with self.assertRaises(SystemExit):
                 facts.real_gh(bad)
+
+    def test_gh_wrapper_rejects_bundled_and_attached_flags(self):
+        p = PR_PATH + "issues/540"
+        for bad in (["api", p, "-XPATCH"], ["api", p, "-fa=b"], ["api", p, "-Fk=v"],
+                    ["api", p, "--method=PATCH"], ["api", p, "-if"], ["api", p, "--input=x"],
+                    ["api", PR_PATH + "../../user"], ["api", "graphql"],
+                    ["api", p, "--paginate", "-XPATCH"], facts.BOARD_ARGS + ["--jq", "."]):
+            with self.assertRaises(SystemExit, msg=bad):
+                facts.real_gh(bad)
+
+    def test_gh_wrapper_accepts_the_two_read_shapes(self):
+        done = mock.Mock(returncode=0, stdout="{}", stderr="")
+        for ok in (["api", PR_PATH + "pulls/1"], ["api", PR_PATH + "pulls/1", "--paginate"],
+                   facts.BOARD_ARGS):
+            with mock.patch.object(facts.subprocess, "run", return_value=done) as run:
+                self.assertEqual(facts.real_gh(ok), "{}")
+            run.assert_called_once()
+            self.assertEqual(run.call_args[0][0], ["gh", *ok])
 
     def test_gh_wrapper_rejects_non_upstream_api_path(self):
         for bad in (["api", "repos/no42-org/grafana-ansible-collection/issues"],

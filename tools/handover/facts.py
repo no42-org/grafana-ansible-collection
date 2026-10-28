@@ -22,7 +22,6 @@ REPO_API = "repos/grafana/grafana-ansible-collection/"
 BOARD_ARGS = ["project", "item-list", "4", "--owner", "no42-org", "--limit", "1000",
               "--format", "json"]
 BOARD_LIMIT = 1000
-FORBIDDEN = ("-X", "--method", "-f", "-F", "--field", "--raw-field", "--input")
 RONNY_PR = 510
 RONNY_EMAIL = "ronny@no42.org"
 RONNY_NAME = "Ronny Trommer"
@@ -35,13 +34,18 @@ class GhError(Exception):
     pass
 
 
+def _allowed_api(args: list[str]) -> bool:
+    """Only `api <path>` or `api <path> --paginate` on an upstream repository route."""
+    if len(args) not in (2, 3) or args[0] != "api" or (len(args) == 3 and args[2] != "--paginate"):
+        return False
+    path = args[1]
+    return (path.startswith(REPO_API) and ".." not in path
+            and not re.search(r"\s", path) and not path.startswith("-"))
+
+
 def real_gh(args: list[str]) -> str:
-    if any(a in FORBIDDEN or a.startswith(("--method=", "--field=", "--raw-field=", "--input="))
-           for a in args):
-        raise SystemExit(f"handover: refusing gh call with write flag: {args}")
-    if args != BOARD_ARGS:
-        if len(args) < 2 or args[0] != "api" or not args[1].startswith(REPO_API):
-            raise SystemExit(f"handover: refusing gh call outside the allowed reads: {args}")
+    if args != BOARD_ARGS and not _allowed_api(args):
+        raise SystemExit(f"handover: refusing gh call outside the allowed reads: {args}")
     try:
         done = subprocess.run(["gh", *args], capture_output=True, text=True)
     except FileNotFoundError:
@@ -111,10 +115,15 @@ def is_landed(chunk: manifest.Chunk, repo: Path, merged_prs: set[int],
     if ref is None or base is None:
         return False
     cherry = _git(repo, "cherry", upstream, ref, base)
-    if cherry.returncode != 0:
-        return False
-    lines = [ln for ln in cherry.stdout.splitlines() if ln.strip()]
-    return bool(lines) and not any(ln.startswith("+") for ln in lines)
+    if cherry.returncode == 0:
+        lines = [ln for ln in cherry.stdout.splitlines() if ln.strip()]
+        if lines and not any(ln.startswith("+") for ln in lines):
+            return True
+    # A multi-commit chunk squash-merged upstream has no patch-equivalent commits,
+    # but upstream's tree already holds the chunk's final content.
+    changed = _git(repo, "diff", "--name-only", f"{base}...{ref}")
+    files = changed.stdout.splitlines() if changed.returncode == 0 else []
+    return bool(files) and _git(repo, "diff", "--quiet", upstream, ref, "--", *files).returncode == 0
 
 
 def _json(gh: Gh, args: list[str]):
