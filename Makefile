@@ -271,7 +271,7 @@ role-versions-bump:
 # interpreter, and CI never had it.
 #
 # So the full set does gate a release, via .github/workflows/gate.yml, which
-# both ci.yml and release.yml call. This target stays narrow because it is the
+# both ci.yml and galaxy-release.yml call. This target stays narrow because it is the
 # release *machinery* check -- tools/*.sh and the workflows -- and it is useful
 # precisely because it needs no provisioned toolchain, so it runs in seconds
 # locally.

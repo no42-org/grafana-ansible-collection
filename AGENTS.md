@@ -132,7 +132,7 @@ make module-test MODULE=<module>
 make sanity            # ansible-test sanity, staged the way CI stages it
 ```
 
-The lint, sanity and dist targets gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `release.yml` both call. One definition of what must pass. The two container harnesses are not in `gate.yml`: `role-test.yml` and `module-test.yml` are path-filtered workflows of their own, because they need docker and because a change to `plugins/` should not fire fifteen role jobs.
+The lint, sanity and dist targets gate a release, in separate jobs of `.github/workflows/gate.yml`, which `ci.yml` and `galaxy-release.yml` both call. One definition of what must pass. The two container harnesses are not in `gate.yml`: `role-test.yml` and `module-test.yml` are path-filtered workflows of their own, because they need docker and because a change to `plugins/` should not fire fifteen role jobs.
 
 ## Traps worth knowing
 

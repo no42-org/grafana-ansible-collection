@@ -368,7 +368,7 @@ The first seven are code and configuration. The last four are prose, and the pro
 3. Its files under `examples/`.
 4. Its `CODEOWNERS` line.
 5. Its option in `.github/ISSUE_TEMPLATE/bug_report.yml`.
-6. Its entry in `role-test.yml`'s matrix and in `release.yml`'s role-resolution list.
+6. Its entry in `role-test.yml`'s matrix and in `galaxy-release.yml`'s role-resolution list.
 7. Its row in `tools/check-role-versions.py`.
 8. `README.md`: the role list, the opening sentence naming each product, the pin badge, and the tracker-exclusion table.
 9. `catalog-info.yaml`, whose description repeats that same sentence.
@@ -447,7 +447,13 @@ Since 6.2.0 releases are cut from `main`, which carries both the pipeline and th
 
 This was not always true. 6.1.0 mirrored upstream's 6.1.0 and therefore had to be cut from a `release/6.1.0` branch based on tag `6.1.0` (`39f1373`), because a tag-triggered workflow runs the workflow file **as it exists at the tagged commit**, and that commit predated the pipeline entirely: pushing `v6.1.0` there produced no run, no error and no notification.
 
-That constraint disappeared with the mirror policy. It is recorded because the underlying trap has not: **a tag pushed at a commit without a tag-triggered `release.yml` does nothing at all, silently.** If you ever tag an older commit, check that `release.yml` exists there first.
+That constraint disappeared with the mirror policy. It is recorded because the underlying trap has not: **a tag pushed at a commit without a tag-triggered release workflow does nothing at all, silently.** If you ever tag an older commit, check which release workflow exists there first.
+
+The workflow is `galaxy-release.yml`. Until 2026-10-29 it was `release.yml`, the same path as upstream's own release workflow.
+Upstream's file does not parse, and every `review/*` and `handover-candidate/*` branch carries it, so each handover push recorded a failed run.
+GitHub identifies a workflow by its path on every branch, so the fork's pipeline moved and the `release.yml` path is disabled in this repository's Actions settings.
+A tag on a commit from before the rename would therefore not release.
+To release one, run `gh workflow enable release.yml` first and disable it again afterwards.
 
 ## Branch protection on `main`
 
@@ -474,7 +480,7 @@ That constraint disappeared with the mirror policy. It is recorded because the u
 What it buys is that a solo project is never blocked by its own gate being wrong, mis-configured, or slow at an inconvenient moment.
 What it gives up is the guarantee: the person most likely to push a broken release is also the person holding the bypass, so protection is a strong default rather than an enforced invariant.
 
-That is acceptable here for two reasons. The gate's value in a solo project is catching mistakes, not preventing deliberate action, and a bypass does not weaken that. And the irreversible step is publishing to Galaxy, which is gated **inside** `release.yml` — `verify-version`, the whole gate, and the smoke test all run before `publish`, and no bypass of branch protection skips any of them.
+That is acceptable here for two reasons. The gate's value in a solo project is catching mistakes, not preventing deliberate action, and a bypass does not weaken that. And the irreversible step is publishing to Galaxy, which is gated **inside** `galaxy-release.yml` — `verify-version`, the whole gate, and the smoke test all run before `publish`, and no bypass of branch protection skips any of them.
 
 **Use the bypass visibly, not habitually.** If it becomes the normal path, the protection is decoration and should either be removed or made strict (`enforce_admins: true`).
 
