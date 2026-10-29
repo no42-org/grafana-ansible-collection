@@ -46,11 +46,12 @@ fi
 # One invocation over the prose this fork authors, scoped exactly as
 # tools/lint-markdown.sh is and for the same reason: the top-level README, the
 # role READMEs and examples/ are upstream's documents, and this fork does not
-# reformat inherited files. See the comment there.
+# reformat inherited files. See the comment there, which also explains the
+# `xargs -r`: codespell given no paths checks the whole tree.
 statusCode=0
 if ! git ls-files -z -- '*.md' \
         ':!:README.md' ':!:roles/*/README.md' ':!:examples/*.md' ':!:CLAUDE.md' \
-      | xargs -0 uv run --frozen --group lint codespell -D - -D "$(pwd)/tools/codespell-dictionary.txt"; then
+      | xargs -0 -r uv run --frozen --group lint codespell -D - -D "$(pwd)/tools/codespell-dictionary.txt"; then
   statusCode=1
 fi
 

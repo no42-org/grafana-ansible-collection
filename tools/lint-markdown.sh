@@ -49,10 +49,16 @@ fi
 # The trade is stated rather than hidden: those documents ship in the
 # collection and go unlinted. If upstream maintainership resumes, the right
 # move is to offer the fixes there rather than apply them here.
+#
+# `xargs -r` because the selection can be empty. In a tree without this fork's
+# own documents, such as the L2 handover chunk, nothing is left after the
+# exclusions. GNU xargs then still runs rumdl with no paths, rumdl lints the
+# whole tree including the excluded READMEs, and the gate fails on 154 findings
+# it was told to skip. BSD xargs runs nothing, so it passed on macOS.
 statusCode=0
 if ! git ls-files -z -- '*.md' \
         ':!:README.md' ':!:roles/*/README.md' ':!:examples/*.md' ':!:CLAUDE.md' \
-      | xargs -0 uv run --frozen --group lint rumdl check --config "$(pwd)/.markdownlint.yaml"; then
+      | xargs -0 -r uv run --frozen --group lint rumdl check --config "$(pwd)/.markdownlint.yaml"; then
   statusCode=1
 fi
 
