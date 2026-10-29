@@ -47,7 +47,7 @@ def real_gh(args: list[str]) -> str:
     if args != BOARD_ARGS and not _allowed_api(args):
         raise SystemExit(f"handover: refusing gh call outside the allowed reads: {args}")
     try:
-        done = subprocess.run(["gh", *args], capture_output=True, text=True)
+        done = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
     except FileNotFoundError:
         raise GhError("gh is not installed") from None
     if done.returncode != 0:
@@ -161,7 +161,7 @@ def author_cla(name: str, email: str, prs: dict[int, dict]) -> str:
     if name.endswith("[bot]"):
         return "bot"
     for n, pr in prs.items():
-        if n != RONNY_PR and any(e.lower() == email.lower() for _, e in pr["authors"]):
+        if n != RONNY_PR and any(e.lower() == email.lower() for _name, e in pr["authors"]):
             return pr["cla"]
     return "unknown"
 

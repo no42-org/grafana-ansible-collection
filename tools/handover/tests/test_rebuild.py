@@ -61,7 +61,7 @@ class TestRebuild(Base):
     def test_root_chunk_rebases_onto_new_upstream(self):
         self.t1()
         new = self.fx.upstream_commit("up", "up\n", "upstream moves")
-        result, _ = self.run_rebuild(("T1", "a", None))
+        result, _output = self.run_rebuild(("T1", "a", None))
         t1 = result["T1"]
         self.assertEqual(t1.rebase, "ok")
         self.assertEqual(t1.base, new)
@@ -73,7 +73,7 @@ class TestRebuild(Base):
         t1_tip = self.t1(("t1", "t1\n", "t1 one"), ("t1b", "t1b\n", "t1 two"))
         self.fx.review_branch("review/f1-b", t1_tip, ("f1", "f1\n", "f1 change"))
         self.fx.upstream_commit("up", "up\n", "upstream moves")
-        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        result, _output = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
         self.assertEqual(result["F1"].rebase, "ok")
         self.assertEqual(result["F1"].base, result["T1"].candidate)
         self.git("merge-base", "--is-ancestor", result["T1"].candidate, result["F1"].candidate)
@@ -94,7 +94,7 @@ class TestRebuild(Base):
         self.fx.review_branch("review/f1-b", t1_old, ("f1", "f1\n", "f1 change"))
         self.republish_t1_on_upstream()
         self.fx.upstream_commit("up2", "up2\n", "upstream moves again")
-        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        result, _output = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
         self.assertEqual(result["T1"].rebase, "ok")
         self.assertEqual(result["F1"].rebase, "ok")
         self.git("merge-base", "--is-ancestor", result["T1"].candidate, result["F1"].candidate)
@@ -104,7 +104,7 @@ class TestRebuild(Base):
         t1_old = self.t1()
         self.fx.review_branch("review/f1-b", t1_old, ("f1", "f1\n", "f1 change"))
         t1_new = self.republish_t1_on_upstream()
-        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        result, _output = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
         self.assertEqual(result["T1"].rebase, "unchanged")
         self.assertEqual(result["F1"].rebase, "ok")
         self.assertEqual(result["F1"].base, t1_new)
@@ -114,7 +114,7 @@ class TestRebuild(Base):
     def test_fully_landed_chunk_is_marked_landed(self):
         self.t1()
         new = self.fx.upstream_commit("t1", "t1\n", "upstream takes t1")
-        result, _ = self.run_rebuild(("T1", "a", None))
+        result, _output = self.run_rebuild(("T1", "a", None))
         t1 = result["T1"]
         self.assertEqual((t1.rebase, t1.tests, t1.landed), ("ok", "none", True))
         self.assertEqual(t1.candidate, new)
@@ -122,7 +122,7 @@ class TestRebuild(Base):
     def test_unchanged_when_base_did_not_move(self):
         t1_tip = self.t1()
         f1_tip = self.fx.review_branch("review/f1-b", t1_tip, ("f1", "f1\n", "f1 change"))
-        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
+        result, _output = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"))
         self.assertEqual(result["T1"].rebase, "unchanged")
         self.assertEqual(result["T1"].candidate, t1_tip)
         self.assertEqual(result["T1"].base, self.base)
@@ -170,7 +170,7 @@ class TestRebuild(Base):
     def test_upstream_sha_recorded_per_chunk(self):
         self.t1()
         new = self.fx.upstream_commit("up", "up\n", "upstream moves")
-        result, _ = self.run_rebuild(("T1", "a", None), ("T2", "b", "T1"))
+        result, _output = self.run_rebuild(("T1", "a", None), ("T2", "b", "T1"))
         self.assertEqual({s.upstream for s in result.values()}, {new})
         self.assertIsNone(result["T1"].reason)
 
@@ -180,8 +180,8 @@ class TestRebuild(Base):
         self.fx.review_branch("review/f2-c", f1_tip, ("f2", "f2\n", "f2 change"))
         self.fx.review_branch("review/u1-d", self.base, ("u1", "u1\n", "u1 change"))
         self.fx.upstream_commit("shared", "one\nupstream\nthree\n", "upstream edits two")
-        result, _ = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"), ("F2", "c", "F1"),
-                                     ("U1", "d", None))
+        result, _output = self.run_rebuild(("T1", "a", None), ("F1", "b", "T1"), ("F2", "c", "F1"),
+                                           ("U1", "d", None))
         self.assertEqual(result["T1"].rebase, "conflict")
         self.assertEqual(result["F1"].rebase, "parent-behind")
         self.assertEqual(result["F2"].rebase, "parent-behind")
@@ -199,7 +199,7 @@ class TestRebuild(Base):
     def test_authors_preserved(self):
         self.t1(("t1", "t1\n", "contributed", CONTRIBUTOR))
         self.fx.upstream_commit("up", "up\n", "upstream moves")
-        result, _ = self.run_rebuild(("T1", "a", None))
+        result, _output = self.run_rebuild(("T1", "a", None))
         self.assertEqual(result["T1"].rebase, "ok")
         author = self.git("log", "-1", "--format=%an|%ae", result["T1"].candidate)
         self.assertEqual(author, "|".join(CONTRIBUTOR))
@@ -216,7 +216,7 @@ class TestRebuild(Base):
         self.fx.upstream_commit("up", "up\n", "upstream moves")
         self.run_rebuild(("T1", "a", None))
         self.git("checkout", "-q", "handover-candidate/t1-a")
-        result, _ = self.run_rebuild(("T1", "a", None))
+        result, _output = self.run_rebuild(("T1", "a", None))
         self.assertEqual(result["T1"].rebase, "ok")
         self.assertEqual(self.git("symbolic-ref", "--short", "HEAD"), "handover-candidate/t1-a")
 

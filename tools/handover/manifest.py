@@ -87,7 +87,7 @@ class Manifest:
 
 
 def git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=False)
 
 
 def _text(entry: dict, key: str, where: str) -> str:

@@ -50,19 +50,19 @@ def run_tests(chunk: manifest.Chunk, repo: Path) -> bool:
     """Run each goal as `make <goal>` in `repo`. A missing target is a failure."""
     for goal in chunk.tests:
         words = shlex.split(goal)
-        probe = subprocess.run(["make", "-n", words[0]], cwd=repo, capture_output=True, text=True)
+        probe = subprocess.run(["make", "-n", words[0]], cwd=repo, capture_output=True, text=True, check=False)
         if probe.returncode != 0:
             print(f"handover: {chunk.id}: no make target {words[0]!r} in this tree")
             return False
         print(f"handover: {chunk.id}: make {goal}", flush=True)
-        if subprocess.run(["make", *words], cwd=repo).returncode != 0:
+        if subprocess.run(["make", *words], cwd=repo, check=False).returncode != 0:
             print(f"handover: {chunk.id}: make {goal} failed")
             return False
     return True
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, env=os.environ)
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, env=os.environ, check=False)
 
 
 def _push_url(repo: Path, origin: str) -> str:
