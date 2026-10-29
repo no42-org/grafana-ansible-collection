@@ -9,7 +9,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock
 
 import handover
 import manifest
@@ -145,7 +145,7 @@ class TestPromote(Base):
         loaded, states = self.build(T1=["a"])
         states["T1"] = st("unchanged", candidate=self.t1, upstream="s" * 40)
         states["T2"] = st("unchanged", candidate=self.t2, upstream="s" * 40)
-        with mock.patch.object(promote, "_push", side_effect=AssertionError("pushed")):
+        with unittest.mock.patch.object(promote, "_push", side_effect=AssertionError("pushed")):
             out = self.go(loaded, states, {"T1": True})
         self.assertEqual(out["T1"].tests, "pass")
         self.assertEqual(out["T1"].verified_at, {"upstream": "s" * 40, "date": TODAY})

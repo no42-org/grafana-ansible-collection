@@ -7,7 +7,7 @@ import dataclasses
 import io
 import json
 import unittest
-from unittest import mock
+import unittest.mock
 
 import facts
 import handover
@@ -131,10 +131,10 @@ class TestGh(unittest.TestCase):
                 facts.real_gh(bad)
 
     def test_gh_wrapper_accepts_the_two_read_shapes(self):
-        done = mock.Mock(returncode=0, stdout="{}", stderr="")
+        done = unittest.mock.Mock(returncode=0, stdout="{}", stderr="")
         for ok in (["api", PR_PATH + "pulls/1"], ["api", PR_PATH + "pulls/1", "--paginate"],
                    facts.BOARD_ARGS):
-            with mock.patch.object(facts.subprocess, "run", return_value=done) as run:
+            with unittest.mock.patch.object(facts.subprocess, "run", return_value=done) as run:
                 self.assertEqual(facts.real_gh(ok), "{}")
             run.assert_called_once()
             self.assertEqual(run.call_args[0][0], ["gh", *ok])

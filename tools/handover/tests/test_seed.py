@@ -9,7 +9,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock
 
 import handover
 from tests.gitfixture import Fixture
@@ -22,7 +22,7 @@ class TestSeed(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.fx = Fixture(Path(tmp.name))
-        patcher = mock.patch.dict(os.environ, self.fx.env)
+        patcher = unittest.mock.patch.dict(os.environ, self.fx.env)
         patcher.start()
         self.addCleanup(patcher.stop)
 
