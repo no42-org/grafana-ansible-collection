@@ -130,9 +130,53 @@ h3 { font-size: 1.1rem; line-height: 1.35; margin: 0.15rem 0 0.4rem; }
 .filters button[data-view][aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .muted { color: var(--muted); }
 .tree { margin: 0.5rem 0; }
-.tree .outline ul { list-style: none; margin: 0; padding-left: 1.1rem; border-left: 1px solid var(--border); }
-.tree .outline > ul { padding-left: 0; border-left: 0; }
-.tree .outline li { margin: 0.15rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
+.outline { overflow-x: auto; padding: 0.5rem 0 0.25rem; }
+.outline ul { list-style: none; margin: 0; padding: 0; }
+.outline ul ul { margin-left: 1.1rem; }
+.outline li { position: relative; padding: 0.2rem 0 0.2rem 1.4rem; }
+.outline > ul > li { padding-left: 0; }
+/* The elbow into each node, and the line on to its later siblings. */
+.outline ul ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.1rem;
+  height: 1.15rem;
+  border-left: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-bottom-left-radius: 8px;
+}
+.outline ul ul > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.15rem;
+  bottom: 0;
+  border-left: 2px solid var(--border);
+}
+.node {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.node:hover { border-color: var(--accent); }
+.node-verified { border-left-color: var(--ok-fg); }
+.node-behind { border-left-color: var(--warn-fg); }
+.node-landed { border-left-color: var(--info-fg); }
+.node .cid { min-width: 1.8rem; font-weight: 600; color: var(--text); }
+.node .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 28rem; color: var(--muted); }
+.node .pill { font-size: 0.72rem; }
 .by-stack #stacks .card { margin-left: calc(var(--depth) * 1.25rem); }
 .shown { color: var(--muted); font-size: 0.9rem; min-height: 1.4em; margin: 0; }
 .status {
@@ -173,6 +217,8 @@ td:first-child { white-space: nowrap; }
   .card { padding: 0.85rem; }
   .chunk > summary { flex-wrap: wrap; }
   .by-stack #stacks .card { margin-left: calc(var(--depth) * 0.5rem); }
+  .node .ttl { max-width: 9rem; }
+  .outline ul ul { margin-left: 0.5rem; }
   dl { grid-template-columns: 1fr; }
   dd { margin-bottom: 0.35rem; }
 }

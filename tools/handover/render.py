@@ -130,10 +130,11 @@ class Tree:
             self.order.append(cid)
             self._walk(cid)
 
-    def outline(self, parent: str | None = None) -> str:
+    def outline(self, label, parent: str | None = None) -> str:
+        """Nested lists, one node per chunk; `label(cid)` gives the node's inner HTML."""
         items = []
         for cid in self.children.get(parent, []):
-            items.append(f'<li><a href="#card-{esc(cid)}">{esc(cid)}</a>{self.outline(cid)}</li>')
+            items.append(f"<li>{label(cid)}{self.outline(label, cid)}</li>")
         return f"<ul>{''.join(items)}</ul>" if items else ""
 
 
@@ -204,6 +205,16 @@ def overview(loaded: manifest.Manifest, states: dict, facts: dict, tree: Tree) -
         if kinds.count(kind):
             buttons.append(f'<button type="button" data-status="{kind}" aria-pressed="false">'
                            f'{esc(label)} <span class="count">{kinds.count(kind)}</span></button>')
+    by_id = {c.id: c for c in loaded.chunks}
+    kind_of = dict(zip((c.id for c in loaded.chunks), kinds))
+
+    def node(cid: str) -> str:
+        kind = kind_of[cid]
+        return (f'<a class="node node-{kind}" href="#card-{esc(cid)}" '
+                f'title="{esc(by_id[cid].title)}">'
+                f'<span class="cid">{esc(cid)}</span>'
+                f'<span class="ttl">{esc(by_id[cid].title)}</span>'
+                f'<span class="pill pill-{kind}">{esc(STATUS_LABELS[kind])}</span></a>')
     missing = len(facts.get("unassigned", []))
     extra = ""
     if missing:
@@ -228,7 +239,7 @@ def overview(loaded: manifest.Manifest, states: dict, facts: dict, tree: Tree) -
 </div>
 <details class="tree">
 <summary>Dependency tree</summary>
-<div class="outline">{tree.outline()}</div>
+<div class="outline">{tree.outline(node)}</div>
 </details>
 <p id="shown" class="shown" aria-live="polite"></p>
 {extra}
