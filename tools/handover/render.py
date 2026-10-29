@@ -31,6 +31,8 @@ GROUP_LABELS = {
     "removals": "Removals",
     "docs": "Documentation",
 }
+STATUS_LABELS = {"verified": "verified", "behind": "behind upstream",
+                 "untested": "no tests", "landed": "landed"}
 CLA_LABELS = {"success": "CLA signed", "bot": "bot account", "unknown": "CLA unknown",
               "failure": "CLA not signed", "pending": "CLA pending", "error": "CLA check error"}
 
@@ -109,72 +111,83 @@ def intro(loaded: manifest.Manifest, facts: dict) -> str:
     fork_only = "\n".join(f"<li><strong>{esc(f.title)}.</strong> {esc(f.why)}</li>"
                           for f in loaded.fork_only)
     return f"""<section id="intro">
-<h2>Why this fork exists</h2>
-<p>For a long time nobody reviewed or merged changes in grafana/grafana-ansible-collection.
-The fork kept fixing the roles and modules it depends on.
-It also carried open upstream pull requests whose authors were still waiting for a review.
-This page offers that work back, one chunk at a time.
-Take what you want and leave the rest.</p>
+<p>Upstream went unreviewed for a long time.
+This fork kept fixing the roles and modules, and carried pull requests that were waiting for review.
+Each chunk below offers one piece of that work back.
+Take what you want.</p>
 
-<h2>How the work is cut</h2>
-<p>Each chunk has one purpose: a fix, a test harness, a toolchain change, version pinning or a removal.
-Contributor commits are kept whole, with their original authors.
-Only Ronny's own commits were split, where one commit served two purposes.</p>
-
-<h2>Dependency rule</h2>
+<details>
+<summary>How to take a chunk</summary>
+<p>Each chunk has one purpose.
+Contributor commits keep their original authors.</p>
 <p>Chunks stack.
 Chunks with no parent ({roots}) are cut directly from upstream main.
-The test harness sits on the version pins, and a fix with tests stacks on the harness that runs them.
-A card's <em>Requires</em> line names its parent.
-Each branch is cut from its parent's branch, so when you fetch a chunk you get its parents too.</p>
+A card's <em>Requires</em> line names its parent, and fetching a chunk brings its parents along.</p>
+<p>Fetch with the command on the card, then work on a local copy: <code>git switch -c my-branch FETCH_HEAD</code>.
+The <code>review/*</code> branches are rebased onto upstream main and force-pushed on every rebuild.</p>
+</details>
 
-<h2>Taking a chunk</h2>
-<p>Every chunk has a branch named <code>review/&lt;id&gt;-&lt;slug&gt;</code>, and its card shows the command to fetch it.
-The <code>review/*</code> branches are rebased onto upstream main and force-pushed on every rebuild.
-Work on a local copy, for example <code>git switch -c my-branch FETCH_HEAD</code>, and do not build on the remote branch.</p>
-<p>A branch moves only after it rebased cleanly and its tests passed on the rebased tree.
-Each card says where it stands:</p>
+<details>
+<summary>What the status means</summary>
+<p>A branch moves only after it rebases cleanly and passes its tests.</p>
 <ul>
-<li><em>verified on upstream main</em>: rebased and tested at that upstream commit.</li>
-<li><em>behind upstream</em>: the last rebase or test run failed, so the branch still holds its last good state.</li>
-<li><em>no tests of its own</em>: rebased cleanly, but nothing tests it, for example documentation.</li>
-<li><em>landed upstream</em>: its content is already on upstream main.</li>
+<li><em>verified</em>: rebased and tested at the upstream commit shown.</li>
+<li><em>behind upstream</em>: the last rebase or test failed. The branch keeps its last good state.</li>
+<li><em>no tests</em>: rebased cleanly, with nothing of its own to test.</li>
+<li><em>landed</em>: already on upstream main.</li>
 </ul>
+</details>
 
-<h2>Contributor License Agreement</h2>
+<details>
+<summary>Contributor License Agreement</summary>
 {cla_summary(loaded, facts.get("prs", {}))}
+</details>
 
-<h2>Not offered</h2>
-<p>These parts of the fork exist only for the fork and are not offered as chunks:</p>
+<details>
+<summary>Not offered ({len(loaded.fork_only)})</summary>
+<p>These parts exist only for the fork:</p>
 <ul class="fork-only">
 {fork_only}
 </ul>
-
-<h2>Marks</h2>
-<p>The take, maybe and skip buttons and the note field on each card are for you alone.
-They are kept in this browser's local storage and are never sent anywhere.</p>
+</details>
 </section>"""
 
 
-def overview(loaded: manifest.Manifest, facts: dict) -> str:
+def overview(loaded: manifest.Manifest, states: dict, facts: dict) -> str:
+    per = facts.get("chunks", {})
     rows = []
     for group in GROUP_ORDER:
         n = sum(1 for c in loaded.chunks if c.group == group)
         if n:
             rows.append(f'<li><a href="#group-{group}">{esc(GROUP_LABELS[group])}</a> '
                         f'<span class="count">{n}</span></li>')
+    kinds = [status(c, states.get(c.id), bool(per.get(c.id, {}).get("landed")))[0]
+             for c in loaded.chunks]
+    buttons = [f'<button type="button" data-status="" aria-pressed="true">all '
+               f'<span class="count">{len(kinds)}</span></button>']
+    for kind, label in STATUS_LABELS.items():
+        if kinds.count(kind):
+            buttons.append(f'<button type="button" data-status="{kind}" aria-pressed="false">'
+                           f'{esc(label)} <span class="count">{kinds.count(kind)}</span></button>')
     missing = len(facts.get("unassigned", []))
     extra = ""
     if missing:
         extra = (f'<p class="warn">{plural(missing, "fork commit")} '
                  f'{"is" if missing == 1 else "are"} not yet assigned to any chunk.</p>')
     return f"""<section id="overview">
-<h2>Overview</h2>
+<h2>Chunks</h2>
 <p>{plural(len(loaded.chunks), "chunk")} in {len(rows)} groups.</p>
 <ul class="groups">
 {chr(10).join(rows)}
 </ul>
-<p id="progress" class="progress" hidden></p>
+<div class="filters" hidden>
+<div class="status-filter" role="group" aria-label="Filter by status">
+{chr(10).join(buttons)}
+</div>
+<input type="search" id="search" placeholder="Search ids, titles, files, authors" aria-label="Search chunks">
+<button type="button" id="expand">expand all</button>
+</div>
+<p id="shown" class="shown" aria-live="polite"></p>
 {extra}
 </section>"""
 
@@ -184,7 +197,7 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
     detail = ""
     if kind == "behind" and s is not None and s.reason:
         detail = f'<p class="status-detail">{esc(s.reason)}</p>'
-    meta = [esc(chunk.id), esc(GROUP_LABELS[chunk.group])]
+    meta = [esc(GROUP_LABELS[chunk.group])]
     if chunk.epic != "-":
         meta.append(esc(chunk.epic))
     facts_rows = []
@@ -237,13 +250,17 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
 </details>"""
     fetch = f"git fetch {FORK_URL} {chunk.branch}"
     cid = esc(chunk.id)
-    return f"""<article class="card" id="card-{cid}" data-chunk="{cid}">
-<header>
-<p class="meta">{" · ".join(meta)}</p>
+    return f"""<article class="card" id="card-{cid}" data-chunk="{cid}" data-status="{kind}">
+<details class="chunk">
+<summary>
+<span class="cid">{cid}</span>
 <h3>{esc(chunk.title)}</h3>
+<span class="pill pill-{kind}">{esc(STATUS_LABELS[kind])}</span>
+</summary>
+<div class="body">
+<p class="meta">{" · ".join(meta)}</p>
 <p class="status status-{kind}">{esc(line)}</p>
 {detail}
-</header>
 {prose(chunk.summary)}
 {merge_note}
 <dl>
@@ -251,14 +268,8 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
 </dl>
 {fold}
 <pre class="fetch"><code>{esc(fetch)}</code></pre>
-<div class="marks" hidden>
-<div class="toggles" role="group" aria-label="Your mark for {cid}">
-<button type="button" data-mark="take" aria-pressed="false">take</button>
-<button type="button" data-mark="maybe" aria-pressed="false">maybe</button>
-<button type="button" data-mark="skip" aria-pressed="false">skip</button>
 </div>
-<label>Note <textarea rows="2" aria-label="Note for {cid}"></textarea></label>
-</div>
+</details>
 </article>"""
 
 
@@ -306,5 +317,6 @@ def render(loaded: manifest.Manifest, states: dict[str, ChunkState], facts: dict
            generated: str) -> str:
     stamp = f"generated {generated} against upstream main {short(facts.get('upstream', ''))}"
     return string.Template(TEMPLATE.read_text()).substitute(
-        generated=esc(stamp), intro=intro(loaded, facts), overview=overview(loaded, facts),
+        generated=esc(stamp), intro=intro(loaded, facts),
+        overview=overview(loaded, states, facts),
         groups=groups(loaded, states, facts), appendix=appendix(loaded, facts))

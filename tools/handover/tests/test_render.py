@@ -243,13 +243,41 @@ class TestRender(unittest.TestCase):
                        "@import", "<iframe", "<img"):
             self.assertNotIn(needle, out)
 
-    def test_storage_access_guarded(self):
+    def test_no_marks_and_no_storage(self):
         out = page([chunk("F1")])
-        self.assertEqual(out.count("localStorage"), 1)
-        at = out.index("localStorage")
-        before = out[:at]
-        self.assertGreater(before.rfind("try {"), before.rfind("}"))
-        self.assertIn("catch", out[at:at + 400])
+        for needle in ("localStorage", "sessionStorage", "data-mark", "<textarea", "Marks"):
+            self.assertNotIn(needle, out)
+
+    def test_card_collapses_to_a_summary_row(self):
+        states = {"F1": st(promoted=True, verified_at={"upstream": UP, "date": "2026-10-27"})}
+        out = page([chunk("F1", title="Fix <it>")], states)
+        card = out[out.index('id="card-F1"'):]
+        summary = re.search(r"<summary>(.*?)</summary>", card, re.S).group(1)
+        self.assertIn('<span class="cid">F1</span>', summary)
+        self.assertIn("<h3>Fix &lt;it&gt;</h3>", summary)
+        self.assertIn('<span class="pill pill-verified">verified</span>', summary)
+        self.assertIn('data-status="verified"', card[:200])
+
+    def test_status_filter_counts(self):
+        chunks = [chunk("F1"), chunk("F2"), chunk("D1", group="docs", tests=())]
+        states = {"F1": st(promoted=True, verified_at={"upstream": UP, "date": "2026-10-27"}),
+                  "F2": st("conflict", "pending"),
+                  "D1": st(tests="none", promoted=True)}
+        out = page(chunks, states)
+        filters = out[out.index('class="status-filter"'):out.index('id="search"')]
+        self.assertIn('data-status="" aria-pressed="true">all <span class="count">3</span>', filters)
+        self.assertIn('data-status="verified" aria-pressed="false">verified <span class="count">1</span>', filters)
+        self.assertIn('data-status="behind" aria-pressed="false">behind upstream <span class="count">1</span>', filters)
+        self.assertIn('data-status="untested" aria-pressed="false">no tests <span class="count">1</span>', filters)
+        self.assertNotIn('data-status="landed"', filters)
+
+    def test_reference_sections_are_collapsed(self):
+        out = page([chunk("F1")])
+        intro = out[out.index('id="intro"'):out.index('id="overview"')]
+        for title in ("How to take a chunk", "What the status means",
+                      "Contributor License Agreement", "Not offered (1)"):
+            self.assertIn(f"<summary>{title}</summary>", intro)
+        self.assertNotIn("<details open", intro)
 
     def test_no_feedback_feature(self):
         out = page([chunk("F1")])
