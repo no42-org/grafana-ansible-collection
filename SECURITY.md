@@ -45,7 +45,7 @@ Honest inventory, so you can judge the risk yourself rather than infer it:
 | Secret scanning + push protection | enabled |
 | Dependabot security updates | enabled |
 | Private vulnerability reporting | enabled |
-| GitHub Actions pinned to commit SHAs | `release.yml` and `role-test.yml` only; the remaining inherited workflows are not yet pinned |
+| GitHub Actions pinned to commit SHAs | `galaxy-release.yml` and `role-test.yml` only; the remaining inherited workflows are not yet pinned |
 | Signed release artifacts (cosign) | **no** — deferred; Galaxy does not consume signatures, so it would cover the GitHub asset only |
 | SBOM | **no** — deferred |
 | Build provenance attestation | **no** — deferred |

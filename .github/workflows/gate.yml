@@ -3,7 +3,7 @@ name: Gate
 
 # The single definition of "what must pass".
 #
-# Called by ci.yml on every push and pull request to main, and by release.yml
+# Called by ci.yml on every push and pull request to main, and by galaxy-release.yml
 # before it builds. Both get the same jobs, so a gate added here appears in
 # both without further edits -- which is the point. Before this existed,
 # lint.yaml gated pull requests and release.yml defined its own lint and

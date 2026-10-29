@@ -19,7 +19,7 @@ rules:
     # `$/` does. Revisit when actionlint learns the newer syntax.
     ignore:
       - ci.yml
-      - release.yml
+      - galaxy-release.yml
 
   artipacked:
     # This job is the one place in the repository that genuinely pushes with

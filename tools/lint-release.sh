@@ -11,7 +11,7 @@
 #
 # It is not the full `make ci-lint` set, and that is a division of labour
 # rather than a gap. The full set gates a release too, in the `lint` job of
-# .github/workflows/gate.yml, which both ci.yml and release.yml call. This
+# .github/workflows/gate.yml, which both ci.yml and galaxy-release.yml call. This
 # script is the release *machinery* check, and its value is that it needs no
 # .venv, so it runs in seconds locally.
 #
@@ -84,7 +84,7 @@ if "${yamllintCmd[@]}" --version >/dev/null 2>&1; then
   haveYamllint=1
 else
   skipCheck "yamllint .github/workflows/: not available, run \"make install\""
-  skipCheck "yamllint --strict .github/workflows/release.yml: not available, run \"make install\""
+  skipCheck "yamllint --strict .github/workflows/galaxy-release.yml: not available, run \"make install\""
 fi
 
 if [[ "${haveShellcheck}" == "1" ]]; then
@@ -95,7 +95,7 @@ if [[ "${haveShellcheck}" == "1" ]]; then
   fi
 fi
 
-# Not --strict here, unlike release.yml below. Three inherited workflows carry
+# Not --strict here, unlike galaxy-release.yml below. Three inherited workflows carry
 # `run:` lines over 150 characters, which .yamllint classes as a warning;
 # --strict would promote those to errors and make the gate demand that
 # inherited files be reflowed, which this fork does not do. Errors still fail.
@@ -132,9 +132,9 @@ if [[ "${haveYamllint}" == "1" ]]; then
     statusCode=1
   fi
 
-  echo "  ‣ yamllint --strict .github/workflows/release.yml"
-  if ! "${yamllintCmd[@]}" --strict --config-file "$(pwd)/.yamllint" .github/workflows/release.yml; then
-    lintError "yamllint reported issues in .github/workflows/release.yml"
+  echo "  ‣ yamllint --strict .github/workflows/galaxy-release.yml"
+  if ! "${yamllintCmd[@]}" --strict --config-file "$(pwd)/.yamllint" .github/workflows/galaxy-release.yml; then
+    lintError "yamllint reported issues in .github/workflows/galaxy-release.yml"
     statusCode=1
   fi
 fi
