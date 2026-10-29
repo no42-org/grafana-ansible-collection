@@ -271,6 +271,39 @@ class TestRender(unittest.TestCase):
         self.assertIn('data-status="untested" aria-pressed="false">no tests <span class="count">1</span>', filters)
         self.assertNotIn('data-status="landed"', filters)
 
+    def test_card_shows_the_whole_stack_beneath_it(self):
+        chunks = [chunk("P1", group="pinning", tests=()),
+                  chunk("T1", group="harness", requires="P1"),
+                  chunk("G1", group="carried", requires="T1"),
+                  chunk("G2", requires="G1"),
+                  chunk("F1", requires="T1")]
+        out = page(chunks)
+
+        def card(cid):
+            start = out.index(f'id="card-{cid}"')
+            return out[start:out.index("</article>", start)]
+        self.assertIn('<dt>Stacks on</dt><dd><a href="#card-P1">P1</a> → <a href="#card-T1">T1</a>'
+                      ' → <a href="#card-G1">G1</a> <span class="muted">(fetching brings '
+                      '3 more commits)</span></dd>', card("G2"))
+        self.assertIn('<dt>Required by</dt><dd><a href="#card-G1">G1</a>, '
+                      '<a href="#card-F1">F1</a></dd>', card("T1"))
+        self.assertNotIn("Stacks on", card("P1"))
+        self.assertNotIn("Required by", card("G2"))
+        self.assertIn('data-order="3" style="--depth: 3"', card("G2"))
+        self.assertIn('data-order="4" style="--depth: 2"', card("F1"))
+
+    def test_dependency_tree_outline(self):
+        chunks = [chunk("P1", group="pinning", tests=()), chunk("T1", group="harness", requires="P1"),
+                  chunk("G1", group="carried", requires="T1"), chunk("F9")]
+        out = page(chunks)
+        tree = out[out.index('class="tree"'):]
+        tree = tree[:tree.index("</details>")]
+        self.assertIn('<ul><li><a href="#card-P1">P1</a><ul><li><a href="#card-T1">T1</a>'
+                      '<ul><li><a href="#card-G1">G1</a></li></ul></li></ul></li>'
+                      '<li><a href="#card-F9">F9</a></li></ul>', tree)
+        self.assertIn('data-view="stack"', out)
+        self.assertIn('<section id="stacks" hidden>', out)
+
     def test_reference_sections_are_collapsed(self):
         out = page([chunk("F1")])
         intro = out[out.index('id="intro"'):out.index('id="overview"')]

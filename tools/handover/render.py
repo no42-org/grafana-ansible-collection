@@ -106,6 +106,41 @@ def cla_summary(loaded: manifest.Manifest, prs: dict) -> str:
     return f"<p>{head}{tail} Each card lists its authors with their CLA status.</p>"
 
 
+class Tree:
+    """The chunks as the stack they form: each has at most one parent."""
+
+    def __init__(self, loaded: manifest.Manifest):
+        self.children: dict[str | None, list[str]] = {}
+        parent = {}
+        for c in loaded.chunks:
+            self.children.setdefault(c.requires, []).append(c.id)
+            parent[c.id] = c.requires
+        self.ancestors: dict[str, list[str]] = {}
+        for c in loaded.chunks:
+            chain, up = [], parent[c.id]
+            while up is not None:
+                chain.insert(0, up)
+                up = parent[up]
+            self.ancestors[c.id] = chain
+        self.order: list[str] = []
+        self._walk(None)
+
+    def _walk(self, parent: str | None) -> None:
+        for cid in self.children.get(parent, []):
+            self.order.append(cid)
+            self._walk(cid)
+
+    def outline(self, parent: str | None = None) -> str:
+        items = []
+        for cid in self.children.get(parent, []):
+            items.append(f'<li><a href="#card-{esc(cid)}">{esc(cid)}</a>{self.outline(cid)}</li>')
+        return f"<ul>{''.join(items)}</ul>" if items else ""
+
+
+def card_link(cid: str) -> str:
+    return f'<a href="#card-{esc(cid)}">{esc(cid)}</a>'
+
+
 def intro(loaded: manifest.Manifest, facts: dict) -> str:
     roots = ", ".join(esc(c.id) for c in loaded.chunks if c.requires is None)
     fork_only = "\n".join(f"<li><strong>{esc(f.title)}.</strong> {esc(f.why)}</li>"
@@ -122,7 +157,7 @@ Take what you want.</p>
 Contributor commits keep their original authors.</p>
 <p>Chunks stack.
 Chunks with no parent ({roots}) are cut directly from upstream main.
-A card's <em>Requires</em> line names its parent, and fetching a chunk brings its parents along.</p>
+A card's <em>Stacks on</em> line lists every chunk beneath it, and fetching a chunk brings all of them along.</p>
 <p>Fetch with the command on the card, then work on a local copy: <code>git switch -c my-branch FETCH_HEAD</code>.
 The <code>review/*</code> branches are rebased onto upstream main and force-pushed on every rebuild.</p>
 </details>
@@ -153,7 +188,7 @@ The <code>review/*</code> branches are rebased onto upstream main and force-push
 </section>"""
 
 
-def overview(loaded: manifest.Manifest, states: dict, facts: dict) -> str:
+def overview(loaded: manifest.Manifest, states: dict, facts: dict, tree: Tree) -> str:
     per = facts.get("chunks", {})
     rows = []
     for group in GROUP_ORDER:
@@ -186,13 +221,22 @@ def overview(loaded: manifest.Manifest, states: dict, facts: dict) -> str:
 </div>
 <input type="search" id="search" placeholder="Search ids, titles, files, authors" aria-label="Search chunks">
 <button type="button" id="expand">expand all</button>
+<div class="view" role="group" aria-label="Order the chunks">
+<button type="button" data-view="group" aria-pressed="true">by group</button>
+<button type="button" data-view="stack" aria-pressed="false">by stack</button>
 </div>
+</div>
+<details class="tree">
+<summary>Dependency tree</summary>
+<div class="outline">{tree.outline()}</div>
+</details>
 <p id="shown" class="shown" aria-live="polite"></p>
 {extra}
 </section>"""
 
 
-def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str:
+def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict, tree: Tree,
+         per: dict) -> str:
     kind, line = status(chunk, s, bool(f.get("landed")))
     detail = ""
     if kind == "behind" and s is not None and s.reason:
@@ -205,9 +249,15 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
                            ("Supersedes", chunk.supersedes)):
         if numbers:
             facts_rows.append((label, ", ".join(upstream_link(n) for n in numbers)))
-    if chunk.requires:
-        facts_rows.append(("Requires", f'<a href="#card-{esc(chunk.requires)}">'
-                                       f'{esc(chunk.requires)}</a>'))
+    below = tree.ancestors[chunk.id]
+    if below:
+        extra = sum(len(per.get(a, {}).get("commits", [])) for a in below)
+        facts_rows.append(("Stacks on", " → ".join(card_link(a) for a in below)
+                           + f' <span class="muted">(fetching brings '
+                           f'{plural(extra, "more commit")})</span>'))
+    above = tree.children.get(chunk.id, [])
+    if above:
+        facts_rows.append(("Required by", ", ".join(card_link(a) for a in above)))
     authors = f.get("authors", [])
     if authors:
         facts_rows.append(("Authors", ", ".join(
@@ -250,7 +300,9 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
 </details>"""
     fetch = f"git fetch {FORK_URL} {chunk.branch}"
     cid = esc(chunk.id)
-    return f"""<article class="card" id="card-{cid}" data-chunk="{cid}" data-status="{kind}">
+    depth, order = len(below), tree.order.index(chunk.id)
+    return f"""<article class="card" id="card-{cid}" data-chunk="{cid}" data-status="{kind}" \
+data-order="{order}" style="--depth: {depth}">
 <details class="chunk">
 <summary>
 <span class="cid">{cid}</span>
@@ -273,16 +325,18 @@ def card(chunk: manifest.Chunk, s: ChunkState | None, f: dict, prs: dict) -> str
 </article>"""
 
 
-def groups(loaded: manifest.Manifest, states: dict, facts: dict) -> str:
+def groups(loaded: manifest.Manifest, states: dict, facts: dict, tree: Tree) -> str:
     per, prs = facts.get("chunks", {}), facts.get("prs", {})
     out = []
     for group in GROUP_ORDER:
         members = [c for c in loaded.chunks if c.group == group]
         if not members:
             continue
-        cards = "\n".join(card(c, states.get(c.id), per.get(c.id, {}), prs) for c in members)
+        cards = "\n".join(card(c, states.get(c.id), per.get(c.id, {}), prs, tree, per)
+                          for c in members)
         out.append(f'<section class="group" id="group-{group}">\n'
                    f"<h2>{esc(GROUP_LABELS[group])}</h2>\n{cards}\n</section>")
+    out.append('<section id="stacks" hidden>\n<h2>Stacks</h2>\n</section>')
     return "\n".join(out)
 
 
@@ -315,8 +369,9 @@ def appendix(loaded: manifest.Manifest, facts: dict) -> str:
 
 def render(loaded: manifest.Manifest, states: dict[str, ChunkState], facts: dict,
            generated: str) -> str:
+    tree = Tree(loaded)
     stamp = f"generated {generated} against upstream main {short(facts.get('upstream', ''))}"
     return string.Template(TEMPLATE.read_text()).substitute(
         generated=esc(stamp), intro=intro(loaded, facts),
-        overview=overview(loaded, states, facts),
-        groups=groups(loaded, states, facts), appendix=appendix(loaded, facts))
+        overview=overview(loaded, states, facts, tree),
+        groups=groups(loaded, states, facts, tree), appendix=appendix(loaded, facts))

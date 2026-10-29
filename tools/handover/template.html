@@ -126,6 +126,14 @@ h3 { font-size: 1.1rem; line-height: 1.35; margin: 0.15rem 0 0.4rem; }
 .filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .filters .count { color: var(--muted); }
 .filters input { flex: 1 1 14rem; min-width: 0; }
+.view { display: flex; gap: 0.25rem; }
+.filters button[data-view][aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.muted { color: var(--muted); }
+.tree { margin: 0.5rem 0; }
+.tree .outline ul { list-style: none; margin: 0; padding-left: 1.1rem; border-left: 1px solid var(--border); }
+.tree .outline > ul { padding-left: 0; border-left: 0; }
+.tree .outline li { margin: 0.15rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
+.by-stack #stacks .card { margin-left: calc(var(--depth) * 1.25rem); }
 .shown { color: var(--muted); font-size: 0.9rem; min-height: 1.4em; margin: 0; }
 .status {
   display: inline-block;
@@ -164,6 +172,7 @@ td:first-child { white-space: nowrap; }
   h1 { font-size: 1.5rem; }
   .card { padding: 0.85rem; }
   .chunk > summary { flex-wrap: wrap; }
+  .by-stack #stacks .card { margin-left: calc(var(--depth) * 0.5rem); }
   dl { grid-template-columns: 1fr; }
   dd { margin-bottom: 0.35rem; }
 }
@@ -191,6 +200,13 @@ ${appendix}
   var search = document.getElementById("search");
   var expand = document.getElementById("expand");
   var shown = document.getElementById("shown");
+  var stacks = document.getElementById("stacks");
+  var views = Array.prototype.slice.call(filters.querySelectorAll("button[data-view]"));
+  var homes = cards.map(function (card) { return card.parentNode; });
+  var byStack = cards.slice().sort(function (a, b) {
+    return a.getAttribute("data-order") - b.getAttribute("data-order");
+  });
+  var view = "group";
   var wanted = "";
   function visible() {
     return cards.filter(function (card) { return !card.hidden; });
@@ -203,8 +219,9 @@ ${appendix}
       card.hidden = !(status && text);
     });
     groups.forEach(function (group) {
-      group.hidden = !group.querySelector("[data-chunk]:not([hidden])");
+      group.hidden = view === "stack" || !group.querySelector("[data-chunk]:not([hidden])");
     });
+    stacks.hidden = view !== "stack";
     var n = visible().length;
     shown.textContent = n === cards.length ? "" : "Showing " + n + " of " + cards.length + " chunks.";
   }
@@ -216,6 +233,20 @@ ${appendix}
     });
   });
   search.addEventListener("input", apply);
+  // By stack: every card under its parent, indented by depth. By group: back home.
+  views.forEach(function (button) {
+    button.addEventListener("click", function () {
+      view = button.getAttribute("data-view");
+      views.forEach(function (b) { b.setAttribute("aria-pressed", b === button ? "true" : "false"); });
+      if (view === "stack") {
+        byStack.forEach(function (card) { stacks.appendChild(card); });
+      } else {
+        cards.forEach(function (card, i) { homes[i].appendChild(card); });
+      }
+      document.body.classList.toggle("by-stack", view === "stack");
+      apply();
+    });
+  });
   expand.addEventListener("click", function () {
     var all = visible().map(function (card) { return card.querySelector("details"); });
     var open = all.some(function (d) { return !d.open; });
