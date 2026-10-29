@@ -353,6 +353,7 @@ jobs:
           PRERELEASE: ${{ needs.verify-version.outputs.prerelease }}
         run: |
           git remote add upstream https://github.com/grafana/grafana-ansible-collection.git 2>/dev/null || true
+          git remote set-url --push upstream no-push-to-upstream
           git fetch -q --no-tags upstream main
           UPSTREAM_BASE="$(git merge-base HEAD upstream/main)"
           # What this release newly carried, which is a different question from
