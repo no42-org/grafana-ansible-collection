@@ -284,9 +284,12 @@ ci-lint-release:
 # The manifest in tools/handover/chunks.yml, validated. Coverage is separate
 # because a squash merge changes shas and a commit cannot list itself.
 HANDOVER_PY := uv run --frozen --group ansible python
+# The ref the manifest's commits must be on. A pull request checkout has no
+# local main, only origin/main, so the gate sets this.
+HANDOVER_MAIN ?= main
 
 handover-check:
-	@$(HANDOVER_PY) tools/handover/handover.py check
+	@$(HANDOVER_PY) tools/handover/handover.py check --main $(HANDOVER_MAIN)
 
 handover-check-coverage:
 	@$(HANDOVER_PY) tools/handover/handover.py check --coverage

@@ -52,7 +52,8 @@ jobs:
     steps:
       # Full history. handover-check resolves every commit the chunk manifest
       # names, and a depth-1 clone has none of them, so it failed in CI with
-      # "commit does not exist" while passing locally.
+      # "commit does not exist" while passing locally. See HANDOVER_MAIN below
+      # for the other half.
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -85,7 +86,11 @@ jobs:
           # that teaches people to ignore warnings.
           cache-suffix: lint-release
 
+      # A pull request checks out a detached merge commit, and the full fetch
+      # creates origin/main but no local main.
       - name: Lint the release machinery
+        env:
+          HANDOVER_MAIN: origin/main
         run: make ci-lint-release
 
   lint:
