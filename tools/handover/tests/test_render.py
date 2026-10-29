@@ -9,7 +9,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock
 
 import handover
 import render
@@ -284,7 +284,7 @@ class TestCommand(unittest.TestCase):
             (tmp / "state.json").write_text(json.dumps(
                 {"F1": {"rebase": "ok", "candidate": None, "base": UP, "tests": "pass"}}))
             (tmp / "facts.json").write_text(json.dumps(facts_for(chunks)))
-            with mock.patch("manifest.load", return_value=m):
+            with unittest.mock.patch("manifest.load", return_value=m):
                 code, err = self.run_cmd("render", "--state", str(tmp / "state.json"),
                                          "--facts", str(tmp / "facts.json"),
                                          "--out", str(tmp / "site"))

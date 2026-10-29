@@ -9,7 +9,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock
 
 import handover
 import manifest
@@ -25,7 +25,7 @@ class Base(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.fx = Fixture(Path(tmp.name))
-        patcher = mock.patch.dict(os.environ, self.fx.env)
+        patcher = unittest.mock.patch.dict(os.environ, self.fx.env)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.base = self.rev("upstream/main")
@@ -156,7 +156,7 @@ class TestRebuild(Base):
                     # runner's does not. Refuse it so every host behaves alike.
                     GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="user.useConfigOnly",
                     GIT_CONFIG_VALUE_0="true")
-        with mock.patch.dict(os.environ, bare, clear=True):
+        with unittest.mock.patch.dict(os.environ, bare, clear=True):
             result, out = self.run_rebuild(("T1", "a", None))
         t1 = result["T1"]
         self.assertEqual(t1.rebase, "conflict")
