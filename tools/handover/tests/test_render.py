@@ -295,12 +295,20 @@ class TestRender(unittest.TestCase):
     def test_dependency_tree_outline(self):
         chunks = [chunk("P1", group="pinning", tests=()), chunk("T1", group="harness", requires="P1"),
                   chunk("G1", group="carried", requires="T1"), chunk("F9")]
-        out = page(chunks)
+        states = {"P1": st(tests="none", promoted=True),
+                  "T1": st(promoted=True, verified_at={"upstream": UP, "date": "2026-10-27"}),
+                  "G1": st(), "F9": st()}
+        out = page(chunks, states)
         tree = out[out.index('class="tree"'):]
         tree = tree[:tree.index("</details>")]
-        self.assertIn('<ul><li><a href="#card-P1">P1</a><ul><li><a href="#card-T1">T1</a>'
-                      '<ul><li><a href="#card-G1">G1</a></li></ul></li></ul></li>'
-                      '<li><a href="#card-F9">F9</a></li></ul>', tree)
+        nesting = re.sub(r'<a class="node[^>]*href="#card-(\w+)".*?</a>', r"\1", tree)
+        nesting = nesting[nesting.index("<ul>"):nesting.rindex("</ul>") + 5]
+        self.assertEqual(nesting, "<ul><li>P1<ul><li>T1<ul><li>G1</li></ul></li></ul></li>"
+                                  "<li>F9</li></ul>")
+        self.assertIn('<a class="node node-untested" href="#card-P1" title="Title P1">'
+                      '<span class="cid">P1</span><span class="ttl">Title P1</span>'
+                      '<span class="pill pill-untested">no tests</span></a>', tree)
+        self.assertIn('class="node node-verified" href="#card-T1"', tree)
         self.assertIn('data-view="stack"', out)
         self.assertIn('<section id="stacks" hidden>', out)
 
