@@ -18,8 +18,7 @@ Closes #
 ## Upstream
 
 <!--
-Optional. Most code here is upstream's. If you have also filed this at
-`grafana/grafana-ansible-collection`, link it — it is useful for tracking, and
-`make carried-prs` uses that link to notice if upstream ever merges it.
-Not a prerequisite: upstream's maintainership is dormant.
+Optional. If this matches an upstream pull request or issue, give its number in backticks, such as `upstream 540`.
+Do not link it, and do not write `grafana/grafana-ansible-collection#540`: either one adds an entry to upstream's timeline, and this fork writes nothing upstream.
+`make carried-prs` does not read this field; it finds carried upstream pull requests from the `cherry picked from commit` trailer.
 -->
