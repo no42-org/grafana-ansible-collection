@@ -73,6 +73,7 @@ fork_only:
       - "dc05ba3e"
       - "2e9b6264"
       - "9ce0049e"
+      - "2de75b1e"
   - title: Absorbed upstream
     why: "Upstream merged #439 for the same issue; main resolved to upstream's form in b2b92c2."
     commits:
@@ -119,6 +120,7 @@ fork_only:
       - "6d64a4d7"
       - "5dca6f14"
       - "464c3aa5"
+      - "6f055864"
 
 chunks:
   # ------------------------------------------------------------- harness
