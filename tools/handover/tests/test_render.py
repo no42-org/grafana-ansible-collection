@@ -210,8 +210,8 @@ class TestRender(unittest.TestCase):
         self.assertIn("keeps the contributors' attribution", two)
 
     def test_intro_names_root_chunks(self):
-        chunks = [chunk("P1", group="pinning", tests=()), chunk("T1", group="harness",
-                                                                  requires="P1"),
+        chunks = [chunk("P1", group="pinning", tests=()),
+                  chunk("T1", group="harness", requires="P1"),
                   chunk("F9")]
         out = page(chunks)
         self.assertIn("Chunks with no parent (P1, F9) are cut directly from upstream main.", out)

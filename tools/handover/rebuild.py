@@ -35,7 +35,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     # update-refs would move any local branch inside the rebased range.
     cmd = ["git", "-c", "rebase.updateRefs=false", *args]
     done = subprocess.run(cmd, cwd=repo, capture_output=True, text=True,
-                          env={**os.environ, "GIT_EDITOR": "true"})
+                          env={**os.environ, "GIT_EDITOR": "true"}, check=False)
     if check and done.returncode != 0:
         raise RebuildError(f"git {' '.join(args)}: {done.stderr.strip()}")
     return done

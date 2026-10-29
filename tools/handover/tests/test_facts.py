@@ -35,7 +35,7 @@ def pr_routes(n, sha, state, merged=False, authors=(), title="t", pr_state="open
     routes = {f"pulls/{n}/commits": [{"commit": {"author": {"name": a, "email": e}}}
                                      for a, e in authors],
               f"pulls/{n}": {"head": {"sha": sha}, "merged": merged, "title": title,
-                              "state": pr_state},
+                             "state": pr_state},
               f"commits/{sha}/status": {"state": state or "pending",
                                         "statuses": [{"context": "license/cla", "state": state}]
                                         if state else []}}

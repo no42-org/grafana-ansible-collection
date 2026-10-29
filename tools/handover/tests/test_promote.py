@@ -107,7 +107,7 @@ class TestPromote(Base):
 
     def build(self, **goals):
         loaded = manifest.load(self.fx.manifest(("T1", "a", None), ("T2", "b", "T1")), self.fx.work)
-        states, _ = self.run_rebuild(("T1", "a", None), ("T2", "b", "T1"))
+        states, _output = self.run_rebuild(("T1", "a", None), ("T2", "b", "T1"))
         return with_tests(loaded, **goals), states
 
     def go(self, loaded, states, results):
@@ -312,7 +312,7 @@ class TestCli(Base):
         t1 = self.t1()
         self.fx.upstream_commit("other", "x\n", "upstream moves")
         self.git("fetch", "-q", "origin")
-        code, _, state_file = self.run_cli(("T1", "a", None))
+        code, _output, state_file = self.run_cli(("T1", "a", None))
         self.assertEqual(code, 0)
         path = self.fx.manifest(("T1", "a", None))
         common = ["--manifest", str(path), "--repo", str(self.fx.work), "--state", str(state_file)]
@@ -386,7 +386,7 @@ class TestCli(Base):
         self.t1()
         self.fx.upstream_commit("other", "x\n", "upstream moves")
         self.git("fetch", "-q", "origin")
-        _, _, state_file = self.run_cli(("T1", "a", None))
+        _code, _output, state_file = self.run_cli(("T1", "a", None))
         path = self.fx.manifest(("T1", "a", None))
         with contextlib.redirect_stdout(io.StringIO()):
             code = handover.main(["push-candidates", "--manifest", str(path),

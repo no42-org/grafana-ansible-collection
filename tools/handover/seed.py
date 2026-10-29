@@ -29,7 +29,7 @@ class SeedError(Exception):
 def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     done = subprocess.run(["git", "-c", "core.editor=true", *args], cwd=repo,
                           capture_output=True, text=True,
-                          env={**os.environ, "GIT_EDITOR": "true"})
+                          env={**os.environ, "GIT_EDITOR": "true"}, check=False)
     if check and done.returncode != 0:
         raise SeedError(f"git {' '.join(args)}: {done.stderr.strip()}")
     return done
