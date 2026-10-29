@@ -50,9 +50,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      # Full history. handover-check resolves every commit the chunk manifest
+      # names, and a depth-1 clone has none of them, so it failed in CI with
+      # "commit does not exist" while passing locally.
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       # uv only. This job used to install shellcheck, actionlint, yamllint and
