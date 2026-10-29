@@ -26,9 +26,6 @@
   --info-bg: #ebecfb;
   --plain-fg: #4a525b;
   --plain-bg: #eef0f2;
-  --take: #116329;
-  --maybe: #7a4a00;
-  --skip: #8a2b2b;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -49,9 +46,6 @@
     --info-bg: #23264a;
     --plain-fg: #b7c0ca;
     --plain-bg: #232a32;
-    --take: #8fdca6;
-    --maybe: #f2c46b;
-    --skip: #f19999;
   }
 }
 * { box-sizing: border-box; }
@@ -78,10 +72,12 @@ h3 { font-size: 1.1rem; line-height: 1.35; margin: 0.15rem 0 0.4rem; }
 .lede { color: var(--muted); margin: 0; }
 .stamp { color: var(--muted); font-size: 0.9rem; margin: 0.25rem 0 0; }
 .fork-only li, #intro li { margin: 0.25rem 0; }
+#intro > details { border-top: 1px solid var(--border); padding: 0.4rem 0; margin: 0; }
+#intro > details:last-child { border-bottom: 1px solid var(--border); }
+#intro > details > summary { font-weight: 600; }
 .groups { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .groups li { border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.75rem; background: var(--surface); }
 .groups .count { color: var(--muted); margin-left: 0.25rem; }
-.progress { font-weight: 600; }
 .warn { color: var(--warn-fg); background: var(--warn-bg); padding: 0.4rem 0.6rem; border-radius: 6px; }
 .group > h2 { margin-top: 3rem; }
 .card {
@@ -92,11 +88,45 @@ h3 { font-size: 1.1rem; line-height: 1.35; margin: 0.15rem 0 0.4rem; }
   padding: 1rem 1.1rem;
   margin: 1rem 0;
 }
-.card[data-mark="take"] { border-left-color: var(--take); }
-.card[data-mark="maybe"] { border-left-color: var(--maybe); }
-.card[data-mark="skip"] { border-left-color: var(--skip); }
-.card[data-mark="skip"] > :not(header):not(.marks) { opacity: 0.6; }
-.card header .meta { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.card[data-status="verified"] { border-left-color: var(--ok-fg); }
+.card[data-status="behind"] { border-left-color: var(--warn-fg); }
+.card[data-status="landed"] { border-left-color: var(--info-fg); }
+.chunk { margin: 0; }
+.chunk > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: var(--text);
+  list-style: none;
+}
+.chunk > summary::-webkit-details-marker { display: none; }
+.chunk > summary::before { content: "\25B8"; color: var(--muted); }
+.chunk[open] > summary::before { content: "\25BE"; }
+.chunk > summary h3 { flex: 1; margin: 0; }
+.cid { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); font-size: 0.9rem; min-width: 2.2rem; }
+.pill { white-space: nowrap; font-size: 0.8rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; }
+.pill-verified { color: var(--ok-fg); background: var(--ok-bg); }
+.pill-behind { color: var(--warn-fg); background: var(--warn-bg); }
+.pill-landed { color: var(--info-fg); background: var(--info-bg); }
+.pill-untested { color: var(--plain-fg); background: var(--plain-bg); }
+.body { padding-top: 0.6rem; }
+.body .meta { margin: 0 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.75rem 0; }
+.status-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.filters button, .filters input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.filters button { cursor: pointer; }
+.filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.filters .count { color: var(--muted); }
+.filters input { flex: 1 1 14rem; min-width: 0; }
+.shown { color: var(--muted); font-size: 0.9rem; min-height: 1.4em; margin: 0; }
 .status {
   display: inline-block;
   margin: 0 0 0.5rem;
@@ -123,23 +153,6 @@ summary { cursor: pointer; color: var(--link); }
 .commits li, .files li { overflow-wrap: anywhere; }
 .author { color: var(--muted); }
 .files { columns: 2 18rem; }
-.marks { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 0.75rem; }
-.toggles { display: flex; gap: 0.25rem; }
-.toggles button {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0.25rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  cursor: pointer;
-}
-.toggles button[aria-pressed="true"][data-mark="take"] { border-color: var(--take); color: var(--take); font-weight: 600; }
-.toggles button[aria-pressed="true"][data-mark="maybe"] { border-color: var(--maybe); color: var(--maybe); font-weight: 600; }
-.toggles button[aria-pressed="true"][data-mark="skip"] { border-color: var(--skip); color: var(--skip); font-weight: 600; }
-.marks label { flex: 1 1 14rem; display: flex; flex-direction: column; gap: 0.2rem; color: var(--muted); font-size: 0.85rem; }
-.marks textarea { font: inherit; font-size: 0.92rem; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.5rem; width: 100%; resize: vertical; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .table { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
@@ -150,6 +163,7 @@ td:first-child { white-space: nowrap; }
   main { padding-top: 1.25rem; }
   h1 { font-size: 1.5rem; }
   .card { padding: 0.85rem; }
+  .chunk > summary { flex-wrap: wrap; }
   dl { grid-template-columns: 1fr; }
   dd { margin-bottom: 0.35rem; }
 }
@@ -170,70 +184,61 @@ ${appendix}
 <script>
 (function () {
   "use strict";
-  var PREFIX = "handover:";
-  // The only access to browser storage. It throws in private windows and on
-  // file:// previews; then marks still toggle but are not kept.
-  function store(id, value) {
-    try {
-      var box = window.localStorage;
-      if (value === undefined) {
-        return JSON.parse(box.getItem(PREFIX + id) || "null");
-      }
-      if (value === null) {
-        box.removeItem(PREFIX + id);
-      } else {
-        box.setItem(PREFIX + id, JSON.stringify(value));
-      }
-      return true;
-    } catch (e) {
-      return null;
-    }
-  }
   var cards = Array.prototype.slice.call(document.querySelectorAll("[data-chunk]"));
-  var progress = document.getElementById("progress");
-  function count() {
-    var tally = { take: 0, maybe: 0, skip: 0 };
-    cards.forEach(function (card) {
-      var mark = card.getAttribute("data-mark");
-      if (tally.hasOwnProperty(mark)) { tally[mark] += 1; }
-    });
-    var done = tally.take + tally.maybe + tally.skip;
-    progress.textContent = "Marked " + done + " of " + cards.length + ": " +
-      tally.take + " take, " + tally.maybe + " maybe, " + tally.skip + " skip.";
-    progress.hidden = false;
+  var groups = Array.prototype.slice.call(document.querySelectorAll(".group"));
+  var filters = document.querySelector(".filters");
+  var buttons = Array.prototype.slice.call(filters.querySelectorAll("button[data-status]"));
+  var search = document.getElementById("search");
+  var expand = document.getElementById("expand");
+  var shown = document.getElementById("shown");
+  var wanted = "";
+  function visible() {
+    return cards.filter(function (card) { return !card.hidden; });
   }
-  cards.forEach(function (card) {
-    var id = card.getAttribute("data-chunk");
-    var panel = card.querySelector(".marks");
-    var buttons = Array.prototype.slice.call(panel.querySelectorAll("button[data-mark]"));
-    var note = panel.querySelector("textarea");
-    var saved = store(id);
-    var mark = saved && typeof saved.mark === "string" ? saved.mark : "";
-    note.value = saved && typeof saved.note === "string" ? saved.note : "";
-    function paint() {
-      buttons.forEach(function (b) {
-        b.setAttribute("aria-pressed", b.getAttribute("data-mark") === mark ? "true" : "false");
-      });
-      if (mark) { card.setAttribute("data-mark", mark); } else { card.removeAttribute("data-mark"); }
-    }
-    function save() {
-      var value = mark ? { mark: mark, note: note.value } : { note: note.value };
-      store(id, mark || note.value ? value : null);
-    }
-    buttons.forEach(function (b) {
-      b.addEventListener("click", function () {
-        var chosen = b.getAttribute("data-mark");
-        mark = mark === chosen ? "" : chosen;
-        paint();
-        save();
-        count();
-      });
+  function apply() {
+    var query = search.value.trim().toLowerCase();
+    cards.forEach(function (card) {
+      var status = !wanted || card.getAttribute("data-status") === wanted;
+      var text = !query || card.textContent.toLowerCase().indexOf(query) !== -1;
+      card.hidden = !(status && text);
     });
-    note.addEventListener("input", save);
-    panel.hidden = false;
-    paint();
+    groups.forEach(function (group) {
+      group.hidden = !group.querySelector("[data-chunk]:not([hidden])");
+    });
+    var n = visible().length;
+    shown.textContent = n === cards.length ? "" : "Showing " + n + " of " + cards.length + " chunks.";
+  }
+  buttons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      wanted = button.getAttribute("data-status");
+      buttons.forEach(function (b) { b.setAttribute("aria-pressed", b === button ? "true" : "false"); });
+      apply();
+    });
   });
-  count();
+  search.addEventListener("input", apply);
+  expand.addEventListener("click", function () {
+    var all = visible().map(function (card) { return card.querySelector("details"); });
+    var open = all.some(function (d) { return !d.open; });
+    all.forEach(function (d) { d.open = open; });
+    expand.textContent = open ? "collapse all" : "expand all";
+  });
+  // A link to #card-X opens that card, clearing any filter that hides it.
+  function reveal() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var card = id.indexOf("card-") === 0 ? document.getElementById(id) : null;
+    if (!card) { return; }
+    if (card.hidden) {
+      wanted = "";
+      search.value = "";
+      buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-status") === "" ? "true" : "false"); });
+      apply();
+    }
+    card.querySelector("details").open = true;
+    card.scrollIntoView();
+  }
+  window.addEventListener("hashchange", reveal);
+  filters.hidden = false;
+  reveal();
 })();
 </script>
 </body>
