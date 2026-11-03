@@ -4,6 +4,58 @@ Indigo423.Grafana Release Notes
 
 .. contents:: Topics
 
+v7.5.0
+======
+
+Release Summary
+---------------
+
+The grafana role supports protocol socket_h2, and both socket protocols now wait for database
+migrations through the socket. Four plugin modules check a lookup's status before reading its body,
+so a refused lookup fails with its status instead of a traceback or a wrong PUT. state=absent is
+idempotent in alert_contact_point and folder. Pins move to grafana 13.3.0, alloy 1.21.3, loki 3.7.9,
+mimir 3.2.4, opentelemetry_collector 0.164.0 and tempo 3.1.1. Version numbers are this fork's own
+and do not correspond to any grafana.grafana release; the upstream commit this release is built from
+is recorded in its GitHub release notes.
+
+Minor Changes
+-------------
+
+- The grafana role supports grafana_ini.server.protocol socket_h2. The database-migration wait reads
+  /api/health through the socket for both socket protocols, over http for socket and https for
+  socket_h2, where it previously ran over TCP only. A preflight requires grafana_ini.server.root_url
+  for socket_h2, which Grafana cannot derive for it, and refuses a socket placed directly in /run or
+  /var/run.
+- Role pins move to grafana 13.3.0, alloy 1.21.3, loki 3.7.9, mimir 3.2.4, opentelemetry_collector
+  0.164.0 and tempo 3.1.1, each verified by that role's tests before merging.
+
+Bugfixes
+--------
+
+- The alert_contact_point, alert_notification_policy, folder and user modules check a lookup's
+  status and shape before reading its body. Seven lookups read the body as the data they asked for,
+  so a refusal was iterated as a list of contact points or folders (TypeError), taken for a user
+  without an id (KeyError), or read as no policy yet and answered with a PUT, and a body that was
+  not JSON raised a decode error. A refused lookup, or a 200 whose body is the wrong kind of JSON,
+  now fails with its status. In user's password update only a 401 or 403 from the new-password probe
+  means not changed yet; any other refusal fails with its own status.
+- The alert_contact_point module reports ok for state=absent on a contact point that does not exist,
+  where it failed. The folder module reports ok instead of changed for state=absent on a folder that
+  does not exist, and matches the folder on uid alone, as its DELETE does, so a folder renamed since
+  it was created is still removed.
+- The grafana role converges with a socket in /run/grafana. The packaged grafana-server.service, deb
+  and rpm alike, creates /run/grafana with mode 0750, and the role set it to 0775, so a socket there
+  never converged. The role now leaves /run/grafana and /var/run/grafana to systemd, and removes the
+  tmpfiles entry an earlier version wrote for it.
+
+Known Issues
+------------
+
+- A playbook that used alert_contact_point with state=absent as a check that a contact point was
+  already removed now passes where it failed.
+- A socket in /run/grafana is now in a 0750 directory owned by systemd, out of reach of a reverse
+  proxy running as another user. Put the socket in a directory of your own for that case.
+
 v7.4.1
 ======
 

@@ -507,12 +507,12 @@ Direct pushes to `main` still work, because of the bypass. That is the case the 
 Every role installs a pinned version. None resolves `latest` at runtime.
 
 ```text
-  grafana                  13.2.4     package version, not a release tag
-  loki                     3.7.8
-  mimir                    3.2.2      upstream tags these mimir-3.2.2
-  tempo                    3.1.0
-  alloy                    1.21.0
-  opentelemetry_collector  0.163.1
+  grafana                  13.3.0     package version, not a release tag
+  loki                     3.7.9
+  mimir                    3.2.4      upstream tags these mimir-3.2.4
+  tempo                    3.1.1
+  alloy                    1.21.3
+  opentelemetry_collector  0.164.0
 ```
 
 This table is a fourth copy of the pins, and it was stale when `make ci-lint-versions` was written: that check reads `README.md` and the role READMEs, and a table in prose is not a claim it can parse.
