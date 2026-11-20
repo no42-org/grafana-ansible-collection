@@ -3,3 +3,6 @@
 /roles/alloy                   @grafana/grafana-ansible-collection-maintainers @gardar @voidquark
 /roles/loki                    @grafana/grafana-ansible-collection-maintainers @voidquark
 /roles/mimir                   @grafana/grafana-ansible-collection-maintainers @GVengelen @gardar
+/plugins/modules/cloud_stack.py                   @grafana/grafana-ansible-collection-maintainers @grafana/appcore-stacks
+/tests/integration/targets/create_cloud_stack     @grafana/grafana-ansible-collection-maintainers @grafana/appcore-stacks
+/tests/integration/targets/delete_cloud_stack     @grafana/grafana-ansible-collection-maintainers @grafana/appcore-stacks
