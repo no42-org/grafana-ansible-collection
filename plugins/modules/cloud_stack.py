@@ -657,11 +657,7 @@ def get_stack_connections(module, stack_id):
         if result.status_code == 200:
             return False, flatten_connections(result.json())
         if result.status_code != 404 or attempt == CONNECTIONS_MAX_ATTEMPTS:
-            try:
-                message = result.json()["message"]
-            except (ValueError, KeyError, TypeError):
-                message = result.text
-            return True, {"status": result.status_code, "response": message}
+            return True, failure(result)
         time.sleep(CONNECTIONS_RETRY_INTERVAL)
 
 
