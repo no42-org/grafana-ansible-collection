@@ -223,6 +223,52 @@
           grafana:grafana; the Grafana server cannot update this plugin from
           the UI because it cannot replace files it does not own
 
+    # ------------- #204 legacy root-owned plugins are still repaired
+    # prepare.yml seeds a root-owned plugin that is not in grafana_plugins.
+    # The role must still hand it, and what is inside it, to grafana.
+    - name: "Stat the seeded legacy plugin and a file inside it"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /srv/grafana-data/plugins/roletest-legacy-root
+        - /srv/grafana-data/plugins/roletest-legacy-root/dist/module.js
+      register: __legacy_plugin
+
+    - name: "Assert the legacy plugin is owned by grafana, not root"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.pw_name == 'grafana'
+          - item.stat.gr_name == 'grafana'
+        fail_msg: >-
+          {{ item.item }} is owned by
+          {{ item.stat.pw_name | default('nobody') }}:{{ item.stat.gr_name | default('nobody') }},
+          not grafana:grafana; the role no longer repairs root-owned plugins
+          it does not list
+      loop: "{{ __legacy_plugin.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # ------------ #204 the server's staging directories are not walked
+    # The running server's background installer writes .<id>.staging and
+    # then moves it into place. A recursive walk over it fails when the
+    # server moves a file away mid-walk. prepare.yml seeds a root-owned
+    # stand-in; the role must leave it alone.
+    - name: "Stat the seeded staging directory"
+      ansible.builtin.stat:
+        path: /srv/grafana-data/plugins/.roletest.staging
+      register: __staging_dir
+
+    - name: "Assert the role did not take over the staging directory"
+      ansible.builtin.assert:
+        that:
+          - __staging_dir.stat.exists
+          - __staging_dir.stat.pw_name == 'root'
+        fail_msg: >-
+          /srv/grafana-data/plugins/.roletest.staging is owned by
+          {{ __staging_dir.stat.pw_name | default('nobody') }}, not root; the role
+          walked a hidden directory the Grafana server may be writing (#204)
+
     # ------------------- #331 server and CLI resolve one plugin directory
     # The role used to compute --pluginsDir from paths.data while leaving
     # paths.plugins out of grafana.ini entirely, so the server fell back to its

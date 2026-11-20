@@ -43,6 +43,40 @@
         mode: "0644"
       become: true
 
+    # Plugin ownership (#204). Both directories are created as root, before
+    # the role installs the package and with it the grafana user.
+    #
+    # roletest-legacy-root is a plugin an older role version installed as
+    # root and that is not in grafana_plugins. The role still repairs it,
+    # the job the recursive chown from #52 was kept for.
+    #
+    # .roletest.staging stands in for the .<id>.staging directories the
+    # running server's background plugin installer writes and then moves
+    # into place. The role must not walk it: the server may be writing it.
+    #
+    # Seeded here, not in converge, so the second converge finds the
+    # repaired state and idempotence can prove nothing is selected again.
+    - name: "Create a root-owned plugin directory the deployer does not list"
+      ansible.builtin.file:
+        path: /srv/grafana-data/plugins/roletest-legacy-root/dist
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: "Seed a file inside it"
+      ansible.builtin.copy:
+        content: "// role-test legacy plugin\n"
+        dest: /srv/grafana-data/plugins/roletest-legacy-root/dist/module.js
+        mode: "0644"
+      become: true
+
+    - name: "Seed a root-owned hidden staging directory"
+      ansible.builtin.file:
+        path: /srv/grafana-data/plugins/.roletest.staging
+        state: directory
+        mode: "0755"
+      become: true
+
     # A certificate for the variants that serve TLS (#151). Minted here rather
     # than in converge so it is the same file on both converges; `creates:`
     # keeps a rerun from replacing it. The key is world-readable because the

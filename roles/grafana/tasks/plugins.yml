@@ -49,15 +49,41 @@
 # Installing as the grafana user directly is not an option: become from one
 # unprivileged user to another needs acl, pipelining or world-readable
 # tmpfiles on the target, and fails outright without them -- a failure the
-# role tests cannot see, because they connect as root. Correcting ownership
-# afterwards works from any connection user, and recursing over the directory
-# also repairs plugins an earlier version of this role installed as root,
-# which the `creates:` guard would otherwise leave root-owned forever.
-- name: "Ensure the plugins are owned by the grafana user"
+# role tests cannot see, because they connect as root. So ownership is
+# corrected afterwards, which works from any connection user.
+#
+# The correction covers every plugin not owned by grafana, not only the ones
+# in grafana_plugins, so it also repairs plugins an earlier version of this
+# role installed as root, which the `creates:` guard would otherwise leave
+# root-owned forever.
+#
+# It must not walk the whole directory (#204). By the time this runs the
+# server is up, and its background installer is writing plugins into
+# .<id>.staging directories and moving them into place; a recursive walk
+# fails when a file vanishes under it. Selecting only entries not owned by
+# grafana is what makes the walk safe: the server runs as grafana, so
+# everything it writes is grafana-owned and never selected, and a root-owned
+# directory is one the server cannot modify while it is walked. find skips
+# hidden entries, and an entry that vanishes between listing and stat is
+# skipped with a warning rather than failing the task.
+- name: "Find the installed plugins"
+  become: true
+  ansible.builtin.find:
+    paths: "{{ grafana_ini.paths.plugins }}"
+    file_type: directory
+    recurse: false
+    hidden: false
+  register: __grafana_plugin_dirs
+
+- name: "Hand the plugins not owned by grafana to the grafana user"
   become: true
   ansible.builtin.file:
-    path: "{{ grafana_ini.paths.plugins }}"
+    path: "{{ item.path }}"
     state: directory
     owner: grafana
     group: grafana
     recurse: true
+  loop: "{{ __grafana_plugin_dirs.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.pw_name != 'grafana' or item.gr_name != 'grafana'
