@@ -93,6 +93,10 @@
     dest: "/tmp/otelcol-{{ otel_collector_type }}-{{ otel_collector_version }}.tar.gz"
     mode: '0755'
   become: true
+  register: __otel_collector_download
+  until: __otel_collector_download is succeeded
+  retries: 5
+  delay: 2
   when: otel_collector_installed_version is version(otel_collector_version, '!=')
 
 - name: Remove existing OpenTelemetry Collector installation directory
