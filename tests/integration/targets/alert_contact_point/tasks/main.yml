@@ -65,7 +65,7 @@
       register: delete_result
 
     - name: Delete Check
-      when: add_result.failed == false
+      when: not add_result.failed
       ansible.builtin.assert:
         that:
           - delete_result.failed == false
