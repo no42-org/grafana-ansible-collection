@@ -49,15 +49,55 @@
 # Installing as the grafana user directly is not an option: become from one
 # unprivileged user to another needs acl, pipelining or world-readable
 # tmpfiles on the target, and fails outright without them -- a failure the
-# role tests cannot see, because they connect as root. Correcting ownership
-# afterwards works from any connection user, and recursing over the directory
-# also repairs plugins an earlier version of this role installed as root,
-# which the `creates:` guard would otherwise leave root-owned forever.
-- name: "Ensure the plugins are owned by the grafana user"
+# role tests cannot see, because they connect as root. So ownership is
+# corrected afterwards, which works from any connection user.
+#
+# The correction covers everything in the plugins directory not owned by
+# grafana, the directory itself included, not only the plugins in
+# grafana_plugins. So it also repairs plugins an earlier version of this role
+# installed as root, which the `creates:` guard would otherwise leave
+# root-owned forever, and plugins a run that failed with #204 left half
+# repaired: a grafana-owned plugin directory over root-owned files.
+#
+# The walk has to survive a running server (#204). By the time this runs the
+# server is up, and its background installer writes plugins into hidden
+# .<id>.staging directories and moves them into place. Three things keep the
+# walk safe:
+#
+# - Hidden top-level entries are never chowned. They belong to the server.
+# - -depth chowns a directory only after its contents. A root-owned
+#   directory stays root-owned, so the server cannot change it, until the
+#   walk has left it.
+# - An entry that vanishes mid-walk is not an error. The server only removes
+#   entries it owns, so there was nothing left to repair. chown failures on a
+#   vanished path are skipped, and the task fails only on find errors other
+#   than ENOENT (hence LC_ALL=C).
+#
+# -h chowns a symlink itself, never its target outside the plugins directory.
+# Every path printed is one that changed, which drives changed_when.
+- name: "Hand everything in the plugins directory not owned by grafana to grafana"
   become: true
-  ansible.builtin.file:
-    path: "{{ grafana_ini.paths.plugins }}"
-    state: directory
-    owner: grafana
-    group: grafana
-    recurse: true
+  ansible.builtin.shell:
+    chdir: "{{ grafana_ini.paths.plugins }}"
+    cmd: |
+      find . -ignore_readdir_race -depth ! -path './.*' \
+        \( ! -user grafana -o ! -group grafana \) \
+        -exec sh -c '
+          rc=0
+          for f; do
+            if chown -h grafana:grafana "$f" 2>/dev/null; then
+              printf "%s\n" "$f"
+            elif [ -e "$f" ] || [ -L "$f" ]; then
+              chown -h grafana:grafana "$f" || rc=1
+            fi
+          done
+          exit "$rc"
+        ' sh {} +
+  environment:
+    LC_ALL: C
+  register: __grafana_plugin_chown
+  changed_when: __grafana_plugin_chown.stdout | length > 0
+  failed_when: >-
+    __grafana_plugin_chown.rc != 0 and
+    __grafana_plugin_chown.stderr_lines
+    | reject('search', 'No such file or directory$') | list | length > 0
