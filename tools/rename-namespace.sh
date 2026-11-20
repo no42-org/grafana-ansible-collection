@@ -159,7 +159,7 @@ readonly EXCLUDE_FILES=(
 # before updating this constant: a new "community.grafana.*" reference or a new
 # way of spelling the collection name may need MATCH_REGEX adjusted, not just
 # the count bumped.
-readonly EXPECTED_REWRITES=90
+readonly EXPECTED_REWRITES=88
 
 # Files whose "grafana.grafana" references record what upstream released rather
 # than referring to this collection. Rewriting them would attribute upstream's

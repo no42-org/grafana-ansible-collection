@@ -766,14 +766,14 @@ Re-derive the number:
 ```text
 total occurrences      : 122
 community.grafana.*    : 2  (must remain untouched)
-in excluded changelogs : 30  (not rewritten)
-expected rewrites      : 90
+in excluded changelogs : 32  (not rewritten)
+expected rewrites      : 88
 ```
 
 Read the diff before updating `EXPECTED_REWRITES` in `tools/rename-namespace.sh`.
 The count moving is the symptom; the cause may need the rewrite rule changed rather than the number bumped.
 
-### It has moved deliberately six times, and the reasoning is the template
+### It has moved deliberately seven times, and the reasoning is the template
 
 83 → 80, when the README's three install commands were hardcoded to `indigo423.grafana`.
 
@@ -836,6 +836,18 @@ All eleven ship, and the rewrite is what makes them resolve inside `indigo423.gr
 +9  the modules' imports of module_utils.responses
 +2  the unit tests' imports
 122 total, minus 2 community.* and 30 in changelogs = 90
+```
+
+90 → 88, when upstream 4ca1815 (#558) was merged.
+Upstream deleted `tests/integration/targets/cloud_api_key`, whose three module calls left with it.
+The same pull request added an example to `plugins/modules/cloud_stack.py` that calls `grafana.grafana.cloud_stack`.
+
+```text
+122 occurrences at the last derivation
++2  7.5.0 changelog entries (excluded from the rename)
+-3  the deleted cloud_api_key integration test
++1  the new cloud_stack example
+122 total, minus 2 community.* and 32 in changelogs = 88
 ```
 
 Deliberately **not** changed: the Galaxy badge label and the prose at `README.md:16`. Both are rewritten correctly in the artifact, neither is copy-pasteable, and both keep the "the tree says `grafana.grafana`" invariant that makes an upstream merge conflict-free.
