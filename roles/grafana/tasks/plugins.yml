@@ -52,38 +52,52 @@
 # role tests cannot see, because they connect as root. So ownership is
 # corrected afterwards, which works from any connection user.
 #
-# The correction covers every plugin not owned by grafana, not only the ones
-# in grafana_plugins, so it also repairs plugins an earlier version of this
-# role installed as root, which the `creates:` guard would otherwise leave
-# root-owned forever.
+# The correction covers everything in the plugins directory not owned by
+# grafana, the directory itself included, not only the plugins in
+# grafana_plugins. So it also repairs plugins an earlier version of this role
+# installed as root, which the `creates:` guard would otherwise leave
+# root-owned forever, and plugins a run that failed with #204 left half
+# repaired: a grafana-owned plugin directory over root-owned files.
 #
-# It must not walk the whole directory (#204). By the time this runs the
-# server is up, and its background installer is writing plugins into
-# .<id>.staging directories and moving them into place; a recursive walk
-# fails when a file vanishes under it. Selecting only entries not owned by
-# grafana is what makes the walk safe: the server runs as grafana, so
-# everything it writes is grafana-owned and never selected, and a root-owned
-# directory is one the server cannot modify while it is walked. find skips
-# hidden entries, and an entry that vanishes between listing and stat is
-# skipped with a warning rather than failing the task.
-- name: "Find the installed plugins"
+# The walk has to survive a running server (#204). By the time this runs the
+# server is up, and its background installer writes plugins into hidden
+# .<id>.staging directories and moves them into place. Three things keep the
+# walk safe:
+#
+# - Hidden top-level entries are never chowned. They belong to the server.
+# - -depth chowns a directory only after its contents. A root-owned
+#   directory stays root-owned, so the server cannot change it, until the
+#   walk has left it.
+# - An entry that vanishes mid-walk is not an error. The server only removes
+#   entries it owns, so there was nothing left to repair. chown failures on a
+#   vanished path are skipped, and the task fails only on find errors other
+#   than ENOENT (hence LC_ALL=C).
+#
+# -h chowns a symlink itself, never its target outside the plugins directory.
+# Every path printed is one that changed, which drives changed_when.
+- name: "Hand everything in the plugins directory not owned by grafana to grafana"
   become: true
-  ansible.builtin.find:
-    paths: "{{ grafana_ini.paths.plugins }}"
-    file_type: directory
-    recurse: false
-    hidden: false
-  register: __grafana_plugin_dirs
-
-- name: "Hand the plugins not owned by grafana to the grafana user"
-  become: true
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    state: directory
-    owner: grafana
-    group: grafana
-    recurse: true
-  loop: "{{ __grafana_plugin_dirs.files }}"
-  loop_control:
-    label: "{{ item.path }}"
-  when: item.pw_name != 'grafana' or item.gr_name != 'grafana'
+  ansible.builtin.shell:
+    chdir: "{{ grafana_ini.paths.plugins }}"
+    cmd: |
+      find . -ignore_readdir_race -depth ! -path './.*' \
+        \( ! -user grafana -o ! -group grafana \) \
+        -exec sh -c '
+          rc=0
+          for f; do
+            if chown -h grafana:grafana "$f" 2>/dev/null; then
+              printf "%s\n" "$f"
+            elif [ -e "$f" ] || [ -L "$f" ]; then
+              chown -h grafana:grafana "$f" || rc=1
+            fi
+          done
+          exit "$rc"
+        ' sh {} +
+  environment:
+    LC_ALL: C
+  register: __grafana_plugin_chown
+  changed_when: __grafana_plugin_chown.stdout | length > 0
+  failed_when: >-
+    __grafana_plugin_chown.rc != 0 and
+    __grafana_plugin_chown.stderr_lines
+    | reject('search', 'No such file or directory$') | list | length > 0

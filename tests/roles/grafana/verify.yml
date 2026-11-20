@@ -224,17 +224,23 @@
           the UI because it cannot replace files it does not own
 
     # ------------- #204 legacy root-owned plugins are still repaired
-    # prepare.yml seeds a root-owned plugin that is not in grafana_plugins.
-    # The role must still hand it, and what is inside it, to grafana.
-    - name: "Stat the seeded legacy plugin and a file inside it"
+    # prepare.yml creates the plugins directory as root and seeds root-owned
+    # entries that are not in grafana_plugins: a plugin, a top-level file and
+    # a symlink. The role must hand all of them to grafana, the directory
+    # itself included, or the server cannot write its staging directories.
+    - name: "Stat the plugins directory and the seeded legacy entries"
       ansible.builtin.stat:
         path: "{{ item }}"
+        follow: false
       loop:
+        - /srv/grafana-data/plugins
         - /srv/grafana-data/plugins/roletest-legacy-root
         - /srv/grafana-data/plugins/roletest-legacy-root/dist/module.js
+        - /srv/grafana-data/plugins/roletest-file
+        - /srv/grafana-data/plugins/roletest-link
       register: __legacy_plugin
 
-    - name: "Assert the legacy plugin is owned by grafana, not root"
+    - name: "Assert the plugins directory and legacy entries are owned by grafana"
       ansible.builtin.assert:
         that:
           - item.stat.exists
@@ -249,11 +255,25 @@
       loop_control:
         label: "{{ item.item }}"
 
-    # ------------ #204 the server's staging directories are not walked
+    - name: "Stat the symlink target outside the plugins directory"
+      ansible.builtin.stat:
+        path: /etc/hostname
+      register: __legacy_link_target
+
+    - name: "Assert the role did not follow the symlink"
+      ansible.builtin.assert:
+        that:
+          - __legacy_link_target.stat.pw_name == 'root'
+        fail_msg: >-
+          /etc/hostname is owned by {{ __legacy_link_target.stat.pw_name }},
+          not root; the role followed a symlink out of the plugins directory
+
+    # ------------------ #204 hidden top-level entries are never selected
     # The running server's background installer writes .<id>.staging and
-    # then moves it into place. A recursive walk over it fails when the
-    # server moves a file away mid-walk. prepare.yml seeds a root-owned
-    # stand-in; the role must leave it alone.
+    # then moves it into place, so hidden top-level entries belong to the
+    # server. This checks the role's hidden-entry filter with a static
+    # root-owned stand-in. It does not reproduce the race from #204: the
+    # real staging directories are grafana-owned and appear mid-run.
     - name: "Stat the seeded staging directory"
       ansible.builtin.stat:
         path: /srv/grafana-data/plugins/.roletest.staging
@@ -267,7 +287,7 @@
         fail_msg: >-
           /srv/grafana-data/plugins/.roletest.staging is owned by
           {{ __staging_dir.stat.pw_name | default('nobody') }}, not root; the role
-          walked a hidden directory the Grafana server may be writing (#204)
+          selected a hidden entry the Grafana server may be writing (#204)
 
     # ------------------- #331 server and CLI resolve one plugin directory
     # The role used to compute --pluginsDir from paths.data while leaving
