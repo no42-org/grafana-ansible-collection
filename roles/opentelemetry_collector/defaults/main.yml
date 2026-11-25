@@ -1,3 +1,4 @@
+---
 # Was 0.90.1, released 2023-12-01, while upstream reached 0.160.0 -- an
 # inherited pin that nobody moved for nearly three years because nothing
 # asked them to. That is the failure mode pinning invites, and why
@@ -7,6 +8,8 @@
 # moved on and templates/otel_collector_config.yml.j2 would no longer be
 # valid. It is: the role test passes at 0.160.0 on both package families.
 otel_collector_version: "0.165.0"
+
+# yamllint disable-line rule:line-length
 otel_collector_binary_url: "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version }}/{% if otel_collector_type == 'contrib' %}otelcol-contrib_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% else %}otelcol_{{ otel_collector_version }}_linux_{{ otel_collector_arch }}{% endif %}.tar.gz"
 
 # The releases list, not releases/latest. This repository publishes the

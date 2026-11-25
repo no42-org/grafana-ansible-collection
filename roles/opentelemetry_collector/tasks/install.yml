@@ -1,3 +1,4 @@
+---
 - name: Discover latest OpenTelemetry Collector version
   when: otel_collector_version == 'latest'
   vars:
@@ -60,6 +61,7 @@
 
     - name: Set installed version variable
       ansible.builtin.set_fact:
+        # yamllint disable-line rule:line-length
         otel_collector_installed_version: "{{ otel_collector_version_check.stdout_lines[0] | default('otelcorecol version 0.0.0') | ansible.builtin.regex_search('\\d+\\.\\d+\\.\\d+') }}"
 
 - name: Create otel group
@@ -119,7 +121,7 @@
   ansible.builtin.unarchive:
     src: "/tmp/otelcol-{{ otel_collector_type }}-{{ otel_collector_version }}.tar.gz"
     dest: "{{ otel_collector_installation_dir }}"
-    remote_src: yes
+    remote_src: true
     owner: "{{ otel_collector_service_user }}"
     group: "{{ otel_collector_service_group }}"
   become: true
